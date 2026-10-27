@@ -1,0 +1,3490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sudoku Pro ANERÓTHICO 🧠</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&family=Playfair+Display:ital,wght@0,700;1,400;1,600&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Tesseract.js (OCR) & html2canvas (PNG Export) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       SISTEMA DE TEMAS DINÂMICOS (9 TEMAS EXATOS)
+       ========================================================================== */
+    :root,
+    [data-theme="claro"] {
+      --bg-app: #f4f5f7;
+      --bg-panel: #ffffff;
+      --bg-panel-alt: #f8fafc;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-contrast: #ffffff;
+      --board-bg: #ffffff;
+      --board-border-outer: #0f172a;
+      --board-border-block: #0f172a;
+      --board-border-cell: #cbd5e1;
+      --cell-bg: #ffffff;
+      --cell-given-bg: #f8fafc;
+      --cell-given-text: #0f172a;
+      --cell-user-text: #1d4ed8;
+      --cell-focus-bg: #dbeafe;
+      --cell-crosshair-bg: #eff6ff;
+      --cell-same-num-bg: #bfdbfe;
+      --cell-same-num-text: #1e3a8a;
+      --cell-error-bg: #fee2e2;
+      --cell-error-text: #b91c1c;
+      --cell-error-border: #ef4444;
+      --note-text: #475569;
+      --note-highlight-bg: #2563eb;
+      --note-highlight-text: #ffffff;
+      --shadow-elevated: 0 10px 25px -5px rgba(15, 23, 42, 0.08);
+    }
+
+    [data-theme="escuro"] {
+      --bg-app: #090d16;
+      --bg-panel: #111827;
+      --bg-panel-alt: #1f2937;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --accent-contrast: #090d16;
+      --board-bg: #0f172a;
+      --board-border-outer: #e2e8f0;
+      --board-border-block: #cbd5e1;
+      --board-border-cell: #334155;
+      --cell-bg: #0f172a;
+      --cell-given-bg: #162033;
+      --cell-given-text: #f8fafc;
+      --cell-user-text: #38bdf8;
+      --cell-focus-bg: #1e3a8a;
+      --cell-crosshair-bg: #172554;
+      --cell-same-num-bg: #0369a1;
+      --cell-same-num-text: #f0f9ff;
+      --cell-error-bg: #450a0a;
+      --cell-error-text: #fca5a5;
+      --cell-error-border: #ef4444;
+      --note-text: #94a3b8;
+      --note-highlight-bg: #38bdf8;
+      --note-highlight-text: #090d16;
+      --shadow-elevated: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    [data-theme="roxo"] {
+      --bg-app: #160f29;
+      --bg-panel: #231942;
+      --bg-panel-alt: #2f2258;
+      --text-main: #f3e8ff;
+      --text-muted: #c4b5fd;
+      --accent: #c084fc;
+      --accent-hover: #a855f7;
+      --accent-contrast: #160f29;
+      --board-bg: #1d1436;
+      --board-border-outer: #e9d5ff;
+      --board-border-block: #d8b4fe;
+      --board-border-cell: #4c3575;
+      --cell-bg: #1d1436;
+      --cell-given-bg: #271b47;
+      --cell-given-text: #faf5ff;
+      --cell-user-text: #e879f9;
+      --cell-focus-bg: #581c87;
+      --cell-crosshair-bg: #3b0764;
+      --cell-same-num-bg: #7e22ce;
+      --cell-same-num-text: #ffffff;
+      --cell-error-bg: #500724;
+      --cell-error-text: #fda4af;
+      --cell-error-border: #f43f5e;
+      --note-text: #c4b5fd;
+      --note-highlight-bg: #e879f9;
+      --note-highlight-text: #160f29;
+      --shadow-elevated: 0 10px 30px -5px rgba(16, 5, 42, 0.6);
+    }
+
+    [data-theme="verde"] {
+      --bg-app: #ecfdf5;
+      --bg-panel: #ffffff;
+      --bg-panel-alt: #d1fae5;
+      --text-main: #064e3b;
+      --text-muted: #047857;
+      --accent: #059669;
+      --accent-hover: #047857;
+      --accent-contrast: #ffffff;
+      --board-bg: #ffffff;
+      --board-border-outer: #064e3b;
+      --board-border-block: #065f46;
+      --board-border-cell: #a7f3d0;
+      --cell-bg: #ffffff;
+      --cell-given-bg: #f0fdf4;
+      --cell-given-text: #022c22;
+      --cell-user-text: #0d9488;
+      --cell-focus-bg: #a7f3d0;
+      --cell-crosshair-bg: #ecfdf5;
+      --cell-same-num-bg: #34d399;
+      --cell-same-num-text: #022c22;
+      --cell-error-bg: #fee2e2;
+      --cell-error-text: #991b1b;
+      --cell-error-border: #ef4444;
+      --note-text: #047857;
+      --note-highlight-bg: #059669;
+      --note-highlight-text: #ffffff;
+      --shadow-elevated: 0 10px 25px -5px rgba(6, 78, 59, 0.12);
+    }
+
+    /* Épico 1: Cyberpunk Sunset (violeta profundo, magenta neon, ciano brilhante e ouro) */
+    [data-theme="epico1"] {
+      --bg-app: #0d0221;
+      --bg-panel: #19053b;
+      --bg-panel-alt: #260859;
+      --text-main: #00f5d4;
+      --text-muted: #f15bb5;
+      --accent: #ff007f;
+      --accent-hover: #ffbe0b;
+      --accent-contrast: #ffffff;
+      --board-bg: #12032e;
+      --board-border-outer: #ffbe0b;
+      --board-border-block: #ff007f;
+      --board-border-cell: #480ca8;
+      --cell-bg: #12032e;
+      --cell-given-bg: #1d0647;
+      --cell-given-text: #ffbe0b;
+      --cell-user-text: #00f5d4;
+      --cell-focus-bg: #560bad;
+      --cell-crosshair-bg: #240046;
+      --cell-same-num-bg: #b5179e;
+      --cell-same-num-text: #ffbe0b;
+      --cell-error-bg: #590d22;
+      --cell-error-text: #ff4d6d;
+      --cell-error-border: #ff0055;
+      --note-text: #f72585;
+      --note-highlight-bg: #ffbe0b;
+      --note-highlight-text: #0d0221;
+      --shadow-elevated: 0 0 28px rgba(255, 0, 127, 0.35);
+    }
+
+    /* Épico 2: Tropical Aurora (azul oceano, coral vibrante, turquesa e âmbar) */
+    [data-theme="epico2"] {
+      --bg-app: #041c2c;
+      --bg-panel: #072a40;
+      --bg-panel-alt: #0b3c5d;
+      --text-main: #e0fbfc;
+      --text-muted: #64dfdf;
+      --accent: #ff6b6b;
+      --accent-hover: #ff9f1c;
+      --accent-contrast: #041c2c;
+      --board-bg: #052236;
+      --board-border-outer: #2ec4b6;
+      --board-border-block: #ff9f1c;
+      --board-border-cell: #164c70;
+      --cell-bg: #052236;
+      --cell-given-bg: #09304b;
+      --cell-given-text: #ffbf69;
+      --cell-user-text: #48cae4;
+      --cell-focus-bg: #12567a;
+      --cell-crosshair-bg: #093552;
+      --cell-same-num-bg: #ff6b6b;
+      --cell-same-num-text: #ffffff;
+      --cell-error-bg: #5c1624;
+      --cell-error-text: #ffccd5;
+      --cell-error-border: #ff4d6d;
+      --note-text: #80ffdb;
+      --note-highlight-bg: #ff9f1c;
+      --note-highlight-text: #041c2c;
+      --shadow-elevated: 0 10px 30px -5px rgba(46, 196, 182, 0.25);
+    }
+
+    /* Rainbow: Arco-íris completo vibrante (7+ cores no tabuleiro, interface e números posicionais) */
+    [data-theme="rainbow"] {
+      --bg-app: #120d24;
+      --bg-panel: #1b1435;
+      --bg-panel-alt: #261c4a;
+      --text-main: #ffffff;
+      --text-muted: #f9a8d4;
+      --accent: #ff0055;
+      --accent-hover: #00e5ff;
+      --accent-contrast: #ffffff;
+      --board-bg: #140f29;
+      --board-border-outer: #ffeb00;
+      --board-border-block: #00e5ff;
+      --board-border-cell: rgba(255, 255, 255, 0.18);
+      --cell-bg: #181230;
+      --cell-given-bg: #221942;
+      --cell-given-text: #ffeb00;
+      --cell-user-text: #00e5ff;
+      --cell-focus-bg: #3b2378;
+      --cell-crosshair-bg: #281c54;
+      --cell-same-num-bg: #00e676;
+      --cell-same-num-text: #052e16;
+      --cell-error-bg: #7f1d1d;
+      --cell-error-text: #fecaca;
+      --cell-error-border: #ff0040;
+      --note-text: #f472b6;
+      --note-highlight-bg: #ffeb00;
+      --note-highlight-text: #140f29;
+      --shadow-elevated: 0 10px 32px -4px rgba(213, 0, 249, 0.45);
+      --rainbow-gradient: linear-gradient(
+        135deg,
+        #ff0040 0%,
+        #ff7300 15%,
+        #ffeb00 30%,
+        #00e676 45%,
+        #00e5ff 60%,
+        #2979ff 75%,
+        #651fff 88%,
+        #d500f9 100%
+      );
+    }
+
+    [data-theme="rainbow"] header.theme-panel {
+      border-bottom: 3px solid transparent;
+      background-image: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--rainbow-gradient);
+      background-origin: border-box;
+      background-clip: padding-box, border-box;
+    }
+
+    [data-theme="rainbow"] .btn-accent {
+      background-image: linear-gradient(90deg, #ff0040, #ff7300, #ffeb00, #00e676, #00e5ff, #2979ff, #d500f9);
+      background-size: 200% 200%;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+    }
+
+    [data-theme="rainbow"] #sudoku-board-wrapper {
+      background: linear-gradient(
+        135deg,
+        #ff0040 0%,
+        #ff7300 14%,
+        #ffeb00 28%,
+        #00e676 42%,
+        #00e5ff 57%,
+        #2979ff 71%,
+        #651fff 85%,
+        #d500f9 100%
+      );
+      padding: 6px;
+      border-radius: 14px;
+      box-shadow:
+        0 0 25px rgba(255, 0, 64, 0.35),
+        0 0 45px rgba(0, 229, 255, 0.25),
+        0 0 60px rgba(213, 0, 249, 0.25);
+    }
+
+    [data-theme="rainbow"] #sudoku-grid {
+      border: 2px solid rgba(255, 255, 255, 0.85);
+    }
+
+    /* Fundo posicional arco-íris nas células e destaque crosshair colorido */
+    [data-theme="rainbow"] .sudoku-cell {
+      background-color: hsla(var(--cell-hue, 200), 85%, 16%, 0.92);
+      border-right-color: hsla(var(--cell-hue, 200), 90%, 60%, 0.28);
+      border-bottom-color: hsla(var(--cell-hue, 200), 90%, 60%, 0.28);
+    }
+
+    [data-theme="rainbow"] .sudoku-cell.given-cell {
+      background-color: hsla(var(--cell-hue, 200), 90%, 22%, 0.96);
+    }
+
+    [data-theme="rainbow"] .sudoku-cell.is-crosshair {
+      background-color: hsla(var(--cell-hue, 200), 95%, 42%, 0.34) !important;
+    }
+
+    [data-theme="rainbow"] .sudoku-cell.is-focused {
+      background-color: hsla(var(--cell-hue, 200), 95%, 50%, 0.48) !important;
+      box-shadow: inset 0 0 0 3px hsl(var(--cell-hue, 200), 100%, 65%), 0 0 12px hsla(var(--cell-hue, 200), 100%, 60%, 0.6) !important;
+    }
+
+    /* Números no Tema Rainbow com degradê posicional de 7+ cores pelo tabuleiro */
+    [data-theme="rainbow"] .sudoku-cell .sudoku-input {
+      color: hsl(var(--cell-hue, 180), 100%, 74%);
+      font-weight: 700;
+      text-shadow: 0 0 8px hsla(var(--cell-hue, 180), 100%, 55%, 0.55);
+    }
+
+    [data-theme="rainbow"] .sudoku-cell.given-cell .sudoku-input {
+      color: hsl(var(--cell-hue, 45), 100%, 63%);
+      font-weight: 900;
+      text-shadow: 0 1px 10px hsla(var(--cell-hue, 45), 100%, 50%, 0.75);
+      text-decoration: underline;
+      text-decoration-color: hsla(var(--cell-hue, 45), 100%, 70%, 0.55);
+      text-underline-offset: 3px;
+    }
+
+    [data-theme="rainbow"] .sudoku-cell.is-same-number {
+      background: linear-gradient(
+        135deg,
+        hsla(var(--cell-hue, 140), 100%, 55%, 0.85),
+        hsla(calc(var(--cell-hue, 140) + 45), 100%, 50%, 0.85)
+      ) !important;
+    }
+
+    [data-theme="rainbow"] .sudoku-cell.is-same-number .sudoku-input {
+      color: #ffffff !important;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9) !important;
+    }
+
+    [data-theme="rainbow"] .pencil-note {
+      color: hsl(var(--note-hue, var(--cell-hue, 180)), 100%, 76%);
+    }
+
+    [data-theme="rainbow"] .numpad-btn {
+      background: linear-gradient(
+        145deg,
+        hsla(var(--btn-hue, 0), 90%, 28%, 0.85),
+        hsla(calc(var(--btn-hue, 0) + 35), 90%, 20%, 0.95)
+      );
+      border-color: hsl(var(--btn-hue, 0), 95%, 60%);
+      color: hsl(var(--btn-hue, 0), 100%, 82%);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    }
+
+    [data-theme="rainbow"] .numpad-btn:hover,
+    [data-theme="rainbow"] .numpad-btn.active-number-highlight {
+      background: linear-gradient(
+        135deg,
+        hsl(var(--btn-hue, 0), 100%, 55%),
+        hsl(calc(var(--btn-hue, 0) + 40), 100%, 48%)
+      );
+      color: #ffffff;
+      box-shadow: 0 0 12px hsla(var(--btn-hue, 0), 100%, 60%, 0.75);
+    }
+
+    /* Alto Contraste: Preto absoluto, branco puro e amarelo/ciano */
+    [data-theme="altocontraste"] {
+      --bg-app: #000000;
+      --bg-panel: #000000;
+      --bg-panel-alt: #141414;
+      --text-main: #ffffff;
+      --text-muted: #ffff00;
+      --accent: #ffff00;
+      --accent-hover: #00ffff;
+      --accent-contrast: #000000;
+      --board-bg: #000000;
+      --board-border-outer: #ffffff;
+      --board-border-block: #ffff00;
+      --board-border-cell: #666666;
+      --cell-bg: #000000;
+      --cell-given-bg: #121212;
+      --cell-given-text: #ffffff;
+      --cell-user-text: #00ffff;
+      --cell-focus-bg: #333300;
+      --cell-crosshair-bg: #1f1f1f;
+      --cell-same-num-bg: #ffff00;
+      --cell-same-num-text: #000000;
+      --cell-error-bg: #ff0000;
+      --cell-error-text: #ffffff;
+      --cell-error-border: #ffffff;
+      --note-text: #ffffff;
+      --note-highlight-bg: #00ffff;
+      --note-highlight-text: #000000;
+      --shadow-elevated: 0 0 0 2px #ffffff;
+    }
+
+    /* Daltônico: Paleta segura Okabe-Ito + Textura Listrada em Erros */
+    [data-theme="daltonico"] {
+      --bg-app: #f5f7fa;
+      --bg-panel: #ffffff;
+      --bg-panel-alt: #e6ecf5;
+      --text-main: #000000;
+      --text-muted: #3d4f60;
+      --accent: #0072B2; /* Okabe-Ito Blue */
+      --accent-hover: #005585;
+      --accent-contrast: #ffffff;
+      --board-bg: #ffffff;
+      --board-border-outer: #000000;
+      --board-border-block: #000000;
+      --board-border-cell: #94a3b8;
+      --cell-bg: #ffffff;
+      --cell-given-bg: #f1f5f9;
+      --cell-given-text: #000000;
+      --cell-user-text: #0072B2; /* Okabe-Ito Blue */
+      --cell-focus-bg: #bae6fd;
+      --cell-crosshair-bg: #f0f9ff;
+      --cell-same-num-bg: #F0E442; /* Okabe-Ito Yellow */
+      --cell-same-num-text: #000000;
+      --cell-error-bg: #f8d7da;
+      --cell-error-text: #D55E00; /* Okabe-Ito Vermilion */
+      --cell-error-border: #D55E00;
+      --note-text: #009E73; /* Okabe-Ito Bluish Green */
+      --note-highlight-bg: #E69F00; /* Okabe-Ito Orange */
+      --note-highlight-text: #000000;
+      --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.12);
+    }
+
+    /* ==========================================================================
+       ESTILOS GERAIS E DO TABULEIRO DE SUDOKU
+       ========================================================================== */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-main);
+      transition: background-color 0.25s ease, color 0.25s ease;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .theme-panel {
+      background-color: var(--bg-panel);
+      color: var(--text-main);
+      box-shadow: var(--shadow-elevated);
+      border: 1px solid var(--board-border-cell);
+    }
+
+    .theme-panel-alt {
+      background-color: var(--bg-panel-alt);
+      color: var(--text-main);
+    }
+
+    .btn-accent {
+      background-color: var(--accent);
+      color: var(--accent-contrast);
+      transition: all 0.18s ease;
+    }
+
+    .btn-accent:hover:not(:disabled) {
+      background-color: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-accent:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Container principal do Grid Sudoku */
+    #sudoku-grid {
+      display: grid;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background-color: var(--board-bg);
+      border: 3.5px solid var(--board-border-outer);
+      border-radius: 8px;
+      overflow: hidden;
+      user-select: none;
+      margin: 0 auto;
+    }
+
+    /* Célula individual do Sudoku */
+    .sudoku-cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--cell-bg);
+      border-right: 1px solid var(--board-border-cell);
+      border-bottom: 1px solid var(--board-border-cell);
+      transition: background-color 0.1s ease;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .sudoku-cell.given-cell {
+      background-color: var(--cell-given-bg);
+    }
+
+    /* Estados de Destaque (Crosshair, Foco, Mesmo Número, Erro) */
+    .sudoku-cell.is-crosshair {
+      background-color: var(--cell-crosshair-bg);
+    }
+
+    .sudoku-cell.is-same-number {
+      background-color: var(--cell-same-num-bg) !important;
+    }
+
+    .sudoku-cell.is-same-number .sudoku-input {
+      color: var(--cell-same-num-text) !important;
+      font-weight: 800 !important;
+    }
+
+    .sudoku-cell.is-focused {
+      background-color: var(--cell-focus-bg) !important;
+      box-shadow: inset 0 0 0 2.5px var(--accent);
+      z-index: 2;
+    }
+
+    .sudoku-cell.is-error {
+      background-color: var(--cell-error-bg) !important;
+      box-shadow: inset 0 0 0 2px var(--cell-error-border);
+    }
+
+    .sudoku-cell.is-error .sudoku-input {
+      color: var(--cell-error-text) !important;
+      font-weight: 800;
+    }
+
+    /* Textura listrada adicional para erros no tema Daltônico */
+    [data-theme="daltonico"] .sudoku-cell.is-error {
+      background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(213, 94, 0, 0.18),
+        rgba(213, 94, 0, 0.18) 6px,
+        rgba(255, 255, 255, 0.85) 6px,
+        rgba(255, 255, 255, 0.85) 12px
+      ) !important;
+      box-shadow: inset 0 0 0 3px #D55E00 !important;
+    }
+
+    /* Input Nativo dentro de cada célula */
+    .sudoku-input {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 0;
+      margin: 0;
+      font-family: 'JetBrains Mono', 'Inter', monospace;
+      color: var(--cell-user-text);
+      font-weight: 600;
+      cursor: pointer;
+      caret-color: var(--accent);
+      touch-action: manipulation;
+      -webkit-user-select: text;
+      user-select: text;
+      z-index: 2;
+    }
+
+    /* Números originais da instância (imutáveis, centralizados, negrito forte impresso) */
+    .sudoku-cell.given-cell .sudoku-input {
+      color: var(--cell-given-text);
+      font-weight: 800;
+      cursor: default;
+      caret-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Grade interna de Anotações (Modo Lápis) */
+    .pencil-grid {
+      position: absolute;
+      inset: 2px;
+      display: grid;
+      pointer-events: none;
+      z-index: 1;
+      align-items: center;
+      justify-items: center;
+    }
+
+    .pencil-note {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--note-text);
+      font-weight: 600;
+      line-height: 1;
+      border-radius: 3px;
+      transition: all 0.12s ease;
+    }
+
+    .pencil-note.is-note-highlighted {
+      background-color: var(--note-highlight-bg);
+      color: var(--note-highlight-text) !important;
+      font-weight: 800;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Botão do Teclado Virtual Numérico */
+    .numpad-btn {
+      background-color: var(--bg-panel-alt);
+      color: var(--text-main);
+      border: 1px solid var(--board-border-cell);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      transition: all 0.14s ease;
+      user-select: none;
+    }
+
+    .numpad-btn:hover {
+      background-color: var(--accent);
+      color: var(--accent-contrast);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .numpad-btn:active {
+      transform: scale(0.95);
+    }
+
+    .numpad-btn.active-number-highlight {
+      box-shadow: 0 0 0 2px var(--accent);
+      background-color: var(--cell-focus-bg);
+    }
+
+    /* Cartão Presente Especial (Sobre) */
+    .gift-card-modal {
+      background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 50%, #fce7f3 100%);
+      color: #881337;
+      border: 3px solid #f43f5e;
+      box-shadow: 0 25px 50px -12px rgba(244, 63, 94, 0.45);
+    }
+
+    /* Animação para célula revelada pela dica da NASA */
+    @keyframes nasaPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.9); }
+      50% { transform: scale(1.08); box-shadow: 0 0 18px 6px rgba(56, 189, 248, 0.75); z-index: 10; }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+    }
+
+    .nasa-hint-flash {
+      animation: nasaPulse 0.85s ease-out;
+    }
+
+    /* Scrollbar estilizada */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--board-border-cell);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <!-- ==========================================================================
+       CABEÇALHO PRINCIPAL (NAVBAR)
+       ========================================================================== -->
+  <header class="theme-panel sticky top-0 z-30 border-b px-3 py-2.5 sm:px-6">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <!-- Logo & Título Oficial -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl btn-accent flex items-center justify-center text-xl font-black shadow-sm">
+          <span>9</span>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
+            <span>Sudoku Pro ANERÓTHICO 🧠</span>
+          </h1>
+          <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
+            Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
+          </p>
+        </div>
+      </div>
+
+      <!-- Ações Rápidas, Temas, Como Jogar e Presente Especial (💝) -->
+      <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+        <!-- Seletor de Temas (9 Opções Exatas com Emojis) -->
+        <div class="relative flex items-center">
+          <i class="fa-solid fa-palette absolute left-2.5 text-xs opacity-70 pointer-events-none"></i>
+          <select id="theme-selector" aria-label="Selecionar Tema"
+            class="theme-panel-alt text-xs sm:text-sm font-semibold pl-7 pr-6 py-2 rounded-lg border border-transparent focus:outline-none focus:ring-2 cursor-pointer">
+            <option value="claro">☀️ 1. Claro</option>
+            <option value="escuro">🌙 2. Escuro</option>
+            <option value="roxo">🔮 3. Roxo</option>
+            <option value="verde">🌿 4. Verde</option>
+            <option value="epico1">🌆 5. Épico 1 (Cyberpunk Sunset)</option>
+            <option value="epico2">🏝️ 6. Épico 2 (Tropical Aurora)</option>
+            <option value="rainbow">🌈 7. Rainbow</option>
+            <option value="altocontraste">👁️ 8. Alto Contraste</option>
+            <option value="daltonico">🎨 9. Daltônico (Okabe-Ito)</option>
+          </select>
+        </div>
+
+        <!-- Botão Histórico (Save/Load) -->
+        <button id="btn-open-history" type="button"
+          class="theme-panel-alt hover:opacity-90 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition"
+          title="Jogos Salvos e Concluídos">
+          <i class="fa-solid fa-folder-open"></i>
+          <span class="hidden md:inline">Salvos</span>
+          <span id="saved-count-badge" class="px-1.5 py-0.5 text-[10px] rounded-full btn-accent font-bold">0</span>
+        </button>
+
+        <!-- Botão Como Jogar -->
+        <button id="btn-open-howto" type="button"
+          class="theme-panel-alt hover:opacity-90 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition"
+          title="Como Jogar e Curiosidades">
+          <i class="fa-solid fa-circle-question"></i>
+          <span class="hidden sm:inline">Como Jogar</span>
+        </button>
+
+        <!-- Botão Discreto Sobre / Presente Especial (💝) -->
+        <button id="btn-open-gift" type="button"
+          class="theme-panel-alt hover:scale-105 active:scale-95 px-2.5 py-1.5 rounded-lg text-base sm:text-lg transition flex items-center justify-center border border-pink-400/30 shadow-sm"
+          title="Sobre (Presente Especial 💝)" aria-label="Sobre - Presente Especial">
+          <span>💝</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       CONTEÚDO PRINCIPAL (LAYOUT RESPONSIVO PC & MOBILE)
+       ========================================================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+    <!-- COLUNA ESQUERDA / TOPO: CONFIGURAÇÃO DE MODO E STATUS -->
+    <section class="lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
+      <!-- Card de Modo de Jogo (Padrão vs Customizado) -->
+      <div class="theme-panel rounded-2xl p-4 flex flex-col gap-3.5">
+        <div class="flex items-center justify-between border-b pb-2.5" style="border-color: var(--board-border-cell);">
+          <h2 class="font-bold text-sm sm:text-base flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-sm opacity-80"></i>
+            <span>Configuração da Partida</span>
+          </h2>
+          <!-- Abas Padrão / Customizado -->
+          <div class="flex rounded-lg p-0.5 theme-panel-alt text-xs font-bold">
+            <button id="tab-mode-standard" type="button" class="px-2.5 py-1 rounded-md btn-accent transition">
+              Padrão 9×9
+            </button>
+            <button id="tab-mode-custom" type="button" class="px-2.5 py-1 rounded-md opacity-75 hover:opacity-100 transition">
+              Customizado
+            </button>
+          </div>
+        </div>
+
+        <!-- Painel Modo Padrão -->
+        <div id="panel-mode-standard" class="flex flex-col gap-3">
+          <p class="text-xs opacity-80 leading-relaxed">
+            Grade clássica <strong>9×9</strong> com sub-blocos <strong>3×3</strong> usando os números de <strong>1 a 9</strong> e solução lógica única garantida.
+          </p>
+        </div>
+
+        <!-- Painel Modo Customizado (Intervalos Dinâmicos, Negativos e Dezenas) -->
+        <div id="panel-mode-custom" class="hidden flex-col gap-3 theme-panel-alt p-3 rounded-xl border" style="border-color: var(--board-border-cell);">
+          <div class="text-xs font-semibold opacity-90">
+            Defina o intervalo personalizado de números inteiros:
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label for="custom-min-input" class="block text-[11px] font-bold uppercase opacity-75 mb-1">Mínimo (ex: -9)</label>
+              <input id="custom-min-input" type="number" value="-3" min="-50" max="50"
+                class="w-full px-2.5 py-1.5 rounded-lg theme-panel font-mono text-sm font-bold focus:outline-none focus:ring-2" />
+            </div>
+            <div>
+              <label for="custom-max-input" class="block text-[11px] font-bold uppercase opacity-75 mb-1">Máximo (ex: 16)</label>
+              <input id="custom-max-input" type="number" value="6" min="-50" max="50"
+                class="w-full px-2.5 py-1.5 rounded-lg theme-panel font-mono text-sm font-bold focus:outline-none focus:ring-2" />
+            </div>
+          </div>
+
+          <label class="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none pt-0.5">
+            <input id="custom-include-zero" type="checkbox" class="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
+            <span>Incluir o número <strong>0</strong> no intervalo</span>
+          </label>
+
+          <!-- Atalhos rápidos de intervalos interessantes -->
+          <div class="flex flex-wrap gap-1.5 pt-1">
+            <span class="text-[11px] opacity-70 w-full">Exemplos rápidos:</span>
+            <button type="button" data-preset="-4,4,1" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -4 a 4 (com 0) → 9×9
+            </button>
+            <button type="button" data-preset="-3,9,0" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -3 a 9 (sem 0) → 12×12
+            </button>
+            <button type="button" data-preset="1,16,0" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              1 a 16 → 16×16
+            </button>
+            <button type="button" data-preset="-7,8,1" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -7 a 8 (com 0) → 16×16
+            </button>
+            <button type="button" data-preset="-9,16,0" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -9 a 16 (sem 0) → 25×25
+            </button>
+          </div>
+
+          <!-- Cálculo Matemático Dinâmico da Grade -->
+          <div id="custom-calc-preview" class="text-xs p-2 rounded-lg theme-panel font-medium leading-snug">
+            Calculando dimensões...
+          </div>
+        </div>
+
+        <!-- Seletor de Dificuldade e Botão Gerar Novo Jogo -->
+        <div class="flex flex-col gap-2.5 pt-1">
+          <div class="flex flex-col gap-1.5">
+            <span class="text-xs font-bold uppercase opacity-75">Dificuldade:</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5" role="group" aria-label="Dificuldade">
+              <button type="button" data-diff="facil" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold btn-accent text-left flex items-center justify-between">
+                <span>🍭Melzinho na Chupeta🍼</span>
+                <span data-diff-clues="facil" class="text-[10px] opacity-80 font-mono">~47 pistas (58%)</span>
+              </button>
+              <button type="button" data-diff="medio" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>🛸Suave na Nave👽</span>
+                <span data-diff-clues="medio" class="text-[10px] opacity-80 font-mono">~37 pistas (46%)</span>
+              </button>
+              <button type="button" data-diff="dificil" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>Uai, Sô🤠⁉️</span>
+                <span data-diff-clues="dificil" class="text-[10px] opacity-80 font-mono">~30 pistas (37%)</span>
+              </button>
+              <button type="button" data-diff="uaiso" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>🚂Doido D➕ da Conta‼️🤪</span>
+                <span data-diff-clues="uaiso" class="text-[10px] opacity-80 font-mono">~23 pistas (28%)</span>
+              </button>
+              <button type="button" data-diff="doido" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>🌵Oxe, 🫠Que Miséria‼️🤦</span>
+                <span data-diff-clues="doido" class="text-[10px] opacity-80 font-mono">~17 pistas (21%)</span>
+              </button>
+            </div>
+          </div>
+
+          <button id="btn-new-game" type="button"
+            class="w-full py-2.5 px-4 rounded-xl font-bold text-sm btn-accent shadow-md flex items-center justify-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Gerar Novo Sudoku</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Card de Ferramentas: OCR, Compartilhar e Exportar PNG -->
+      <div class="theme-panel rounded-2xl p-4 flex flex-col gap-3">
+        <h3 class="font-bold text-sm flex items-center gap-2 border-b pb-2" style="border-color: var(--board-border-cell);">
+          <i class="fa-solid fa-toolbox opacity-80"></i>
+          <span>Importação OCR, Share & Exportação</span>
+        </h3>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+          <!-- Botão Importar Imagem via Tesseract OCR -->
+          <button id="btn-open-ocr" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-camera text-sm"></i>
+            <span>Importar Imagem (OCR 9×9)</span>
+          </button>
+
+          <!-- Botão Compartilhar URL Base64 (Puzzle Inicial) -->
+          <button id="btn-share-url" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-share-nodes text-sm"></i>
+            <span>Compartilhar Link do Puzzle</span>
+          </button>
+
+          <!-- Botão Compartilhar ESTADO DO PUZZLE (Do jeito que está) -->
+          <button id="btn-share-state-url" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);"
+            title="Compartilha o puzzle exatamente com os números preenchidos, notas e tempo atuais">
+            <i class="fa-solid fa-satellite-dish text-sm"></i>
+            <span>Compartilhar Estado do Puzzle</span>
+          </button>
+
+          <!-- Botão Exportar PNG html2canvas -->
+          <button id="btn-export-png" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-download text-sm"></i>
+            <span>Exportar Imagem (.PNG)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLUNA CENTRAL / DIREITA: TABULEIRO DE SUDOKU E TECLADO VIRTUAL -->
+    <section class="lg:col-span-8 flex flex-col gap-3.5 order-1 lg:order-2">
+
+      <!-- Barra de Status do Jogo (Timer, Progresso, Modo Lápis, Toggle de Erro Imediato) -->
+      <div class="theme-panel rounded-2xl p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3">
+        <!-- Timer & Pausar -->
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl theme-panel-alt font-mono font-bold text-sm sm:text-base">
+            <i class="fa-regular fa-clock opacity-75"></i>
+            <span id="timer-display">00:00</span>
+          </div>
+          <button id="btn-pause-timer" type="button"
+            class="theme-panel-alt w-9 h-9 rounded-xl flex items-center justify-center hover:opacity-80 transition"
+            title="Pausar / Retomar Partida" aria-label="Pausar ou Retomar">
+            <i id="icon-pause-timer" class="fa-solid fa-pause text-xs"></i>
+          </button>
+        </div>
+
+        <!-- Contador de Casas Preenchidas -->
+        <div class="flex items-center gap-2 text-xs sm:text-sm font-semibold">
+          <span class="opacity-75">Preenchido:</span>
+          <span id="progress-badge" class="font-mono font-bold px-2.5 py-1 rounded-lg theme-panel-alt">
+            0 / 81 (0%)
+          </span>
+        </div>
+
+        <!-- Toggle CRÍTICO: Retorno imediato de erro ao digitar (DESATIVADO POR PADRÃO) -->
+        <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold theme-panel-alt px-3 py-1.5 rounded-xl">
+          <input id="toggle-immediate-error" type="checkbox" class="sr-only peer" />
+          <div class="w-8 h-4 bg-slate-400/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all relative peer-checked:bg-red-500"></div>
+          <span>Retorno imediato de erro ao digitar</span>
+        </label>
+      </div>
+
+      <!-- Área Principal: Grid + Controles Laterais -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+
+        <!-- Wrapper do Tabuleiro Sudoku -->
+        <div class="xl:col-span-8 flex flex-col items-center justify-center w-full">
+          <div id="sudoku-board-wrapper" class="w-full max-w-[560px] mx-auto relative">
+            <!-- Overlay de Jogo Pausado -->
+            <div id="pause-overlay" class="hidden absolute inset-0 z-20 rounded-lg backdrop-blur-md bg-slate-900/75 flex flex-col items-center justify-center text-white p-6 text-center">
+              <i class="fa-solid fa-pause-circle text-5xl mb-3 opacity-90"></i>
+              <h3 class="text-xl font-extrabold mb-1">Jogo Pausado</h3>
+              <p class="text-xs opacity-80 mb-4">O cronômetro está parado. Clique abaixo para continuar resolvendo.</p>
+              <button id="btn-resume-overlay" type="button" class="px-5 py-2.5 rounded-xl font-bold text-sm btn-accent">
+                Continuar Partida
+              </button>
+            </div>
+
+            <!-- O Grid é gerado dinamicamente aqui -->
+            <div id="sudoku-grid" role="grid" aria-label="Tabuleiro de Sudoku"></div>
+          </div>
+        </div>
+
+        <!-- Controles de Jogada + Teclado Virtual Numérico -->
+        <div class="xl:col-span-4 flex flex-col gap-3 w-full max-w-[560px] mx-auto">
+          <!-- Barra de Ações da Célula (Modo Lápis, Apagar, Desfazer, Conferir Solução) -->
+          <div class="theme-panel rounded-2xl p-3 flex flex-col gap-2.5">
+            <div class="grid grid-cols-2 gap-2">
+              <!-- Botão Modo Lápis (Tecla N) -->
+              <button id="btn-pencil-mode" type="button"
+                class="theme-panel-alt py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border relative"
+                style="border-color: var(--board-border-cell);"
+                title="Atalho: Tecla N">
+                <i class="fa-solid fa-pencil"></i>
+                <span>Modo Lápis (N)</span>
+                <span id="pencil-status-badge" class="px-1.5 py-0.5 text-[10px] rounded bg-slate-500/20 font-extrabold">OFF</span>
+              </button>
+
+              <!-- Botão Apagar Célula (Backspace/Delete) -->
+              <button id="btn-erase-cell" type="button"
+                class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+                style="border-color: var(--board-border-cell);"
+                title="Apagar valor ou notas da célula selecionada">
+                <i class="fa-solid fa-eraser"></i>
+                <span>Apagar Casa</span>
+              </button>
+            </div>
+
+            <!-- Botão de Dica Aleatória: 🪐Chama a Nasa...🚀👨🏾‍🚀 -->
+            <button id="btn-nasa-hint" type="button"
+              class="theme-panel-alt hover:opacity-95 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition border shadow-sm"
+              style="border-color: var(--accent);"
+              title="Revela 1 dica aleatória em uma casa vazia ou corrige uma casa errada">
+              <span>🪐Chama a Nasa...🚀👨🏾‍🚀</span>
+            </button>
+
+            <!-- Botão CRÍTICO: Conferir Solução (Só ativa com 100% do grid preenchido) -->
+            <button id="btn-check-solution" type="button" disabled
+              class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm btn-accent shadow-md flex items-center justify-center gap-2">
+              <i class="fa-solid fa-circle-check"></i>
+              <span id="btn-check-solution-text">Conferir Solução (Preencha 100%)</span>
+            </button>
+          </div>
+
+          <!-- Teclado Virtual Numérico Dinâmico -->
+          <div class="theme-panel rounded-2xl p-3 flex flex-col gap-2">
+            <div class="flex items-center justify-between text-xs font-bold opacity-80 px-1">
+              <span>Teclado Virtual</span>
+              <span id="numpad-range-label" class="font-mono text-[11px]">[1 .. 9]</span>
+            </div>
+            <div id="virtual-numpad" class="grid grid-cols-5 sm:grid-cols-9 xl:grid-cols-3 gap-1.5 max-h-[270px] overflow-y-auto p-0.5">
+              <!-- Botões gerados dinamicamente conforme o intervalo atual -->
+            </div>
+            <p class="text-[11px] opacity-70 leading-tight px-1 pt-1">
+              <i class="fa-regular fa-keyboard mr-1"></i>
+              Você também pode digitar diretamente nas células (incluindo negativos como <code class="font-mono">-9</code> e dezenas como <code class="font-mono">16</code>) e navegar com as setas.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- ==========================================================================
+       MODAL 1: PARABÉNS! (SOLUÇÃO 100% CORRETA)
+       ========================================================================== -->
+  <div id="modal-victory" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col items-center gap-4 animate-bounce-once">
+      <div class="w-16 h-16 rounded-2xl btn-accent flex items-center justify-center text-3xl shadow-lg">
+        🎉
+      </div>
+      <div>
+        <h2 class="text-2xl font-black tracking-tight">Parabéns! Solução Perfeita!</h2>
+        <p class="text-xs sm:text-sm opacity-80 mt-1">
+          Você concluiu todo o tabuleiro respeitando todas as regras lógicas do Sudoku Pro ANERÓTHICO!
+        </p>
+      </div>
+
+      <!-- Métricas da Partida -->
+      <div class="w-full grid grid-cols-2 gap-2.5 theme-panel-alt p-3.5 rounded-2xl text-left text-xs">
+        <div>
+          <span class="opacity-70 block">Tempo Total:</span>
+          <strong id="victory-time" class="text-base font-mono">00:00</strong>
+        </div>
+        <div>
+          <span class="opacity-70 block">Dificuldade:</span>
+          <strong id="victory-diff" class="text-base capitalize">Médio</strong>
+        </div>
+        <div>
+          <span class="opacity-70 block">Dimensão do Grid:</span>
+          <strong id="victory-dim" class="text-sm font-mono">9×9 (3×3)</strong>
+        </div>
+        <div>
+          <span class="opacity-70 block">Intervalo Usado:</span>
+          <strong id="victory-range" class="text-sm font-mono">1 a 9</strong>
+        </div>
+      </div>
+
+      <div class="flex w-full gap-2.5 pt-2">
+        <button id="btn-victory-export" type="button"
+          class="flex-1 py-2.5 px-3 rounded-xl theme-panel-alt font-bold text-xs flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-download"></i>
+          <span>Baixar PNG</span>
+        </button>
+        <button id="btn-victory-new" type="button"
+          class="flex-1 py-2.5 px-3 rounded-xl btn-accent font-bold text-xs flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-play"></i>
+          <span>Novo Jogo</span>
+        </button>
+      </div>
+      <button id="btn-victory-close" type="button" class="text-xs opacity-70 hover:opacity-100 underline">
+        Fechar e ver tabuleiro
+      </button>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 2: SOLUÇÃO INCORRETA ("Deseja revelar os erros?")
+       ========================================================================== -->
+  <div id="modal-errors-prompt" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-red-500/20 text-red-500 flex items-center justify-center text-2xl font-bold">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-extrabold">A solução está incorreta</h2>
+        <p class="text-xs sm:text-sm opacity-85 mt-1.5 leading-relaxed">
+          Encontramos <strong id="error-count-label">algumas</strong> inconsistências no preenchimento atual. O cronômetro continua rodando!
+        </p>
+        <p class="text-sm font-bold mt-3">
+          Deseja revelar os erros?
+        </p>
+      </div>
+
+      <div class="flex w-full gap-3 pt-1">
+        <button id="btn-reveal-errors-no" type="button"
+          class="flex-1 py-2.5 px-4 rounded-xl theme-panel-alt font-bold text-xs sm:text-sm hover:opacity-90 transition">
+          Não, continuar tentando
+        </button>
+        <button id="btn-reveal-errors-yes" type="button"
+          class="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition shadow-md">
+          Sim, revelar erros
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 3: COMO JOGAR E ORIGENS MATEMÁTICAS
+       ========================================================================== -->
+  <div id="modal-howto" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-book-open"></i>
+          <span>Como Jogar & Curiosidades do Sudoku</span>
+        </h2>
+        <button id="btn-close-howto" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm leading-relaxed">
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">1</span>
+            <span>Mecânica e Regras Diretas</span>
+          </h3>
+          <p class="opacity-90">
+            O objetivo do Sudoku é preencher todas as células vazias da grade de modo que <strong>cada linha horizontal</strong>, <strong>cada coluna vertical</strong> e <strong>cada sub-bloco interno</strong> (delimitado pelas bordas grossas) contenha todos os números do intervalo permitido <strong>exatamente uma única vez</strong>, sem repetições.
+          </p>
+          <ul class="list-disc pl-5 mt-2 space-y-1 opacity-90">
+            <li><strong>Modo Padrão vs. Customizado:</strong> No modo padrão, a grade é 9×9 (blocos 3×3) com números de 1 a 9. No modo customizado, você pode definir qualquer intervalo (incluindo números negativos e dezenas, com ou sem o zero), e o sistema dimensiona matematicamente a grade e seus sub-blocos.</li>
+            <li><strong>Modo Lápis (Tecla N):</strong> Use para anotar pequenos candidatos em uma casa. Ao confirmar um valor definitivo em uma célula, o sistema remove automaticamente esse candidato das notas na mesma linha, coluna e sub-bloco.</li>
+            <li><strong>Verificação de Solução:</strong> Por padrão, erros de digitação não são denunciados imediatamente para preservar o desafio clássico. Ao preencher 100% da grade, clique em <em>"Conferir Solução"</em>.</li>
+          </ul>
+        </div>
+
+        <hr style="border-color: var(--board-border-cell);" />
+
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">2</span>
+            <span>Origens Históricas</span>
+          </h3>
+          <p class="opacity-90">
+            As raízes conceituais do Sudoku remontam ao século XVIII, quando o brilhante matemático suíço <strong>Leonhard Euler</strong> desenvolveu os <em>"Quadrados Latinos"</em> (grades onde símbolos não se repetem em linhas ou colunas).
+          </p>
+          <p class="opacity-90 mt-2">
+            O formato moderno com sub-blocos regionais foi criado pelo arquiteto norte-americano <strong>Howard Garns</strong> em 1979 e publicado pela revista <em>Dell Magazines</em> sob o nome <em>Number Place</em>. Em 1984, a editora japonesa <strong>Nikoli</strong>, liderada por <strong>Maki Kaji</strong>, levou o quebra-cabeça ao Japão e o batizou de <strong>Sudoku</strong> (abreviação de <em>"Suji wa dokushin ni kagiru"</em> — "os números devem permanecer únicos").
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">3</span>
+            <span>Curiosidades Matemáticas</span>
+          </h3>
+          <p class="opacity-90">
+            Na combinatória, foi demonstrado em 2005 por Bertram Felgenhauer e Frazer Jarvis que existem exatamente <strong>6.670.903.752.021.072.936.960</strong> (cerca de 6,67 × 10<sup>21</sup>) grades válidas de Sudoku 9×9!
+          </p>
+          <p class="opacity-90 mt-2">
+            Outra descoberta célebre ocorreu em 2012, quando o matemático <strong>Gary McGuire</strong> e sua equipe provaram computacionalmente que o <strong>número mínimo de pistas iniciais</strong> para que um Sudoku 9×9 possua solução única é <strong>17</strong>. Nenhum puzzle válido de solução única pode existir com apenas 16 números iniciais.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 4: SOBRE / PRESENTE ESPECIAL (💝)
+       ========================================================================== -->
+  <div id="modal-gift" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="gift-card-modal rounded-3xl max-w-lg w-full p-6 sm:p-8 relative text-center overflow-hidden">
+      <!-- Laço Decorativo de Presente -->
+      <div class="flex justify-center mb-4">
+        <div class="w-16 h-16 rounded-full bg-rose-500 text-white flex items-center justify-center text-3xl shadow-lg border-4 border-white">
+          💝
+        </div>
+      </div>
+
+      <div class="text-xs font-extrabold uppercase tracking-widest text-rose-600 mb-3">
+        ✨ Dedicatória Especial ✨
+      </div>
+
+      <!-- Texto EXATO solicitado, preservando itálicos e quebras -->
+      <div class="bg-white/85 backdrop-blur-sm rounded-2xl p-5 border border-rose-300 shadow-inner text-sm sm:text-base leading-relaxed font-medium text-rose-950 space-y-3">
+        <p>De PF pra PF (<i>from Passion Fruit</i>🐈‍⬛🐋 <i>to Pear Flower</i> 🍐 💮) com beijos, xamegos, mordidas e queijos! 🤤 Além de muito amor <i>vibecodado</i>! 💝 🍐🐋💞</p>
+        <p class="font-extrabold text-base sm:text-lg text-rose-700 pt-1" style="font-family: 'Playfair Display', Georgia, serif;">Marcos Dias pra Lorena Heringer</p>
+      </div>
+
+      <div class="mt-6">
+        <button id="btn-close-gift" type="button"
+          class="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-md transition">
+          Guardar no Coração 💖
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 5: HISTÓRICO DE JOGOS (EM ANDAMENTO & CONCLUÍDOS)
+       ========================================================================== -->
+  <div id="modal-history" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Partidas Salvas (Auto-Save)</span>
+        </h2>
+        <button id="btn-close-history" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Abas Em Andamento / Concluídos -->
+      <div class="flex border-b px-6 pt-3 gap-4 text-xs sm:text-sm font-bold" style="border-color: var(--board-border-cell);">
+        <button id="tab-hist-ongoing" type="button" class="pb-2.5 border-b-2 border-current text-blue-500">
+          Jogos em Andamento (<span id="count-ongoing">0</span>)
+        </button>
+        <button id="tab-hist-completed" type="button" class="pb-2.5 border-b-2 border-transparent opacity-60 hover:opacity-100">
+          Jogos Concluídos (<span id="count-completed">0</span>)
+        </button>
+      </div>
+
+      <div id="history-list-container" class="p-5 overflow-y-auto flex-1 space-y-2.5 text-xs sm:text-sm">
+        <!-- Lista renderizada via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 6: IMPORTAÇÃO POR IMAGEM (OCR TESSERACT.JS)
+       ========================================================================== -->
+  <div id="modal-ocr" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-camera"></i>
+          <span>Importar Sudoku 9×9 por Imagem (OCR)</span>
+        </h2>
+        <button id="btn-close-ocr" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <p class="opacity-85 leading-relaxed">
+          Envie a foto ou captura de tela recortada de uma grade de Sudoku <strong>9×9 impressa</strong>. O motor <strong>Tesseract.js</strong> analisará as 81 casas diretamente no seu navegador e montará o tabuleiro virtual jogável.
+        </p>
+
+        <div class="flex flex-wrap gap-2">
+          <label class="flex-1 min-w-[180px] cursor-pointer py-3 px-4 rounded-xl btn-accent font-bold text-xs flex items-center justify-center gap-2 text-center shadow-sm">
+            <i class="fa-solid fa-upload"></i>
+            <span>Escolher Imagem do Sudoku...</span>
+            <input id="ocr-file-input" type="file" accept="image/*" class="hidden" />
+          </label>
+
+          <button id="btn-ocr-sample" type="button"
+            class="py-3 px-4 rounded-xl theme-panel-alt font-bold text-xs flex items-center justify-center gap-2 hover:opacity-90 border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-wand-sparkles"></i>
+            <span>Testar com Imagem Exemplo</span>
+          </button>
+        </div>
+
+        <!-- Barra de Progresso do OCR -->
+        <div id="ocr-progress-box" class="hidden flex-col gap-2 theme-panel-alt p-3.5 rounded-xl">
+          <div class="flex justify-between text-xs font-bold">
+            <span id="ocr-status-text">Inicializando Tesseract.js...</span>
+            <span id="ocr-percent-text">0%</span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-500/20 rounded-full overflow-hidden">
+            <div id="ocr-progress-bar" class="h-full btn-accent transition-all duration-150" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Preview do Canvas Recortado -->
+        <div id="ocr-preview-wrapper" class="hidden flex-col items-center gap-3 pt-1">
+          <canvas id="ocr-preview-canvas" width="360" height="360" class="w-48 h-48 rounded-lg border shadow-sm"></canvas>
+          <p class="text-[11px] opacity-75 text-center">
+            Dica: Se algum dígito da foto estiver borrado, você poderá ajustá-lo antes de iniciar ou já jogar diretamente!
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       TOAST DE FEEDBACK VISUAL (SEM ALERT/CONFIRM)
+       ========================================================================== -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==========================================================================
+       SCRIPT PRINCIPAL: ARQUITETURA COMPLETA DO SUDOKU PRO ANERÓTHICO
+       ========================================================================== -->
+  <script>
+    (() => {
+      'use strict';
+
+      /* ========================================================================
+         1. ESTADO GLOBAL E PERSISTÊNCIA (LOCALSTORAGE)
+         ======================================================================== */
+      const STORAGE_KEYS = {
+        THEME: 'sudoku_anerothico_theme_v1',
+        SAVED_GAMES: 'sudoku_anerothico_games_v1',
+        CURRENT_GAME_ID: 'sudoku_anerothico_current_id_v1'
+      };
+
+      const DIFFICULTY_LABELS = {
+        facil: '🍭Melzinho na Chupeta🍼',
+        medio: '🛸Suave na Nave👽',
+        dificil: 'Uai, Sô🤠⁉️',
+        uaiso: '🚂Doido D➕ da Conta‼️🤪',
+        doido: '🌵Oxe, 🫠Que Miséria‼️🤦'
+      };
+
+      const DIFFICULTY_REMOVAL_RATIOS = {
+        facil: 0.42,  // ~58% de pistas (~47 em 9x9)
+        medio: 0.54,  // ~46% de pistas (~37 em 9x9)
+        dificil: 0.63, // ~37% de pistas (~30 em 9x9)
+        uaiso: 0.716, // ~28% de pistas (~23 em 9x9)
+        doido: 0.79   // ~21% de pistas (~17 em 9x9)
+      };
+
+      const state = {
+        gameId: null,
+        mode: 'standard',           // 'standard' | 'custom'
+        difficulty: 'facil',        // 'facil' | 'medio' | 'dificil' | 'uaiso' | 'doido'
+        minVal: 1,
+        maxVal: 9,
+        includeZero: false,
+        symbols: [],                // Array ordenado de strings dos números válidos, ex: ["1",..."9"] ou ["-3",..."6"]
+        N: 9,                       // Dimensão do grid (N x N)
+        blockR: 3,                  // Altura do sub-bloco interno
+        blockC: 3,                  // Largura do sub-bloco interno
+        solution: [],               // Array 2D [r][c] com os símbolos da solução
+        initial: [],                // Array 2D [r][c] com as pistas iniciais ("" para vazio)
+        board: [],                  // Array 2D [r][c] com os valores atuais preenchidos
+        notes: [],                  // Array 2D [r][c] contendo Set de strings candidatas do modo lápis
+        revealedErrors: [],         // Array 2D [r][c] booleano indicando erros revelados pelo botão Conferir
+        focusedCell: { r: 0, c: 0 },
+        highlightedSymbol: null,    // Símbolo atualmente destacado no grid e notas
+        pencilMode: false,
+        immediateErrorCheck: false, // DESATIVADO por padrão (requisito 5)
+        timerSeconds: 0,
+        timerRunning: false,
+        timerInterval: null,
+        completed: false,
+        historyTab: 'ongoing',      // 'ongoing' | 'completed'
+        typingBuffer: '',           // Buffer para digitação de negativos (-9) e dezenas (16)
+        typingTimeout: null
+      };
+
+      /* ========================================================================
+         2. UTILITÁRIOS DE UI E TOASTS
+         ======================================================================== */
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const iconMap = {
+          info: 'fa-circle-info',
+          success: 'fa-circle-check',
+          warn: 'fa-triangle-exclamation'
+        };
+        toast.className = 'theme-panel px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xl border pointer-events-auto transition-all duration-300';
+        toast.style.borderColor = 'var(--accent)';
+        toast.innerHTML = `<i class="fa-solid ${iconMap[type] || iconMap.info}" style="color: var(--accent)"></i><span>${message}</span>`;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(8px)';
+          setTimeout(() => toast.remove(), 300);
+        }, 3200);
+      }
+
+      function formatTime(totalSeconds) {
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        const hrs = Math.floor(mins / 60);
+        if (hrs > 0) {
+          return `${String(hrs).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+
+      /* ========================================================================
+         3. MATEMÁTICA DE DIMENSÕES E INTERVALOS CUSTOMIZADOS
+         ======================================================================== */
+      function buildSymbolsFromRange(minVal, maxVal, includeZero) {
+        const lo = Math.min(minVal, maxVal);
+        const hi = Math.max(minVal, maxVal);
+        const arr = [];
+        for (let v = lo; v <= hi; v++) {
+          if (v === 0 && !includeZero) continue;
+          arr.push(String(v));
+        }
+        return arr;
+      }
+
+      // Calcula os fatores R x C = N mais próximos de sqrt(N)
+      function computeBlockDimensions(N) {
+        let bestR = 1;
+        let bestC = N;
+        const root = Math.floor(Math.sqrt(N));
+        for (let r = root; r >= 1; r--) {
+          if (N % r === 0) {
+            bestR = r;
+            bestC = N / r;
+            break;
+          }
+        }
+        return { blockR: bestR, blockC: bestC };
+      }
+
+      // Atualiza dinamicamente a quantidade aproximada de pistas (inteiro arredondado) e porcentagem conforme o tamanho N do tabuleiro
+      function updateDifficultyCluesUI(targetN) {
+        const N = targetN || (state.mode === 'standard' ? 9 : state.N) || 9;
+        const totalCells = N * N;
+
+        Object.keys(DIFFICULTY_REMOVAL_RATIOS).forEach((diffKey) => {
+          const badgeEl = document.querySelector(`[data-diff-clues="${diffKey}"]`);
+          if (!badgeEl) return;
+          const clueRatio = 1 - DIFFICULTY_REMOVAL_RATIOS[diffKey];
+          const cluesCount = Math.round(totalCells * clueRatio);
+          const pct = Math.round(clueRatio * 100);
+          badgeEl.textContent = `~${cluesCount} pistas (${pct}%)`;
+        });
+      }
+
+      function updateCustomRangePreview() {
+        const minIn = parseInt(document.getElementById('custom-min-input').value, 10);
+        const maxIn = parseInt(document.getElementById('custom-max-input').value, 10);
+        const incZero = document.getElementById('custom-include-zero').checked;
+        const previewEl = document.getElementById('custom-calc-preview');
+
+        if (isNaN(minIn) || isNaN(maxIn)) {
+          previewEl.innerHTML = `<span class="text-red-500 font-bold">Digite valores inteiros válidos.</span>`;
+          return null;
+        }
+
+        const symbols = buildSymbolsFromRange(minIn, maxIn, incZero);
+        const N = symbols.length;
+
+        if (N < 4 || N > 25) {
+          previewEl.innerHTML = `<span class="text-amber-500 font-bold">Total atual: ${N} números.</span> Escolha um intervalo que tenha entre <strong>4 e 25 números</strong> (ex: 4, 6, 8, 9, 12, 16, 20, 25).`;
+          return null;
+        }
+
+        const { blockR, blockC } = computeBlockDimensions(N);
+        const isPrime = (blockR === 1 && N > 3);
+
+        previewEl.innerHTML = `
+          <div class="flex flex-col gap-0.5">
+            <div>Total: <strong>${N} números</strong> → Grade <strong>${N}×${N}</strong> (${N * N} casas)</div>
+            <div>Sub-blocos internos: <strong>${blockR}×${blockC}</strong> ${isPrime ? '<span class="opacity-75">(Número primo: ajuste ±1 ou marque/desmarque o 0 para blocos retangulares tradicionais!)</span>' : ''}</div>
+          </div>
+        `;
+        updateDifficultyCluesUI(N);
+        return { minVal: Math.min(minIn, maxIn), maxVal: Math.max(minIn, maxIn), includeZero: incZero, symbols, N, blockR, blockC };
+      }
+
+      /* ========================================================================
+         4. GERADOR DE SUDOKU (GRID 100% VÁLIDO + SOLVER DE SOLUÇÃO ÚNICA)
+         ======================================================================== */
+      function shuffleArray(arr) {
+        const copy = arr.slice();
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      }
+
+      /**
+       * Constrói primeiro um grid N x N (com blocos blockR x blockC) 100% válido e completo.
+       * Para N <= 9 usa backtracking randomizado completo;
+       * Para grades maiores (ex: 12x12, 16x16, 25x25) usa base canônica embaralhada
+       * por bandas, pilhas e bijeção de símbolos + permutações preservadoras de validade.
+       */
+      function generateCompleteValidGrid(N, blockR, blockC, symbols) {
+        // 1. Cria uma solução base matematicamente perfeita usando aritmética modular de sub-blocos
+        // Fórmula de deslocamento canônico: (r * blockC + Math.floor(r / blockR) + c) % N
+        const numBlockBands = N / blockR; // Quantidade de faixas horizontais de blocos
+        const numBlockStacks = N / blockC; // Quantidade de pilhas verticais de blocos
+
+        // Embaralha a ordem das faixas, das linhas dentro de cada faixa, das pilhas e das colunas dentro de cada pilha
+        const bandOrder = shuffleArray([...Array(numBlockBands).keys()]);
+        const rowPerm = [];
+        for (const b of bandOrder) {
+          const rowsInBand = shuffleArray([...Array(blockR).keys()].map(x => b * blockR + x));
+          rowPerm.push(...rowsInBand);
+        }
+
+        const stackOrder = shuffleArray([...Array(numBlockStacks).keys()]);
+        const colPerm = [];
+        for (const s of stackOrder) {
+          const colsInStack = shuffleArray([...Array(blockC).keys()].map(x => s * blockC + x));
+          colPerm.push(...colsInStack);
+        }
+
+        const shuffledSymbols = shuffleArray(symbols);
+
+        const grid = Array.from({ length: N }, () => Array(N).fill(''));
+        for (let r = 0; r < N; r++) {
+          const rr = rowPerm[r];
+          for (let c = 0; c < N; c++) {
+            const cc = colPerm[c];
+            const symIdx = (rr * blockC + Math.floor(rr / blockR) + cc) % N;
+            grid[r][c] = shuffledSymbols[symIdx];
+          }
+        }
+
+        // Para N <= 9, podemos opcionalmente rodar um backtracking completo do zero para máxima entropia
+        if (N <= 9 && blockR > 1) {
+          const backtracked = tryFullBacktrackGeneration(N, blockR, blockC, shuffledSymbols);
+          if (backtracked) return backtracked;
+        }
+
+        return grid;
+      }
+
+      function tryFullBacktrackGeneration(N, blockR, blockC, symbols) {
+        const board = Array.from({ length: N }, () => Array(N).fill(-1));
+        const rowMask = new Int32Array(N);
+        const colMask = new Int32Array(N);
+        const blkMask = new Int32Array(N);
+        const numBlocksPerRow = N / blockC;
+        let steps = 0;
+        const maxSteps = 45000;
+
+        function solveCell(idx) {
+          if (idx === N * N) return true;
+          if (++steps > maxSteps) return false;
+
+          const r = Math.floor(idx / N);
+          const c = idx % N;
+          const b = Math.floor(r / blockR) * numBlocksPerRow + Math.floor(c / blockC);
+          const used = rowMask[r] | colMask[c] | blkMask[b];
+
+          const candidates = [];
+          for (let v = 0; v < N; v++) {
+            if ((used & (1 << v)) === 0) candidates.push(v);
+          }
+          const order = shuffleArray(candidates);
+
+          for (const v of order) {
+            const bit = 1 << v;
+            board[r][c] = v;
+            rowMask[r] |= bit;
+            colMask[c] |= bit;
+            blkMask[b] |= bit;
+
+            if (solveCell(idx + 1)) return true;
+
+            board[r][c] = -1;
+            rowMask[r] &= ~bit;
+            colMask[c] &= ~bit;
+            blkMask[b] &= ~bit;
+          }
+          return false;
+        }
+
+        if (solveCell(0)) {
+          return board.map(row => row.map(v => symbols[v]));
+        }
+        return null;
+      }
+
+      /**
+       * Solver Lógico e Contador de Soluções usando Bitmask + Heurística MRV (Minimum Remaining Values).
+       * Retorna o número de soluções encontradas até `limit` (normalmente limit = 2 para testar unicidade).
+       */
+      function countSolutionsMRV(puzzleIdxGrid, N, blockR, blockC, limit = 2, maxNodes = 8000) {
+        const rowMask = new Int32Array(N);
+        const colMask = new Int32Array(N);
+        const blkMask = new Int32Array(N);
+        const numBlocksPerRow = N / blockC;
+        const emptyCells = [];
+
+        const grid = puzzleIdxGrid.map(r => r.slice());
+
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            const v = grid[r][c];
+            if (v !== -1) {
+              const b = Math.floor(r / blockR) * numBlocksPerRow + Math.floor(c / blockC);
+              const bit = 1 << v;
+              if ((rowMask[r] & bit) || (colMask[c] & bit) || (blkMask[b] & bit)) {
+                return 0; // Estado inválido
+              }
+              rowMask[r] |= bit;
+              colMask[c] |= bit;
+              blkMask[b] |= bit;
+            } else {
+              emptyCells.push({ r, c, b: Math.floor(r / blockR) * numBlocksPerRow + Math.floor(c / blockC) });
+            }
+          }
+        }
+
+        const fullMask = (N === 32) ? -1 : ((1 << N) - 1);
+        let solutions = 0;
+        let nodes = 0;
+
+        function popcount32(x) {
+          x = x - ((x >>> 1) & 0x55555555);
+          x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+          return (((x + (x >>> 4)) & 0x0F0F0F0F) * 0x01010101) >>> 24;
+        }
+
+        function backtrack(remainingCount) {
+          if (remainingCount === 0) {
+            solutions++;
+            return;
+          }
+          if (++nodes > maxNodes) {
+            // Se exceder o orçamento de nós em grades gigantes, assumimos ramificação ambígua para segurança
+            solutions = limit;
+            return;
+          }
+
+          // Escolhe a célula vazia com o MENOR número de candidatos possíveis (MRV / Naked Single prioritário)
+          let bestIdx = -1;
+          let bestCount = N + 1;
+          let bestAvailMask = 0;
+
+          for (let i = 0; i < emptyCells.length; i++) {
+            const cell = emptyCells[i];
+            if (grid[cell.r][cell.c] !== -1) continue;
+
+            const used = rowMask[cell.r] | colMask[cell.c] | blkMask[cell.b];
+            const avail = (~used) & fullMask;
+            if (avail === 0) return; // Beco sem saída
+
+            const cnt = popcount32(avail);
+            if (cnt < bestCount) {
+              bestCount = cnt;
+              bestIdx = i;
+              bestAvailMask = avail;
+              if (cnt === 1) break; // Passo puramente determinístico (Single)!
+            }
+          }
+
+          const target = emptyCells[bestIdx];
+          let mask = bestAvailMask;
+
+          while (mask !== 0) {
+            const lowBit = mask & -mask;
+            const v = Math.clz32(lowBit) ^ 31;
+            mask &= ~lowBit;
+
+            grid[target.r][target.c] = v;
+            rowMask[target.r] |= lowBit;
+            colMask[target.c] |= lowBit;
+            blkMask[target.b] |= lowBit;
+
+            backtrack(remainingCount - 1);
+            if (solutions >= limit) return;
+
+            grid[target.r][target.c] = -1;
+            rowMask[target.r] &= ~lowBit;
+            colMask[target.c] &= ~lowBit;
+            blkMask[target.b] &= ~lowBit;
+          }
+        }
+
+        backtrack(emptyCells.length);
+        return solutions;
+      }
+
+      /**
+       * Resolve uma grade parcial (usado na importação OCR para obter a solução de referência).
+       */
+      function solvePartialGrid(initialStrings, N, blockR, blockC, symbols) {
+        const symToIdx = new Map(symbols.map((s, i) => [s, i]));
+        const idxGrid = initialStrings.map(row => row.map(val => (val !== '' && symToIdx.has(val) ? symToIdx.get(val) : -1)));
+
+        const rowMask = new Int32Array(N);
+        const colMask = new Int32Array(N);
+        const blkMask = new Int32Array(N);
+        const numBlocksPerRow = N / blockC;
+        const emptyCells = [];
+
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            const v = idxGrid[r][c];
+            const b = Math.floor(r / blockR) * numBlocksPerRow + Math.floor(c / blockC);
+            if (v !== -1) {
+              const bit = 1 << v;
+              if ((rowMask[r] & bit) || (colMask[c] & bit) || (blkMask[b] & bit)) {
+                // Em caso de conflito de leitura no OCR, limpa a casa conflitante
+                idxGrid[r][c] = -1;
+                emptyCells.push({ r, c, b });
+              } else {
+                rowMask[r] |= bit;
+                colMask[c] |= bit;
+                blkMask[b] |= bit;
+              }
+            } else {
+              emptyCells.push({ r, c, b });
+            }
+          }
+        }
+
+        const fullMask = (1 << N) - 1;
+        let steps = 0;
+
+        function solve(rem) {
+          if (rem === 0) return true;
+          if (++steps > 60000) return false;
+
+          let bestIdx = -1;
+          let bestCnt = N + 1;
+          let bestMask = 0;
+
+          for (let i = 0; i < emptyCells.length; i++) {
+            const cell = emptyCells[i];
+            if (idxGrid[cell.r][cell.c] !== -1) continue;
+            const avail = (~(rowMask[cell.r] | colMask[cell.c] | blkMask[cell.b])) & fullMask;
+            if (avail === 0) return false;
+            let m = avail, cnt = 0;
+            while (m) { m &= m - 1; cnt++; }
+            if (cnt < bestCnt) {
+              bestCnt = cnt;
+              bestIdx = i;
+              bestMask = avail;
+              if (cnt === 1) break;
+            }
+          }
+
+          const cell = emptyCells[bestIdx];
+          let m = bestMask;
+          while (m) {
+            const bit = m & -m;
+            const v = Math.clz32(bit) ^ 31;
+            m &= ~bit;
+
+            idxGrid[cell.r][cell.c] = v;
+            rowMask[cell.r] |= bit;
+            colMask[cell.c] |= bit;
+            blkMask[cell.b] |= bit;
+
+            if (solve(rem - 1)) return true;
+
+            idxGrid[cell.r][cell.c] = -1;
+            rowMask[cell.r] &= ~bit;
+            colMask[cell.c] &= ~bit;
+            blkMask[cell.b] &= ~bit;
+          }
+          return false;
+        }
+
+        if (solve(emptyCells.length)) {
+          return idxGrid.map(row => row.map(v => symbols[v]));
+        }
+        return generateCompleteValidGrid(N, blockR, blockC, symbols);
+      }
+
+      /**
+       * Matrizes de referência para 9x9 com solução única garantida (incluindo os 4 tabuleiros
+       * da imagem enviada + sementes mínimas de 17 pistas verificadas).
+       * Aplicamos transformações isomórficas (permutação de símbolos, faixas, linhas, pilhas,
+       * colunas e transposição) para gerar bilhões de jogos inéditos com exatas ~17 ou ~23 pistas.
+       */
+      const SEEDS_17_CLUES = [
+        // Tabuleiro "EXPERTO" (17 pistas) da imagem enviada
+        '8...3..........4.7..2.8....4....3...5......2.....7...3.5..........2..61..6.......',
+        // Matrizes mínimas clássicas de 17 pistas de solução única
+        '.......1.4.........2...........5.4.7..8...3....1.9....3..4..2...5.1........8.6...',
+        '.......12........3..23..4....18....5.6..7.8.......9.....85.....9...4.5..47...6...',
+        '.....6....59.....82....8....45........3........6..3.54...325..6..................',
+        '....14....3....2...7..........9...3.6.1.............8.2.....1.4....5.6.....7.8...'
+      ];
+
+      const SEEDS_UAISO_BASE = [
+        // Os 3 tabuleiros "DIFÍCIL" da imagem enviada (21-22 pistas de base)
+        '..3...81....9...42....61...6.....7..7.4.2.....39.5.......6.3....1..7.6..8......75',
+        '..7......51.8...43..95....69...1...5....93.822................1.4..6..9..8....7..',
+        '87.9..3......25...4..71....567......2.....9....15..2...8..4..1........6.7.....5.2'
+      ];
+
+      function buildIsomorphic9x9FromSeed(seedStr, symbols, targetCluesCount) {
+        const stdSymbols = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        const rawInitial = Array.from({ length: 9 }, (_, r) =>
+          Array.from({ length: 9 }, (_, c) => {
+            const ch = seedStr[r * 9 + c];
+            return (ch >= '1' && ch <= '9') ? ch : '';
+          })
+        );
+
+        const rawSolution = solvePartialGrid(rawInitial, 9, 3, 3, stdSymbols);
+
+        // Permutação aleatória de faixas (bands) e linhas dentro de cada faixa
+        const bandOrder = shuffleArray([0, 1, 2]);
+        const rowPerm = [];
+        for (const b of bandOrder) {
+          rowPerm.push(...shuffleArray([b * 3, b * 3 + 1, b * 3 + 2]));
+        }
+
+        // Permutação aleatória de pilhas (stacks) e colunas dentro de cada pilha
+        const stackOrder = shuffleArray([0, 1, 2]);
+        const colPerm = [];
+        for (const s of stackOrder) {
+          colPerm.push(...shuffleArray([s * 3, s * 3 + 1, s * 3 + 2]));
+        }
+
+        // Bijeção aleatória para os 9 símbolos da partida atual
+        const permSymbols = shuffleArray(symbols);
+        const transpose = Math.random() < 0.5;
+
+        const solution = Array.from({ length: 9 }, () => Array(9).fill(''));
+        const initial = Array.from({ length: 9 }, () => Array(9).fill(''));
+
+        const emptyPositions = [];
+        let currentClues = 0;
+
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            const sr = transpose ? colPerm[c] : rowPerm[r];
+            const sc = transpose ? rowPerm[r] : colPerm[c];
+
+            const solVal = rawSolution[sr][sc];
+            const solIdx = parseInt(solVal, 10) - 1;
+            solution[r][c] = permSymbols[solIdx];
+
+            const initVal = rawInitial[sr][sc];
+            if (initVal !== '') {
+              const initIdx = parseInt(initVal, 10) - 1;
+              initial[r][c] = permSymbols[initIdx];
+              currentClues++;
+            } else {
+              emptyPositions.push([r, c]);
+            }
+          }
+        }
+
+        // Se o modo pedir mais pistas (ex: ~23 pistas no modo "Uai, Sô🤠⁉️"),
+        // adiciona pistas extras da solução única mantendo 100% a unicidade lógica
+        if (targetCluesCount && currentClues < targetCluesCount) {
+          const shuffledEmpty = shuffleArray(emptyPositions);
+          const needed = targetCluesCount - currentClues;
+          for (let i = 0; i < needed && i < shuffledEmpty.length; i++) {
+            const [er, ec] = shuffledEmpty[i];
+            initial[er][ec] = solution[er][ec];
+          }
+        }
+
+        return { solution, initial };
+      }
+
+      /**
+       * Gera o puzzle completo:
+       * 1) Monta grid 100% válido
+       * 2) Remove casas gradualmente verificando que a solução permanece ÚNICA.
+       */
+      function createUniqueSudokuPuzzle(N, blockR, blockC, symbols, difficulty) {
+        // Para grade 9x9 nos modos extremos "🚂Doido D➕ da Conta‼️🤪" (~23 pistas) e "🌵Oxe, 🫠Que Miséria‼️🤦" (~17 pistas)
+        if (N === 9 && blockR === 3 && blockC === 3 && (difficulty === 'doido' || difficulty === 'uaiso')) {
+          if (difficulty === 'doido') {
+            const seed = SEEDS_17_CLUES[Math.floor(Math.random() * SEEDS_17_CLUES.length)];
+            // 17 pistas em média (varia sutilmente entre 17 e 18 pistas, média ~17)
+            const targetClues = Math.random() < 0.8 ? 17 : 18;
+            return buildIsomorphic9x9FromSeed(seed, symbols, targetClues);
+          }
+          if (difficulty === 'uaiso') {
+            const pool = [...SEEDS_UAISO_BASE, ...SEEDS_17_CLUES];
+            const seed = pool[Math.floor(Math.random() * pool.length)];
+            // Cerca de 23 casas com pistas (22 a 24 pistas, média 23)
+            const targetClues = 22 + Math.floor(Math.random() * 3);
+            return buildIsomorphic9x9FromSeed(seed, symbols, targetClues);
+          }
+        }
+
+        const solution = generateCompleteValidGrid(N, blockR, blockC, symbols);
+        const symToIdx = new Map(symbols.map((s, i) => [s, i]));
+        const puzzleIdx = solution.map(row => row.map(s => symToIdx.get(s)));
+
+        const totalCells = N * N;
+        // Define fração de casas a remover conforme dificuldade (garantindo inteiro arredondado de pistas)
+        const ratio = DIFFICULTY_REMOVAL_RATIOS[difficulty] || 0.50;
+        const targetClues = Math.round(totalCells * (1 - ratio));
+        const targetRemovals = totalCells - targetClues;
+
+        const allCoords = [];
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            allCoords.push([r, c]);
+          }
+        }
+        const shuffledCoords = shuffleArray(allCoords);
+
+        let removed = 0;
+        const nodeBudget = N <= 9 ? 6500 : (N <= 16 ? 1200 : 400);
+
+        for (const [r, c] of shuffledCoords) {
+          if (removed >= targetRemovals) break;
+
+          const backup = puzzleIdx[r][c];
+          puzzleIdx[r][c] = -1;
+
+          // Verifica se ainda existe exatamente 1 única solução lógica
+          const numSols = countSolutionsMRV(puzzleIdx, N, blockR, blockC, 2, nodeBudget);
+          if (numSols === 1) {
+            removed++;
+          } else {
+            // Reverte remoção caso crie múltiplas soluções
+            puzzleIdx[r][c] = backup;
+          }
+        }
+
+        const initial = puzzleIdx.map(row => row.map(idx => (idx === -1 ? '' : symbols[idx])));
+        return { solution, initial };
+      }
+
+      /* ========================================================================
+         5. RENDERIZAÇÃO DO GRID, INPUT NATIVO, TECLADO E DESTAQUE DINÂMICO
+         ======================================================================== */
+      function renderSudokuBoard() {
+        const gridEl = document.getElementById('sudoku-grid');
+        gridEl.innerHTML = '';
+
+        const { N, blockR, blockC } = state;
+        gridEl.style.gridTemplateColumns = `repeat(${N}, minmax(0, 1fr))`;
+        gridEl.style.gridTemplateRows = `repeat(${N}, minmax(0, 1fr))`;
+
+        // Calcula tamanhos de fonte adaptativos para caber perfeitamente em qualquer N (4x4 até 25x25)
+        const maxSymbolLen = Math.max(...state.symbols.map(s => s.length));
+        const hasNegativeSymbols = state.symbols.some(s => s.startsWith('-'));
+        let mainFontSize = 'clamp(1rem, 3.8vw, 1.65rem)';
+        if (N >= 12 && N < 16) mainFontSize = 'clamp(0.75rem, 2.5vw, 1.15rem)';
+        else if (N >= 16 && N < 20) mainFontSize = 'clamp(0.65rem, 2vw, 0.95rem)';
+        else if (N >= 20) mainFontSize = 'clamp(0.52rem, 1.5vw, 0.78rem)';
+        else if (maxSymbolLen >= 2) mainFontSize = 'clamp(0.85rem, 3.1vw, 1.35rem)';
+
+        // Colunas do mini-grid de anotações do Modo Lápis
+        const noteCols = Math.ceil(Math.sqrt(N));
+        const noteRows = Math.ceil(N / noteCols);
+        let noteFontSize = 'clamp(0.45rem, 1.15vw, 0.65rem)';
+        if (N > 9 || maxSymbolLen >= 2) {
+          noteFontSize = 'clamp(0.36rem, 0.85vw, 0.52rem)';
+        }
+
+        const rainbowBorderColors = [
+          '#ff0040', '#ff7300', '#ffeb00', '#00e676',
+          '#00e5ff', '#2979ff', '#651fff', '#d500f9'
+        ];
+        const isRainbowTheme = document.documentElement.getAttribute('data-theme') === 'rainbow';
+        const maxDiag = Math.max(1, 2 * N - 2);
+
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            const isGiven = state.initial[r][c] !== '';
+            const cellDiv = document.createElement('div');
+            cellDiv.className = `sudoku-cell ${isGiven ? 'given-cell' : ''}`;
+            cellDiv.dataset.r = r;
+            cellDiv.dataset.c = c;
+
+            // Variáveis CSS posicionais para o degradê de 7+ cores do arco-íris no tema Rainbow
+            const cellHue = Math.round(((r + c) / maxDiag) * 330);
+            const rowHue = Math.round((r / Math.max(1, N - 1)) * 330);
+            const colHue = Math.round((c / Math.max(1, N - 1)) * 330);
+            cellDiv.style.setProperty('--cell-hue', String(cellHue));
+            cellDiv.style.setProperty('--row-hue', String(rowHue));
+            cellDiv.style.setProperty('--col-hue', String(colHue));
+
+            // Bordas grossas separando os sub-blocos internos (com cores do arco-íris no tema Rainbow)
+            if ((c + 1) % blockC === 0 && c < N - 1) {
+              const bColor = isRainbowTheme
+                ? rainbowBorderColors[(Math.floor(c / blockC) + Math.floor(r / blockR)) % rainbowBorderColors.length]
+                : 'var(--board-border-block)';
+              cellDiv.style.borderRight = `3px solid ${bColor}`;
+            } else if (c === N - 1) {
+              cellDiv.style.borderRight = 'none';
+            }
+
+            if ((r + 1) % blockR === 0 && r < N - 1) {
+              const bColor = isRainbowTheme
+                ? rainbowBorderColors[(Math.floor(r / blockR) + Math.floor(c / blockC) + 2) % rainbowBorderColors.length]
+                : 'var(--board-border-block)';
+              cellDiv.style.borderBottom = `3px solid ${bColor}`;
+            } else if (r === N - 1) {
+              cellDiv.style.borderBottom = 'none';
+            }
+
+            // Container de Anotações (Modo Lápis)
+            const pencilGrid = document.createElement('div');
+            pencilGrid.className = 'pencil-grid';
+            pencilGrid.id = `pencil-${r}-${c}`;
+            pencilGrid.style.gridTemplateColumns = `repeat(${noteCols}, minmax(0, 1fr))`;
+            pencilGrid.style.gridTemplateRows = `repeat(${noteRows}, minmax(0, 1fr))`;
+            pencilGrid.style.fontSize = noteFontSize;
+            cellDiv.appendChild(pencilGrid);
+
+            // Elemento <input> nativo estilizado dentro de cada casa (100% digitável no celular e PC)
+            const inputEl = document.createElement('input');
+            inputEl.type = 'text';
+            if (isGiven) {
+              inputEl.readOnly = true;
+              inputEl.setAttribute('inputmode', 'none');
+            } else {
+              inputEl.readOnly = false;
+              // Abre imediatamente o teclado numérico nativo no Android/iOS ao tocar na casa
+              const modeAttr = hasNegativeSymbols ? 'decimal' : 'numeric';
+              inputEl.inputMode = modeAttr;
+              inputEl.setAttribute('inputmode', modeAttr);
+              inputEl.setAttribute('pattern', '[0-9\\-]*');
+            }
+            inputEl.setAttribute('autocomplete', 'off');
+            inputEl.setAttribute('autocorrect', 'off');
+            inputEl.setAttribute('autocapitalize', 'off');
+            inputEl.spellcheck = false;
+            inputEl.className = 'sudoku-input';
+            inputEl.id = `cell-input-${r}-${c}`;
+            inputEl.style.fontSize = mainFontSize;
+            inputEl.value = state.board[r][c];
+            inputEl.setAttribute('aria-label', `Linha ${r + 1}, Coluna ${c + 1}`);
+
+            // Clique na célula foca diretamente o <input> para abrir o teclado no mobile
+            cellDiv.addEventListener('click', (e) => {
+              if (e.target !== inputEl) {
+                inputEl.focus();
+              }
+            });
+
+            // Eventos de Foco, Toque e Digitação (Física e Virtual Mobile)
+            inputEl.addEventListener('focus', () => {
+              handleCellFocus(r, c);
+              if (!isGiven && inputEl.value) {
+                setTimeout(() => {
+                  try { inputEl.select(); } catch (err) {}
+                }, 0);
+              }
+            });
+
+            inputEl.addEventListener('click', () => {
+              handleCellFocus(r, c);
+              if (!isGiven && inputEl.value) {
+                try { inputEl.select(); } catch (err) {}
+              }
+            });
+
+            inputEl.addEventListener('keydown', (e) => handleCellKeyDown(e, r, c));
+            inputEl.addEventListener('input', (e) => handleCellMobileInput(e, r, c));
+
+            cellDiv.appendChild(inputEl);
+            gridEl.appendChild(cellDiv);
+
+            // Renderiza notas iniciais se houver
+            updateCellPencilDOM(r, c);
+          }
+        }
+
+        updateAllCellVisuals();
+        updateProgressUI();
+      }
+
+      function updateCellPencilDOM(r, c) {
+        const pencilEl = document.getElementById(`pencil-${r}-${c}`);
+        if (!pencilEl) return;
+
+        const val = state.board[r][c];
+        const noteSet = state.notes[r][c];
+
+        // Se a célula possui um valor definitivo, ocultamos as notas visuais
+        if (val !== '' || !noteSet || noteSet.size === 0) {
+          pencilEl.innerHTML = '';
+          return;
+        }
+
+        pencilEl.innerHTML = '';
+        const totalSyms = Math.max(1, state.symbols.length - 1);
+        state.symbols.forEach((sym, idx) => {
+          const span = document.createElement('span');
+          span.className = 'pencil-note';
+          span.dataset.sym = sym;
+          span.style.setProperty('--note-hue', String(Math.round((idx / totalSyms) * 330)));
+          if (noteSet.has(sym)) {
+            span.textContent = sym;
+            if (state.highlightedSymbol !== null && state.highlightedSymbol === sym) {
+              span.classList.add('is-note-highlighted');
+            }
+          }
+          pencilEl.appendChild(span);
+        });
+      }
+
+      /**
+       * Verifica se uma célula (row, col) possui conflito direto na mesma linha,
+       * coluna ou sub-bloco, ou se diverge da solução quando o retorno imediato está ativo.
+       */
+      function hasDirectPeerConflict(row, col, val) {
+        if (val === '') return false;
+        const { N, blockR, blockC } = state;
+
+        // Verifica se diverge da solução oficial ou se repete em linha/coluna/bloco
+        if (state.solution[row] && state.solution[row][col] && val !== state.solution[row][col]) {
+          return true;
+        }
+
+        for (let i = 0; i < N; i++) {
+          if (i !== col && state.board[row][i] === val) return true;
+          if (i !== row && state.board[i][col] === val) return true;
+        }
+
+        const startR = Math.floor(row / blockR) * blockR;
+        const startC = Math.floor(col / blockC) * blockC;
+        for (let r = startR; r < startR + blockR; r++) {
+          for (let c = startC; c < startC + blockC; c++) {
+            if ((r !== row || c !== col) && state.board[r][c] === val) return true;
+          }
+        }
+
+        return false;
+      }
+
+      /**
+       * Atualiza todos os destaques visuais do tabuleiro:
+       * - Crosshair (linha, coluna e sub-bloco da célula em foco)
+       * - Instâncias iguais do número selecionado (no tabuleiro e nas notas do Modo Lápis)
+       * - Estado de erro (quando revelado após conferir ou quando o toggle imediato está ativo)
+       */
+      function updateAllCellVisuals() {
+        const { N, blockR, blockC, focusedCell, highlightedSymbol, immediateErrorCheck } = state;
+        const focusR = focusedCell ? focusedCell.r : -1;
+        const focusC = focusedCell ? focusedCell.c : -1;
+        const focusBlockR = focusR >= 0 ? Math.floor(focusR / blockR) : -1;
+        const focusBlockC = focusC >= 0 ? Math.floor(focusC / blockC) : -1;
+
+        const cells = document.querySelectorAll('#sudoku-grid .sudoku-cell');
+        cells.forEach((cellDiv) => {
+          const r = parseInt(cellDiv.dataset.r, 10);
+          const c = parseInt(cellDiv.dataset.c, 10);
+          const val = state.board[r][c];
+          const inputEl = document.getElementById(`cell-input-${r}-${c}`);
+
+          if (inputEl && (!state.typingBuffer || r !== focusR || c !== focusC)) {
+            inputEl.value = val;
+          }
+
+          const isFocused = (r === focusR && c === focusC);
+          const inSameRowOrCol = (r === focusR || c === focusC);
+          const inSameBlock = (Math.floor(r / blockR) === focusBlockR && Math.floor(c / blockC) === focusBlockC);
+          const isCrosshair = !isFocused && (inSameRowOrCol || inSameBlock);
+          const isSameNumber = (highlightedSymbol !== null && highlightedSymbol !== '' && val === highlightedSymbol);
+
+          const isError =
+            state.revealedErrors[r][c] ||
+            (immediateErrorCheck && state.initial[r][c] === '' && val !== '' && hasDirectPeerConflict(r, c, val));
+
+          cellDiv.classList.toggle('is-focused', isFocused);
+          cellDiv.classList.toggle('is-crosshair', isCrosshair);
+          cellDiv.classList.toggle('is-same-number', isSameNumber);
+          cellDiv.classList.toggle('is-error', isError);
+
+          // Atualiza destaque dos candidatos no Modo Lápis
+          const pencilEl = document.getElementById(`pencil-${r}-${c}`);
+          if (pencilEl) {
+            const noteSpans = pencilEl.querySelectorAll('.pencil-note');
+            noteSpans.forEach((span) => {
+              const sym = span.dataset.sym;
+              const hasNote = state.notes[r][c] && state.notes[r][c].has(sym);
+              span.classList.toggle(
+                'is-note-highlighted',
+                hasNote && highlightedSymbol !== null && sym === highlightedSymbol
+              );
+            });
+          }
+        });
+
+        // Destaca o botão correspondente no teclado virtual lateral
+        const numpadBtns = document.querySelectorAll('#virtual-numpad .numpad-btn');
+        numpadBtns.forEach((btn) => {
+          btn.classList.toggle(
+            'active-number-highlight',
+            highlightedSymbol !== null && btn.dataset.sym === highlightedSymbol
+          );
+        });
+      }
+
+      /* ========================================================================
+         6. INTERAÇÃO, DIGITAÇÃO DE NEGATIVOS/DEZENAS E AUTO-NOTAS
+         ======================================================================== */
+      function handleCellFocus(r, c) {
+        if (state.focusedCell.r !== r || state.focusedCell.c !== c) {
+          clearTypingBuffer();
+        }
+        state.focusedCell = { r, c };
+        const val = state.board[r][c];
+        state.highlightedSymbol = val !== '' ? val : null;
+        updateAllCellVisuals();
+      }
+
+      function clearTypingBuffer() {
+        state.typingBuffer = '';
+        if (state.typingTimeout) {
+          clearTimeout(state.typingTimeout);
+          state.typingTimeout = null;
+        }
+      }
+
+      /**
+       * Trata navegação por setas, atalho 'N' (Modo Lápis), Backspace/Delete
+       * e digitação direta inteligente (suportando negativos ex: -9 e dezenas ex: 16).
+       */
+      function handleCellKeyDown(e, r, c) {
+        const { N } = state;
+
+        // Navegação por Setas do Teclado
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          focusCellByCoords((r - 1 + N) % N, c);
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          focusCellByCoords((r + 1) % N, c);
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          focusCellByCoords(r, (c - 1 + N) % N);
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          focusCellByCoords(r, (c + 1) % N);
+          return;
+        }
+
+        // Atalho 'N' para alternar o Modo Lápis
+        if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          togglePencilMode();
+          return;
+        }
+
+        // Se for célula original da instância, é inalterável
+        if (state.initial[r][c] !== '') {
+          e.preventDefault();
+          return;
+        }
+
+        // Apagar valor ou notas
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault();
+          clearTypingBuffer();
+          eraseCell(r, c);
+          return;
+        }
+
+        // Digitação de sinal negativo '-' ou dígitos '0'-'9'
+        if (e.key === '-' || (e.key >= '0' && e.key <= '9')) {
+          e.preventDefault();
+          state.lastKeydownTimestamp = Date.now();
+          processTypedChar(r, c, e.key);
+        }
+      }
+
+      /**
+       * Trata digitação originada pelo teclado virtual nativo de celulares (Android/iOS),
+       * onde o navegador dispara o evento 'input' em vez de 'keydown' com o dígito.
+       */
+      function handleCellMobileInput(e, r, c) {
+        const inputEl = document.getElementById(`cell-input-${r}-${c}`);
+        if (state.completed || state.initial[r][c] !== '') {
+          if (inputEl) inputEl.value = state.board[r][c];
+          return;
+        }
+
+        // Evita duplicidade caso o evento já tenha sido tratado pelo keydown há poucos milissegundos
+        if (state.lastKeydownTimestamp && (Date.now() - state.lastKeydownTimestamp < 45)) {
+          if (inputEl && !state.typingBuffer) inputEl.value = state.board[r][c];
+          return;
+        }
+
+        const inputType = e.inputType || '';
+        if (inputType === 'deleteContentBackward' || inputType === 'deleteContentForward') {
+          clearTypingBuffer();
+          eraseCell(r, c);
+          return;
+        }
+
+        // Extrai os caracteres recém-digitados no teclado virtual do smartphone
+        let typedData = e.data;
+        if (!typedData && inputEl) {
+          typedData = inputEl.value;
+        }
+
+        if (!typedData) {
+          clearTypingBuffer();
+          eraseCell(r, c);
+          return;
+        }
+
+        const cleanChars = String(typedData).replace(/[^0-9\-]/g, '');
+        if (!cleanChars) {
+          if (inputEl) inputEl.value = state.board[r][c];
+          return;
+        }
+
+        for (const ch of cleanChars) {
+          processTypedChar(r, c, ch);
+        }
+
+        if (inputEl && !state.typingBuffer) {
+          inputEl.value = state.board[r][c];
+        }
+      }
+
+      function processTypedChar(r, c, char) {
+        if (state.completed || state.initial[r][c] !== '') return;
+
+        const candidateBuffer = state.typingBuffer + char;
+        const exactMatch = state.symbols.includes(candidateBuffer);
+        const hasLongerPrefixMatch = state.symbols.some(s => s.startsWith(candidateBuffer) && s.length > candidateBuffer.length);
+
+        if (exactMatch && !hasLongerPrefixMatch) {
+          // Combinação única e completa (ex: "-9", "16", ou "5" quando não há anos/dezenas 50+)
+          clearTypingBuffer();
+          applySymbolToCell(r, c, candidateBuffer);
+          return;
+        }
+
+        if (hasLongerPrefixMatch) {
+          // Pode ser o início de um número negativo ("-") ou de uma dezena ("1" -> "16")
+          state.typingBuffer = candidateBuffer;
+          const inputEl = document.getElementById(`cell-input-${r}-${c}`);
+          if (inputEl && !state.pencilMode) {
+            inputEl.value = candidateBuffer;
+          }
+
+          if (state.typingTimeout) clearTimeout(state.typingTimeout);
+          state.typingTimeout = setTimeout(() => {
+            const finalBuf = state.typingBuffer;
+            clearTypingBuffer();
+            if (state.symbols.includes(finalBuf)) {
+              applySymbolToCell(r, c, finalBuf);
+            } else {
+              updateAllCellVisuals();
+            }
+          }, 480);
+          return;
+        }
+
+        // Se o buffer combinado não formou um símbolo válido, tenta o caractere isolado
+        clearTypingBuffer();
+        if (char === '-' && state.symbols.some(s => s.startsWith('-'))) {
+          processTypedChar(r, c, '-');
+        } else if (state.symbols.includes(char)) {
+          applySymbolToCell(r, c, char);
+        }
+      }
+
+      function focusCellByCoords(r, c) {
+        const inputEl = document.getElementById(`cell-input-${r}-${c}`);
+        if (inputEl) {
+          inputEl.focus();
+          handleCellFocus(r, c);
+        }
+      }
+
+      /**
+       * Aplica um símbolo na célula (r, c), respeitando se o Modo Lápis está ativo ou não.
+       */
+      function applySymbolToCell(r, c, symbol) {
+        if (state.completed) return;
+        if (state.initial[r][c] !== '') return;
+        if (!state.symbols.includes(symbol)) return;
+
+        // Limpa marcação de erro revelado anterior nesta casa ao editá-la
+        state.revealedErrors[r][c] = false;
+
+        if (state.pencilMode) {
+          // Se havia um valor definitivo na célula, limpa-o para exibir as notas
+          if (state.board[r][c] !== '') {
+            state.board[r][c] = '';
+          }
+          const noteSet = state.notes[r][c];
+          if (noteSet.has(symbol)) {
+            noteSet.delete(symbol);
+          } else {
+            noteSet.add(symbol);
+          }
+          state.highlightedSymbol = symbol;
+          updateCellPencilDOM(r, c);
+        } else {
+          // Modo normal (valor definitivo)
+          if (state.board[r][c] === symbol) {
+            // Clicar no mesmo número já preenchido apaga
+            state.board[r][c] = '';
+            state.highlightedSymbol = null;
+          } else {
+            state.board[r][c] = symbol;
+            state.notes[r][c].clear();
+            state.highlightedSymbol = symbol;
+            // AUTO-NOTAS: Remove automaticamente este número dos candidatos na mesma linha, coluna e sub-bloco
+            removeAutoNotesPeers(r, c, symbol);
+          }
+          updateCellPencilDOM(r, c);
+        }
+
+        updateAllCellVisuals();
+        updateProgressUI();
+        saveCurrentGameState();
+      }
+
+      function removeAutoNotesPeers(row, col, symbol) {
+        const { N, blockR, blockC } = state;
+        const startR = Math.floor(row / blockR) * blockR;
+        const startC = Math.floor(col / blockC) * blockC;
+
+        for (let i = 0; i < N; i++) {
+          if (state.notes[row][i].delete(symbol)) updateCellPencilDOM(row, i);
+          if (state.notes[i][col].delete(symbol)) updateCellPencilDOM(i, col);
+        }
+
+        for (let r = startR; r < startR + blockR; r++) {
+          for (let c = startC; c < startC + blockC; c++) {
+            if (state.notes[r][c].delete(symbol)) updateCellPencilDOM(r, c);
+          }
+        }
+      }
+
+      function eraseCell(r, c) {
+        if (state.completed || state.initial[r][c] !== '') return;
+        state.board[r][c] = '';
+        state.notes[r][c].clear();
+        state.revealedErrors[r][c] = false;
+        state.highlightedSymbol = null;
+        updateCellPencilDOM(r, c);
+        updateAllCellVisuals();
+        updateProgressUI();
+        saveCurrentGameState();
+      }
+
+      /**
+       * Funcionalidade "🪐Chama a Nasa...🚀👨🏾‍🚀":
+       * Sorteia aleatoriamente 1 única casa que esteja não preenchida (ou preenchida incorretamente)
+       * e revela o valor correto da solução.
+       */
+      function giveNasaHint() {
+        if (state.completed) {
+          showToast('O tabuleiro já foi concluído com sucesso! 🚀', 'info');
+          return;
+        }
+
+        const { N } = state;
+        const emptyCandidates = [];
+        const wrongCandidates = [];
+
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            if (state.initial[r][c] !== '') continue;
+            const currentVal = state.board[r][c];
+            const correctVal = state.solution[r][c];
+            if (currentVal === '') {
+              emptyCandidates.push({ r, c, type: 'empty' });
+            } else if (currentVal !== correctVal) {
+              wrongCandidates.push({ r, c, type: 'wrong' });
+            }
+          }
+        }
+
+        const allCandidates = [...emptyCandidates, ...wrongCandidates];
+        if (allCandidates.length === 0) {
+          showToast('🪐 A NASA confirmou: todas as casas já estão preenchidas corretamente! Clique em Conferir Solução! 🚀', 'success');
+          return;
+        }
+
+        const chosen = allCandidates[Math.floor(Math.random() * allCandidates.length)];
+        const { r, c, type } = chosen;
+        const correctSymbol = state.solution[r][c];
+
+        state.board[r][c] = correctSymbol;
+        state.notes[r][c].clear();
+        state.revealedErrors[r][c] = false;
+        state.focusedCell = { r, c };
+        state.highlightedSymbol = correctSymbol;
+
+        removeAutoNotesPeers(r, c, correctSymbol);
+        updateCellPencilDOM(r, c);
+        updateAllCellVisuals();
+        updateProgressUI();
+        saveCurrentGameState();
+
+        // Anima a célula revelada
+        const inputEl = document.getElementById(`cell-input-${r}-${c}`);
+        if (inputEl && inputEl.parentElement) {
+          const cellDiv = inputEl.parentElement;
+          cellDiv.classList.remove('nasa-hint-flash');
+          void cellDiv.offsetWidth;
+          cellDiv.classList.add('nasa-hint-flash');
+          inputEl.focus();
+        }
+
+        if (type === 'wrong') {
+          showToast(`🪐 A NASA corrigiu a casa (Linha ${r + 1}, Coluna ${c + 1}) para ${correctSymbol}! 🚀👨🏾‍🚀`, 'info');
+        } else {
+          showToast(`🪐 A NASA revelou a casa (Linha ${r + 1}, Coluna ${c + 1}): ${correctSymbol}! 🚀👨🏾‍🚀`, 'info');
+        }
+      }
+
+      function togglePencilMode(forceState) {
+        state.pencilMode = typeof forceState === 'boolean' ? forceState : !state.pencilMode;
+        const btn = document.getElementById('btn-pencil-mode');
+        const badge = document.getElementById('pencil-status-badge');
+
+        if (state.pencilMode) {
+          btn.classList.add('btn-accent');
+          btn.classList.remove('theme-panel-alt');
+          badge.textContent = 'ON';
+          badge.className = 'px-1.5 py-0.5 text-[10px] rounded bg-white/25 font-extrabold';
+        } else {
+          btn.classList.remove('btn-accent');
+          btn.classList.add('theme-panel-alt');
+          badge.textContent = 'OFF';
+          badge.className = 'px-1.5 py-0.5 text-[10px] rounded bg-slate-500/20 font-extrabold';
+        }
+      }
+
+      function renderVirtualNumpad() {
+        const container = document.getElementById('virtual-numpad');
+        container.innerHTML = '';
+
+        const firstSym = state.symbols[0];
+        const lastSym = state.symbols[state.symbols.length - 1];
+        document.getElementById('numpad-range-label').textContent = `[${firstSym} .. ${lastSym}] (${state.N} núm.)`;
+
+        const totalSyms = Math.max(1, state.symbols.length - 1);
+        state.symbols.forEach((sym, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.sym = sym;
+          btn.className = 'numpad-btn py-2.5 px-2 rounded-xl text-sm sm:text-base shadow-sm';
+          btn.style.setProperty('--btn-hue', String(Math.round((idx / totalSyms) * 330)));
+          btn.textContent = sym;
+
+          // Evita perder o foco da célula ativa ao tocar nos botões do teclado lateral
+          btn.addEventListener('mousedown', (e) => e.preventDefault());
+          btn.addEventListener('Click', () => {});
+          btn.addEventListener('click', () => {
+            const { r, c } = state.focusedCell;
+            if (state.initial[r][c] !== '') {
+              // Se a casa focada é fixa, apenas destaca todas as instâncias desse número
+              state.highlightedSymbol = sym;
+              updateAllCellVisuals();
+            } else {
+              applySymbolToCell(r, c, sym);
+            }
+          });
+          container.appendChild(btn);
+        });
+      }
+
+      /* ========================================================================
+         7. FLUXO DE CHECAGEM E VALIDAÇÃO (REQUISITO 5 - CRÍTICO)
+         ======================================================================== */
+      function updateProgressUI() {
+        const total = state.N * state.N;
+        let filled = 0;
+        for (let r = 0; r < state.N; r++) {
+          for (let c = 0; c < state.N; c++) {
+            if (state.board[r][c] !== '') filled++;
+          }
+        }
+
+        const pct = Math.floor((filled / total) * 100);
+        document.getElementById('progress-badge').textContent = `${filled} / ${total} (${pct}%)`;
+
+        const checkBtn = document.getElementById('btn-check-solution');
+        const checkBtnText = document.getElementById('btn-check-solution-text');
+
+        if (filled === total) {
+          checkBtn.disabled = false;
+          checkBtnText.textContent = 'Conferir Solução Agora!';
+        } else {
+          checkBtn.disabled = true;
+          checkBtnText.textContent = `Conferir Solução (Faltam ${total - filled})`;
+        }
+      }
+
+      /**
+       * Verifica se o tabuleiro 100% preenchido é uma solução válida de Sudoku
+       * e identifica eventuais células incorretas.
+       */
+      function checkFullBoardSolution() {
+        const { N, blockR, blockC } = state;
+        const wrongCoords = [];
+
+        // Verifica primeiro se o tabuleiro bate com qualquer solução válida pelas regras de linha/coluna/bloco
+        let rulesValid = true;
+        for (let r = 0; r < N; r++) {
+          const rowSet = new Set();
+          const colSet = new Set();
+          for (let c = 0; c < N; c++) {
+            rowSet.add(state.board[r][c]);
+            colSet.add(state.board[c][r]);
+          }
+          if (rowSet.size !== N || colSet.size !== N) rulesValid = false;
+        }
+
+        for (let br = 0; br < N; br += blockR) {
+          for (let bc = 0; bc < N; bc += blockC) {
+            const blkSet = new Set();
+            for (let r = br; r < br + blockR; r++) {
+              for (let c = bc; c < bc + blockC; c++) {
+                blkSet.add(state.board[r][c]);
+              }
+            }
+            if (blkSet.size !== N) rulesValid = false;
+          }
+        }
+
+        if (rulesValid) {
+          // 100% CORRETO! Pausa timer, salva como concluído e abre modal de Parabéns!
+          pauseTimer();
+          state.completed = true;
+          saveCurrentGameState();
+
+          document.getElementById('victory-time').textContent = formatTime(state.timerSeconds);
+          document.getElementById('victory-diff').textContent = DIFFICULTY_LABELS[state.difficulty] || state.difficulty;
+          document.getElementById('victory-dim').textContent = `${N}×${N} (${blockR}×${blockC})`;
+          document.getElementById('victory-range').textContent = `${state.symbols[0]} a ${state.symbols[state.symbols.length - 1]}`;
+          openModal('modal-victory');
+          return;
+        }
+
+        // Se houver erros: o timer CONTINUA rodando. Conta quantas células divergem da solução.
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            if (state.initial[r][c] === '' && state.board[r][c] !== state.solution[r][c]) {
+              wrongCoords.push([r, c]);
+            }
+          }
+        }
+
+        const errCount = wrongCoords.length;
+        document.getElementById('error-count-label').textContent =
+          errCount === 1 ? '1 casa incorreta' : `${errCount} casas incorretas`;
+
+        openModal('modal-errors-prompt');
+      }
+
+      function revealErrorsOnBoard() {
+        const { N } = state;
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            if (state.initial[r][c] === '' && state.board[r][c] !== '' && state.board[r][c] !== state.solution[r][c]) {
+              state.revealedErrors[r][c] = true;
+            }
+          }
+        }
+        updateAllCellVisuals();
+        saveCurrentGameState();
+        showToast('As casas com valores incorretos foram destacadas em vermelho.', 'warn');
+      }
+
+      /* ========================================================================
+         8. CRONÔMETRO E PAUSA
+         ======================================================================== */
+      function startTimer() {
+        if (state.timerInterval) clearInterval(state.timerInterval);
+        state.timerRunning = true;
+        document.getElementById('pause-overlay').classList.add('hidden');
+        document.getElementById('icon-pause-timer').className = 'fa-solid fa-pause text-xs';
+
+        state.timerInterval = setInterval(() => {
+          if (!state.timerRunning || state.completed) return;
+          state.timerSeconds++;
+          document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+          if (state.timerSeconds % 5 === 0) {
+            saveCurrentGameState();
+          }
+        }, 1000);
+      }
+
+      function pauseTimer() {
+        state.timerRunning = false;
+        document.getElementById('icon-pause-timer').className = 'fa-solid fa-play text-xs';
+      }
+
+      function togglePauseGame() {
+        if (state.completed) return;
+        if (state.timerRunning) {
+          pauseTimer();
+          document.getElementById('pause-overlay').classList.remove('hidden');
+        } else {
+          startTimer();
+        }
+      }
+
+      /* ========================================================================
+         9. INICIALIZAÇÃO DE PARTIDA, SAVE/LOAD E HISTÓRICO
+         ======================================================================== */
+      function startNewGame(customConfig = null) {
+        let N = 9, blockR = 3, blockC = 3;
+        let minVal = 1, maxVal = 9, includeZero = false;
+        let symbols = buildSymbolsFromRange(1, 9, false);
+
+        if (state.mode === 'custom') {
+          const cfg = customConfig || updateCustomRangePreview();
+          if (!cfg) {
+            showToast('Ajuste o intervalo customizado para ter entre 4 e 25 números.', 'warn');
+            return;
+          }
+          ({ minVal, maxVal, includeZero, symbols, N, blockR, blockC } = cfg);
+        }
+
+        const { solution, initial } = createUniqueSudokuPuzzle(N, blockR, blockC, symbols, state.difficulty);
+
+        state.gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        state.minVal = minVal;
+        state.maxVal = maxVal;
+        state.includeZero = includeZero;
+        state.symbols = symbols;
+        state.N = N;
+        state.blockR = blockR;
+        state.blockC = blockC;
+        state.solution = solution;
+        state.initial = initial;
+        state.board = initial.map(row => row.slice());
+        state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set()));
+        state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false));
+        state.focusedCell = { r: 0, c: 0 };
+        state.highlightedSymbol = null;
+        state.timerSeconds = 0;
+        state.completed = false;
+
+        updateDifficultyCluesUI(state.N);
+        updateHeaderSubtitle();
+        document.getElementById('timer-display').textContent = '00:00';
+        renderVirtualNumpad();
+        renderSudokuBoard();
+        startTimer();
+        saveCurrentGameState();
+      }
+
+      function updateHeaderSubtitle() {
+        const firstSym = state.symbols[0];
+        const lastSym = state.symbols[state.symbols.length - 1];
+        const diffLabel = DIFFICULTY_LABELS[state.difficulty] || '🛸Suave na Nave👽';
+        document.getElementById('subtitle-mode-info').textContent =
+          `Grade ${state.N}×${state.N} • Blocos ${state.blockR}×${state.blockC} • Intervalo [${firstSym} a ${lastSym}] • ${diffLabel}`;
+      }
+
+      function getAllSavedGames() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.SAVED_GAMES);
+          return raw ? JSON.parse(raw) : [];
+        } catch (err) {
+          return [];
+        }
+      }
+
+      function saveCurrentGameState() {
+        if (!state.gameId) return;
+        try {
+          const games = getAllSavedGames();
+          const serializedNotes = state.notes.map(row => row.map(set => Array.from(set)));
+
+          const record = {
+            gameId: state.gameId,
+            updatedAt: Date.now(),
+            mode: state.mode,
+            difficulty: state.difficulty,
+            minVal: state.minVal,
+            maxVal: state.maxVal,
+            includeZero: state.includeZero,
+            symbols: state.symbols,
+            N: state.N,
+            blockR: state.blockR,
+            blockC: state.blockC,
+            solution: state.solution,
+            initial: state.initial,
+            board: state.board,
+            notes: serializedNotes,
+            revealedErrors: state.revealedErrors,
+            timerSeconds: state.timerSeconds,
+            completed: state.completed
+          };
+
+          const existingIdx = games.findIndex(g => g.gameId === state.gameId);
+          if (existingIdx >= 0) {
+            games[existingIdx] = record;
+          } else {
+            games.unshift(record);
+          }
+
+          // Mantém até 35 jogos salvos no histórico
+          const trimmed = games.slice(0, 35);
+          localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(trimmed));
+          localStorage.setItem(STORAGE_KEYS.CURRENT_GAME_ID, state.gameId);
+          updateSavedBadgeCount(trimmed);
+        } catch (err) {
+          console.error('Erro ao salvar estado no localStorage:', err);
+        }
+      }
+
+      function loadSavedGameRecord(record) {
+        if (!record) return;
+        state.gameId = record.gameId;
+        state.mode = record.mode || 'standard';
+        state.difficulty = record.difficulty || 'facil';
+        state.minVal = record.minVal ?? 1;
+        state.maxVal = record.maxVal ?? 9;
+        state.includeZero = !!record.includeZero;
+        state.symbols = record.symbols || buildSymbolsFromRange(1, 9, false);
+        state.N = record.N || state.symbols.length;
+        const dims = computeBlockDimensions(state.N);
+        state.blockR = record.blockR || dims.blockR;
+        state.blockC = record.blockC || dims.blockC;
+        state.solution = record.solution;
+        state.initial = record.initial;
+        state.board = record.board;
+        state.notes = record.notes.map(row => row.map(arr => new Set(arr)));
+        state.revealedErrors = record.revealedErrors || Array.from({ length: state.N }, () => Array(state.N).fill(false));
+        state.timerSeconds = record.timerSeconds || 0;
+        state.completed = !!record.completed;
+        state.focusedCell = { r: 0, c: 0 };
+        state.highlightedSymbol = null;
+
+        syncModeTabsUI();
+        updateHeaderSubtitle();
+        document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+        renderVirtualNumpad();
+        renderSudokuBoard();
+
+        if (state.completed) {
+          pauseTimer();
+        } else {
+          startTimer();
+        }
+      }
+
+      function updateSavedBadgeCount(gamesList) {
+        const games = gamesList || getAllSavedGames();
+        document.getElementById('saved-count-badge').textContent = games.length;
+      }
+
+      function renderHistoryModalList() {
+        const games = getAllSavedGames();
+        const ongoing = games.filter(g => !g.completed);
+        const completed = games.filter(g => g.completed);
+
+        document.getElementById('count-ongoing').textContent = ongoing.length;
+        document.getElementById('count-completed').textContent = completed.length;
+
+        const list = state.historyTab === 'ongoing' ? ongoing : completed;
+        const container = document.getElementById('history-list-container');
+        container.innerHTML = '';
+
+        if (list.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-10 opacity-70">
+              <i class="fa-regular fa-folder-open text-3xl mb-2 block"></i>
+              <span>Nenhuma partida ${state.historyTab === 'ongoing' ? 'em andamento' : 'concluída'} encontrada.</span>
+            </div>
+          `;
+          return;
+        }
+
+        for (const item of list) {
+          const total = item.N * item.N;
+          let filled = 0;
+          item.board.forEach(r => r.forEach(v => { if (v !== '') filled++; }));
+          const pct = Math.floor((filled / total) * 100);
+          const dateStr = new Date(item.updatedAt).toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+          });
+          const isCurrent = item.gameId === state.gameId;
+
+          const card = document.createElement('div');
+          card.className = 'theme-panel-alt p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 border';
+          card.style.borderColor = isCurrent ? 'var(--accent)' : 'var(--board-border-cell)';
+
+          card.innerHTML = `
+            <div class="flex flex-col gap-0.5">
+              <div class="font-extrabold flex items-center gap-2 flex-wrap">
+                <span>Grade ${item.N}×${item.N} (${item.blockR}×${item.blockC})</span>
+                <span class="px-2 py-0.5 rounded text-[10px] btn-accent">${DIFFICULTY_LABELS[item.difficulty] || item.difficulty}</span>
+                ${isCurrent ? '<span class="text-[10px] font-bold opacity-80">(Atual)</span>' : ''}
+              </div>
+              <div class="text-xs opacity-80 font-mono">
+                Intervalo [${item.symbols[0]} .. ${item.symbols[item.symbols.length - 1]}] • Tempo: ${formatTime(item.timerSeconds)} • Progresso: ${pct}%
+              </div>
+              <div class="text-[11px] opacity-60">Salvo em ${dateStr}</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" data-resume="${item.gameId}" class="px-3 py-1.5 rounded-xl btn-accent font-bold text-xs">
+                ${item.completed ? 'Visualizar' : 'Retomar'}
+              </button>
+              <button type="button" data-delete="${item.gameId}" class="w-8 h-8 rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500 hover:text-white transition flex items-center justify-center" title="Excluir">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          `;
+
+          card.querySelector(`[data-resume="${item.gameId}"]`).addEventListener('click', () => {
+            loadSavedGameRecord(item);
+            closeModal('modal-history');
+            showToast('Partida restaurada com sucesso!', 'success');
+          });
+
+          card.querySelector(`[data-delete="${item.gameId}"]`).addEventListener('click', () => {
+            const updated = getAllSavedGames().filter(g => g.gameId !== item.gameId);
+            localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(updated));
+            updateSavedBadgeCount(updated);
+            renderHistoryModalList();
+          });
+
+          container.appendChild(card);
+        }
+      }
+
+      /* ========================================================================
+         10. COMPARTILHAMENTO (BASE64 URL) & EXPORTAÇÃO PNG (HTML2CANVAS)
+         ======================================================================== */
+      function copyUrlToClipboard(url, successMessage) {
+        const tempInput = document.createElement('textarea');
+        tempInput.value = url;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        showToast(successMessage, 'success');
+      }
+
+      function shareCurrentPuzzleURL() {
+        try {
+          const payload = {
+            m: state.mode,
+            d: state.difficulty,
+            s: state.symbols,
+            N: state.N,
+            bR: state.blockR,
+            bC: state.blockC,
+            i: state.initial,
+            sol: state.solution
+          };
+          const jsonStr = JSON.stringify(payload);
+          const base64 = btoa(encodeURIComponent(jsonStr));
+          const url = `${window.location.origin}${window.location.pathname}?puzzle=${base64}`;
+
+          window.history.replaceState({}, '', `?puzzle=${base64}`);
+          copyUrlToClipboard(url, 'Link do puzzle inicial copiado para a área de transferência!');
+        } catch (err) {
+          showToast('Não foi possível gerar o link de compartilhamento.', 'warn');
+        }
+      }
+
+      /**
+       * Compartilha o ESTADO ATUAL DO PUZZLE exatamente do jeito que ele está
+       * (incluindo números preenchidos pelo jogador, notas do modo lápis, tempo e erros revelados).
+       */
+      function shareCurrentPuzzleStateURL() {
+        try {
+          const serializedNotes = state.notes.map(row => row.map(set => Array.from(set)));
+          const payload = {
+            st: 1, // Flag indicando que é um compartilhamento de ESTADO completo
+            m: state.mode,
+            d: state.difficulty,
+            minV: state.minVal,
+            maxV: state.maxVal,
+            incZ: state.includeZero,
+            s: state.symbols,
+            N: state.N,
+            bR: state.blockR,
+            bC: state.blockC,
+            i: state.initial,
+            sol: state.solution,
+            b: state.board,
+            n: serializedNotes,
+            re: state.revealedErrors,
+            t: state.timerSeconds,
+            c: state.completed
+          };
+          const jsonStr = JSON.stringify(payload);
+          const base64 = btoa(encodeURIComponent(jsonStr));
+          const url = `${window.location.origin}${window.location.pathname}?puzzle=${base64}`;
+
+          window.history.replaceState({}, '', `?puzzle=${base64}`);
+          copyUrlToClipboard(url, 'Link com o ESTADO ATUAL do puzzle copiado para a área de transferência!');
+        } catch (err) {
+          showToast('Não foi possível gerar o link de estado do puzzle.', 'warn');
+        }
+      }
+
+      function tryLoadSharedPuzzleFromURL() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const encoded = params.get('puzzle');
+          if (!encoded) return false;
+
+          const jsonStr = decodeURIComponent(atob(encoded));
+          const data = JSON.parse(jsonStr);
+          if (!data || !Array.isArray(data.s) || !Array.isArray(data.i)) return false;
+
+          state.gameId = 'shared_' + Date.now();
+          state.mode = data.m || 'standard';
+          state.difficulty = data.d || 'medio';
+          state.minVal = data.minV ?? 1;
+          state.maxVal = data.maxV ?? 9;
+          state.includeZero = !!data.incZ;
+          state.symbols = data.s;
+          state.N = data.N || data.s.length;
+          state.blockR = data.bR;
+          state.blockC = data.bC;
+          state.initial = data.i;
+          state.solution = data.sol || solvePartialGrid(data.i, state.N, state.blockR, state.blockC, state.symbols);
+
+          if (data.st === 1 && Array.isArray(data.b)) {
+            // Restaura o estado exato compartilhado (casas preenchidas, notas, cronômetro)
+            state.board = data.b.map(r => r.slice());
+            state.notes = Array.isArray(data.n)
+              ? data.n.map(row => row.map(arr => new Set(arr)))
+              : Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+            state.revealedErrors = Array.isArray(data.re)
+              ? data.re
+              : Array.from({ length: state.N }, () => Array(state.N).fill(false));
+            state.timerSeconds = typeof data.t === 'number' ? data.t : 0;
+            state.completed = !!data.c;
+          } else {
+            state.board = data.i.map(r => r.slice());
+            state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+            state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false));
+            state.timerSeconds = 0;
+            state.completed = false;
+          }
+
+          syncModeTabsUI();
+          syncDifficultyButtonsUI();
+          updateHeaderSubtitle();
+          document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+          renderVirtualNumpad();
+          renderSudokuBoard();
+          if (state.completed) {
+            pauseTimer();
+          } else {
+            startTimer();
+          }
+          saveCurrentGameState();
+          showToast(
+            data.st === 1
+              ? 'Estado completo do puzzle carregado pela URL!'
+              : 'Puzzle compartilhado carregado pela URL!',
+            'success'
+          );
+          return true;
+        } catch (err) {
+          return false;
+        }
+      }
+
+      async function exportBoardAsPNG() {
+        const boardWrapper = document.getElementById('sudoku-board-wrapper');
+        showToast('Gerando imagem PNG de alta definição...', 'info');
+        try {
+          const canvas = await html2canvas(boardWrapper, {
+            backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-app').trim() || '#ffffff',
+            scale: 2
+          });
+          const link = document.createElement('a');
+          link.download = `Sudoku-Pro-ANEROTHICO-${state.N}x${state.N}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          showToast('Imagem .PNG exportada com sucesso!', 'success');
+        } catch (err) {
+          showToast('Erro ao exportar imagem PNG.', 'warn');
+        }
+      }
+
+      /* ========================================================================
+         11. IMPORTAÇÃO POR IMAGEM (OCR CLIENT-SIDE COM TESSERACT.JS)
+         ======================================================================== */
+      async function processOCRImageSource(imageSource) {
+        const progressBox = document.getElementById('ocr-progress-box');
+        const statusText = document.getElementById('ocr-status-text');
+        const percentText = document.getElementById('ocr-percent-text');
+        const progressBar = document.getElementById('ocr-progress-bar');
+        const previewWrapper = document.getElementById('ocr-preview-wrapper');
+        const previewCanvas = document.getElementById('ocr-preview-canvas');
+
+        progressBox.classList.remove('hidden');
+        progressBox.classList.add('flex');
+        previewWrapper.classList.remove('hidden');
+        previewWrapper.classList.add('flex');
+
+        const ctx = previewCanvas.getContext('2d');
+        const size = 360;
+        previewCanvas.width = size;
+        previewCanvas.height = size;
+
+        // Desenha e aplica filtro de alto contraste (binarização suave) para destacar dígitos impressos
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(imageSource, 0, 0, size, size);
+
+        const imgData = ctx.getImageData(0, 0, size, size);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          const v = lum < 165 ? 0 : 255;
+          d[i] = d[i + 1] = d[i + 2] = v;
+        }
+        ctx.putImageData(imgData, 0, 0);
+
+        statusText.textContent = 'Carregando motor OCR Tesseract.js...';
+        percentText.textContent = '10%';
+        progressBar.style.width = '10%';
+
+        try {
+          const worker = await Tesseract.createWorker('eng');
+          await worker.setParameters({
+            tessedit_char_whitelist: '123456789',
+            tessedit_pageseg_mode: '10' // PSM 10: Trata cada recorte como um caractere único
+          });
+
+          const cellSize = size / 9;
+          const recognizedInitial = Array.from({ length: 9 }, () => Array(9).fill(''));
+          const cellCanvas = document.createElement('canvas');
+          cellCanvas.width = 40;
+          cellCanvas.height = 40;
+          const cellCtx = cellCanvas.getContext('2d');
+
+          for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+              const idx = r * 9 + c;
+              const pct = Math.floor(((idx + 1) / 81) * 100);
+              statusText.textContent = `Lendo célula (${r + 1}, ${c + 1})...`;
+              percentText.textContent = `${pct}%`;
+              progressBar.style.width = `${pct}%`;
+
+              // Recorta o interior da célula ignorando as bordas impressas (margem interna de 6px)
+              const pad = 6;
+              cellCtx.fillStyle = '#ffffff';
+              cellCtx.fillRect(0, 0, 40, 40);
+              cellCtx.drawImage(
+                previewCanvas,
+                c * cellSize + pad,
+                r * cellSize + pad,
+                cellSize - pad * 2,
+                cellSize - pad * 2,
+                4, 4, 32, 32
+              );
+
+              // Verifica se a célula tem pixels escuros suficientes no centro antes de chamar o OCR
+              const subData = cellCtx.getImageData(8, 8, 24, 24).data;
+              let darkPixels = 0;
+              for (let p = 0; p < subData.length; p += 4) {
+                if (subData[p] < 128) darkPixels++;
+              }
+
+              if (darkPixels > 18) {
+                const { data: { text } } = await worker.recognize(cellCanvas);
+                const digit = (text || '').trim().replace(/[^1-9]/g, '')[0] || '';
+                recognizedInitial[r][c] = digit;
+              }
+            }
+          }
+
+          await worker.terminate();
+
+          // Monta o jogo 9x9 com as pistas extraídas e resolve a grade de referência
+          const symbols = buildSymbolsFromRange(1, 9, false);
+          const solved = solvePartialGrid(recognizedInitial, 9, 3, 3, symbols);
+
+          state.mode = 'standard';
+          state.difficulty = 'medio';
+          state.minVal = 1;
+          state.maxVal = 9;
+          state.includeZero = false;
+          state.symbols = symbols;
+          state.N = 9;
+          state.blockR = 3;
+          state.blockC = 3;
+          state.initial = recognizedInitial;
+          state.solution = solved;
+          state.board = recognizedInitial.map(row => row.slice());
+          state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
+          state.revealedErrors = Array.from({ length: 9 }, () => Array(9).fill(false));
+          state.gameId = 'ocr_' + Date.now();
+          state.timerSeconds = 0;
+          state.completed = false;
+
+          syncModeTabsUI();
+          updateHeaderSubtitle();
+          renderVirtualNumpad();
+          renderSudokuBoard();
+          startTimer();
+          saveCurrentGameState();
+
+          closeModal('modal-ocr');
+          showToast('Grade 9×9 importada via OCR com sucesso!', 'success');
+        } catch (err) {
+          console.error('Erro OCR:', err);
+          statusText.textContent = 'Erro ao processar OCR. Tente outra imagem mais nítida.';
+        }
+      }
+
+      // Gera um canvas 9x9 impresso sintético para testar o fluxo de OCR instantaneamente
+      function generateSamplePrintableCanvas() {
+        const sampleCanvas = document.createElement('canvas');
+        sampleCanvas.width = 360;
+        sampleCanvas.height = 360;
+        const ctx = sampleCanvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 360, 360);
+
+        const symbols = buildSymbolsFromRange(1, 9, false);
+        const { initial } = createUniqueSudokuPuzzle(9, 3, 3, symbols, 'facil');
+
+        ctx.strokeStyle = '#000000';
+        for (let i = 0; i <= 9; i++) {
+          ctx.lineWidth = (i % 3 === 0) ? 3 : 1;
+          ctx.beginPath();
+          ctx.moveTo(i * 40, 0);
+          ctx.lineTo(i * 40, 360);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(0, i * 40);
+          ctx.lineTo(360, i * 40);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 24px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (initial[r][c] !== '') {
+              ctx.fillText(initial[r][c], c * 40 + 20, r * 40 + 21);
+            }
+          }
+        }
+        return sampleCanvas;
+      }
+
+      /* ========================================================================
+         12. CONTROLE DE MODAIS, TEMAS E EVENT LISTENERS
+         ======================================================================== */
+      function openModal(id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.classList.remove('hidden');
+          el.classList.add('flex');
+        }
+      }
+
+      function closeModal(id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.classList.add('hidden');
+          el.classList.remove('flex');
+        }
+      }
+
+      function applyTheme(themeKey) {
+        document.documentElement.setAttribute('data-theme', themeKey);
+        const selector = document.getElementById('theme-selector');
+        if (selector && selector.value !== themeKey) {
+          selector.value = themeKey;
+        }
+        try {
+          localStorage.setItem(STORAGE_KEYS.THEME, themeKey);
+        } catch (e) {}
+        // Re-renderiza as bordas dos sub-blocos caso alterne para/do tema Rainbow
+        if (state.board && state.board.length > 0) {
+          renderSudokuBoard();
+        }
+      }
+
+      function syncModeTabsUI() {
+        const btnStd = document.getElementById('tab-mode-standard');
+        const btnCus = document.getElementById('tab-mode-custom');
+        const panelStd = document.getElementById('panel-mode-standard');
+        const panelCus = document.getElementById('panel-mode-custom');
+
+        if (state.mode === 'standard') {
+          btnStd.className = 'px-2.5 py-1 rounded-md btn-accent transition';
+          btnCus.className = 'px-2.5 py-1 rounded-md opacity-75 hover:opacity-100 transition';
+          panelStd.classList.remove('hidden');
+          panelCus.classList.add('hidden');
+          panelCus.classList.remove('flex');
+          updateDifficultyCluesUI(9);
+        } else {
+          btnCus.className = 'px-2.5 py-1 rounded-md btn-accent transition';
+          btnStd.className = 'px-2.5 py-1 rounded-md opacity-75 hover:opacity-100 transition';
+          panelCus.classList.remove('hidden');
+          panelCus.classList.add('flex');
+          panelStd.classList.add('hidden');
+          updateCustomRangePreview();
+        }
+      }
+
+      function syncDifficultyButtonsUI() {
+        document.querySelectorAll('.diff-btn').forEach(b => {
+          if (b.dataset.diff === state.difficulty) {
+            b.className = 'diff-btn px-3 py-2 rounded-lg text-xs font-bold btn-accent text-left flex items-center justify-between';
+          } else {
+            b.className = 'diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between';
+          }
+        });
+      }
+
+      function initEventListeners() {
+        // Seletor de Temas
+        document.getElementById('theme-selector').addEventListener('change', (e) => {
+          applyTheme(e.target.value);
+        });
+
+        // Abas Modo Padrão / Customizado
+        document.getElementById('tab-mode-standard').addEventListener('click', () => {
+          state.mode = 'standard';
+          syncModeTabsUI();
+        });
+
+        document.getElementById('tab-mode-custom').addEventListener('click', () => {
+          state.mode = 'custom';
+          syncModeTabsUI();
+        });
+
+        // Inputs do Modo Customizado
+        ['custom-min-input', 'custom-max-input', 'custom-include-zero'].forEach(id => {
+          document.getElementById(id).addEventListener('input', updateCustomRangePreview);
+          document.getElementById(id).addEventListener('change', updateCustomRangePreview);
+        });
+
+        // Presets de intervalos rápidos
+        document.querySelectorAll('.preset-range-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const [minS, maxS, zeroS] = btn.dataset.preset.split(',');
+            document.getElementById('custom-min-input').value = minS;
+            document.getElementById('custom-max-input').value = maxS;
+            document.getElementById('custom-include-zero').checked = (zeroS === '1');
+            updateCustomRangePreview();
+          });
+        });
+
+        // Seletor de Dificuldade
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.difficulty = btn.dataset.diff;
+            syncDifficultyButtonsUI();
+          });
+        });
+
+        // Botão Gerar Novo Jogo
+        document.getElementById('btn-new-game').addEventListener('click', () => {
+          startNewGame();
+          showToast(`Novo Sudoku (${DIFFICULTY_LABELS[state.difficulty]}) gerado!`, 'info');
+        });
+
+        // Controles de Partida
+        document.getElementById('btn-pause-timer').addEventListener('click', togglePauseGame);
+        document.getElementById('btn-resume-overlay').addEventListener('click', togglePauseGame);
+        document.getElementById('btn-pencil-mode').addEventListener('click', () => togglePencilMode());
+        document.getElementById('btn-erase-cell').addEventListener('click', () => {
+          const { r, c } = state.focusedCell;
+          eraseCell(r, c);
+        });
+        document.getElementById('btn-nasa-hint').addEventListener('click', giveNasaHint);
+
+        // Toggle Retorno Imediato de Erro
+        document.getElementById('toggle-immediate-error').addEventListener('change', (e) => {
+          state.immediateErrorCheck = e.target.checked;
+          updateAllCellVisuals();
+        });
+
+        // Botão Conferir Solução
+        document.getElementById('btn-check-solution').addEventListener('click', checkFullBoardSolution);
+
+        // Modal de Erros: Sim vs Não
+        document.getElementById('btn-reveal-errors-yes').addEventListener('click', () => {
+          closeModal('modal-errors-prompt');
+          revealErrorsOnBoard();
+        });
+        document.getElementById('btn-reveal-errors-no').addEventListener('click', () => {
+          closeModal('modal-errors-prompt');
+        });
+
+        // Modal de Vitória
+        document.getElementById('btn-victory-new').addEventListener('click', () => {
+          closeModal('modal-victory');
+          startNewGame();
+        });
+        document.getElementById('btn-victory-export').addEventListener('click', () => {
+          closeModal('modal-victory');
+          exportBoardAsPNG();
+        });
+        document.getElementById('btn-victory-close').addEventListener('click', () => {
+          closeModal('modal-victory');
+        });
+
+        // Modais: Como Jogar e Sobre (Presente Especial 💝)
+        document.getElementById('btn-open-howto').addEventListener('click', () => openModal('modal-howto'));
+        document.getElementById('btn-close-howto').addEventListener('click', () => closeModal('modal-howto'));
+
+        document.getElementById('btn-open-gift').addEventListener('click', () => openModal('modal-gift'));
+        document.getElementById('btn-close-gift').addEventListener('click', () => closeModal('modal-gift'));
+
+        // Modal: Histórico Save/Load
+        document.getElementById('btn-open-history').addEventListener('click', () => {
+          renderHistoryModalList();
+          openModal('modal-history');
+        });
+        document.getElementById('btn-close-history').addEventListener('click', () => closeModal('modal-history'));
+
+        document.getElementById('tab-hist-ongoing').addEventListener('click', () => {
+          state.historyTab = 'ongoing';
+          document.getElementById('tab-hist-ongoing').className = 'pb-2.5 border-b-2 border-current text-blue-500';
+          document.getElementById('tab-hist-completed').className = 'pb-2.5 border-b-2 border-transparent opacity-60 hover:opacity-100';
+          renderHistoryModalList();
+        });
+        document.getElementById('tab-hist-completed').addEventListener('click', () => {
+          state.historyTab = 'completed';
+          document.getElementById('tab-hist-completed').className = 'pb-2.5 border-b-2 border-current text-blue-500';
+          document.getElementById('tab-hist-ongoing').className = 'pb-2.5 border-b-2 border-transparent opacity-60 hover:opacity-100';
+          renderHistoryModalList();
+        });
+        // Compartilhar Link Base64, Compartilhar Estado Atual & Exportar PNG
+        document.getElementById('btn-share-url').addEventListener('click', shareCurrentPuzzleURL);
+        document.getElementById('btn-share-state-url').addEventListener('click', shareCurrentPuzzleStateURL);
+        document.getElementById('btn-export-png').addEventListener('click', exportBoardAsPNG);
+
+        // Modal: OCR
+        document.getElementById('btn-open-ocr').addEventListener('click', () => openModal('modal-ocr'));
+        document.getElementById('btn-close-ocr').addEventListener('click', () => closeModal('modal-ocr'));
+
+        document.getElementById('ocr-file-input').addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          const img = new Image();
+          img.onload = () => processOCRImageSource(img);
+          img.src = URL.createObjectURL(file);
+        });
+
+        document.getElementById('btn-ocr-sample').addEventListener('click', () => {
+          const sampleCanvas = generateSamplePrintableCanvas();
+          processOCRImageSource(sampleCanvas);
+        });
+
+        // Atalho global 'N' quando o foco não estiver em um input numérico de configuração
+        window.addEventListener('keydown', (e) => {
+          const activeTag = document.activeElement ? document.activeElement.tagName : '';
+          const isConfigInput = document.activeElement && (
+            document.activeElement.id === 'custom-min-input' ||
+            document.activeElement.id === 'custom-max-input'
+          );
+          if (!isConfigInput && activeTag !== 'INPUT' && (e.key === 'n' || e.key === 'N')) {
+            e.preventDefault();
+            togglePencilMode();
+          }
+        });
+      }
+
+      /* ========================================================================
+         13. BOOTSTRAP DO APLICATIVO
+         ======================================================================== */
+      function initApp() {
+        // 1. Restaura tema salvo no localStorage
+        const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'claro';
+        applyTheme(savedTheme);
+
+        // 2. Registra todos os eventos
+        initEventListeners();
+        updateSavedBadgeCount();
+
+        // 3. Prioridade 1: Carregar puzzle compartilhado na URL (?puzzle=...)
+        if (tryLoadSharedPuzzleFromURL()) {
+          return;
+        }
+
+        // 4. Prioridade 2: Restaurar última partida em andamento do localStorage
+        const savedGames = getAllSavedGames();
+        const lastId = localStorage.getItem(STORAGE_KEYS.CURRENT_GAME_ID);
+        const lastGame = savedGames.find(g => g.gameId === lastId && !g.completed) || savedGames.find(g => !g.completed);
+
+        if (lastGame) {
+          loadSavedGameRecord(lastGame);
+        } else {
+          // 5. Prioridade 3: Gerar novo jogo 9x9 padrão
+          startNewGame();
+        }
+      }
+
+      window.addEventListener('DOMContentLoaded', initApp);
+    })();
+  </script>
+</body>
+</html>
