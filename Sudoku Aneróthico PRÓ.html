@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Sudoku Pro ANERÓTHICO 🧠</title>
+  <title>Sudoku Pro ANERÓTHICO v4.0 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -685,7 +685,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Pro ANERÓTHICO 🧠</span>
+            <span>Sudoku Pro ANERÓTHICO v4.0 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -864,6 +864,14 @@
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+          
+          <!-- Botão Criar Instância Manual -->
+          <button id="btn-manual-create" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-pen-to-square text-sm"></i>
+            <span>Criar Instância Manual</span>
+          </button>
           <!-- Botão Importar Imagem via Tesseract OCR -->
           <button id="btn-open-ocr" type="button"
             class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
@@ -950,6 +958,17 @@
               </button>
             </div>
 
+            
+            <!-- Barra de Criação Manual -->
+            <div id="manual-create-bar" class="hidden w-full max-w-[560px] mx-auto mb-3 theme-panel p-3 rounded-xl flex-col sm:flex-row items-center justify-between gap-3 border-2 border-dashed border-blue-500 shadow-lg">
+              <div class="text-xs sm:text-sm font-bold flex items-center gap-2">
+                <i class="fa-solid fa-pen-ruler text-blue-500"></i>
+                <span>Modo de Criação Manual Ativo</span>
+              </div>
+              <button id="btn-finish-manual" type="button" class="btn-accent px-4 py-2 rounded-lg text-xs font-bold shadow-md w-full sm:w-auto hover:opacity-90">
+                Salvar Pistas e Iniciar Partida
+              </button>
+            </div>
             <!-- O Grid é gerado dinamicamente aqui -->
             <div id="sudoku-grid" role="grid" aria-label="Tabuleiro de Sudoku"></div>
           </div>
@@ -1344,7 +1363,8 @@
         completed: false,
         historyTab: 'ongoing',      // 'ongoing' | 'completed'
         typingBuffer: '',           // Buffer para digitação de negativos (-9) e dezenas (16)
-        typingTimeout: null
+        typingTimeout: null,
+        isManualCreating: false
       };
 
       /* ========================================================================
@@ -2089,7 +2109,7 @@
         const { N, blockR, blockC } = state;
 
         // Verifica se diverge da solução oficial ou se repete em linha/coluna/bloco
-        if (state.solution[row] && state.solution[row][col] && val !== state.solution[row][col]) {
+        if (!state.isManualCreating && state.solution[row] && state.solution[row][col] && val !== state.solution[row][col]) {
           return true;
         }
 
@@ -2137,7 +2157,7 @@
           const inSameRowOrCol = (r === focusR || c === focusC);
           const inSameBlock = (Math.floor(r / blockR) === focusBlockR && Math.floor(c / blockC) === focusBlockC);
           const isCrosshair = !isFocused && (inSameRowOrCol || inSameBlock);
-          const isSameNumber = (highlightedSymbol !== null && highlightedSymbol !== '' && val === highlightedSymbol);
+          const isSameNumber = false; // Removido para corrigir a ilusão de preenchimento automático em outros quadrantes
 
           const isError =
             state.revealedErrors[r][c] ||
@@ -2435,6 +2455,10 @@
        * e revela o valor correto da solução.
        */
       function giveNasaHint() {
+        if (state.isManualCreating) {
+          showToast('A NASA não pode ajudar no modo de criação.', 'warn');
+          return;
+        }
         if (state.completed) {
           showToast('O tabuleiro já foi concluído com sucesso! 🚀', 'info');
           return;
@@ -2566,7 +2590,10 @@
         const checkBtn = document.getElementById('btn-check-solution');
         const checkBtnText = document.getElementById('btn-check-solution-text');
 
-        if (filled === total) {
+        if (state.isManualCreating) {
+          checkBtn.disabled = true;
+          checkBtnText.textContent = 'Modo de Criação Ativo';
+        } else if (filled === total) {
           checkBtn.disabled = false;
           checkBtnText.textContent = 'Conferir Solução Agora!';
         } else {
@@ -2580,6 +2607,7 @@
        * e identifica eventuais células incorretas.
        */
       function checkFullBoardSolution() {
+        if (state.isManualCreating) return;
         const { N, blockR, blockC } = state;
         const wrongCoords = [];
 
@@ -2721,6 +2749,9 @@
         state.highlightedSymbol = null;
         state.timerSeconds = 0;
         state.completed = false;
+        state.isManualCreating = false;
+        const mcBar = document.getElementById('manual-create-bar');
+        if (mcBar) { mcBar.classList.remove('flex'); mcBar.classList.add('hidden'); }
 
         updateDifficultyCluesUI(state.N);
         updateHeaderSubtitle();
@@ -2812,6 +2843,9 @@
         state.revealedErrors = record.revealedErrors || Array.from({ length: state.N }, () => Array(state.N).fill(false));
         state.timerSeconds = record.timerSeconds || 0;
         state.completed = !!record.completed;
+        state.isManualCreating = false;
+        const mcBarLoad = document.getElementById('manual-create-bar');
+        if (mcBarLoad) { mcBarLoad.classList.remove('flex'); mcBarLoad.classList.add('hidden'); }
         state.focusedCell = { r: 0, c: 0 };
         state.highlightedSymbol = null;
 
@@ -3016,6 +3050,9 @@
             state.timerSeconds = typeof data.t === 'number' ? data.t : 0;
             state.completed = !!data.c;
           } else {
+            state.isManualCreating = false;
+            const mcBarShare = document.getElementById('manual-create-bar');
+            if (mcBarShare) { mcBarShare.classList.remove('flex'); mcBarShare.classList.add('hidden'); }
             state.board = data.i.map(r => r.slice());
             state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
             state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false));
@@ -3368,6 +3405,55 @@
 
         // Botão Conferir Solução
         document.getElementById('btn-check-solution').addEventListener('click', checkFullBoardSolution);
+
+        
+        // Criar Instância Manual
+        document.getElementById('btn-manual-create').addEventListener('click', () => {
+          const { N, blockR, blockC, symbols } = state;
+          state.isManualCreating = true;
+          state.initial = Array.from({ length: N }, () => Array(N).fill(''));
+          state.board = Array.from({ length: N }, () => Array(N).fill(''));
+          state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set()));
+          state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false));
+          state.solution = Array.from({ length: N }, () => Array(N).fill(''));
+          state.completed = false;
+          state.timerSeconds = 0;
+          pauseTimer();
+          document.getElementById('timer-display').textContent = '00:00';
+
+          document.getElementById('manual-create-bar').classList.remove('hidden');
+          document.getElementById('manual-create-bar').classList.add('flex');
+
+          renderVirtualNumpad();
+          renderSudokuBoard();
+          showToast('Modo de Criação: Preencha as pistas e clique em Iniciar Partida.', 'info');
+        });
+
+        document.getElementById('btn-finish-manual').addEventListener('click', () => {
+          let hasClues = false;
+          for(let r=0; r<state.N; r++) {
+            for(let c=0; c<state.N; c++) {
+               if (state.board[r][c] !== '') hasClues = true;
+            }
+          }
+          if (!hasClues) {
+             showToast('Preencha ao menos uma pista antes de iniciar!', 'warn');
+             return;
+          }
+
+          state.initial = state.board.map(row => row.slice());
+          state.solution = solvePartialGrid(state.initial, state.N, state.blockR, state.blockC, state.symbols);
+          state.isManualCreating = false;
+
+          document.getElementById('manual-create-bar').classList.remove('flex');
+          document.getElementById('manual-create-bar').classList.add('hidden');
+
+          state.gameId = 'manual_' + Date.now();
+          renderSudokuBoard();
+          startTimer();
+          saveCurrentGameState();
+          showToast('Instância criada! As pistas foram fixadas. Boa sorte!', 'success');
+        });
 
         // Modal de Erros: Sim vs Não
         document.getElementById('btn-reveal-errors-yes').addEventListener('click', () => {
