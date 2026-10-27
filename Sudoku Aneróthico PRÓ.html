@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Sudoku Aneróthico PRÓ v4.2 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v4.3a 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -683,7 +683,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v4.2 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v4.3a 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -715,6 +715,13 @@
           <i class="fa-solid fa-folder-open"></i>
           <span class="hidden md:inline">Salvos</span>
           <span id="saved-count-badge" class="px-1.5 py-0.5 text-[10px] rounded-full btn-accent font-bold">0</span>
+        </button>
+
+        <button id="btn-open-changelog" type="button"
+          class="theme-panel-alt hover:opacity-90 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition"
+          title="Ver o Histórico de Versões">
+          <i class="fa-solid fa-code-branch"></i>
+          <span class="hidden lg:inline">Changelog</span>
         </button>
 
         <button id="btn-open-howto" type="button"
@@ -1015,6 +1022,14 @@
       </div>
     </section>
   </main>
+    <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v4.3a</div>
+        <div class="flex items-center gap-4 text-xs opacity-60">
+            <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
+            <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
+        </div>
+    </footer>
+
 
   <!-- MODAL 1: PARABÉNS! -->
   <div id="modal-victory" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -1058,18 +1073,57 @@
   <div id="modal-howto" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
     <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
-        <h2 class="text-lg font-extrabold flex items-center gap-2"><i class="fa-solid fa-book-open"></i><span>Como Jogar & Curiosidades do Sudoku</span></h2>
-        <button id="btn-close-howto" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-book-open"></i>
+          <span>Como Jogar & Curiosidades do Sudoku</span>
+        </h2>
+        <button id="btn-close-howto" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
-      <div class="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm leading-relaxed">
+
+      <div class="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm leading-relaxed">
         <div>
-          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2"><span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">1</span><span>Mecânica e Regras Diretas</span></h3>
-          <p class="opacity-90">O objetivo do Sudoku é preencher todas as células vazias da grade de modo que <strong>cada linha horizontal</strong>, <strong>cada coluna vertical</strong> e <strong>cada sub-bloco interno</strong> contenha todos os números do intervalo permitido <strong>exatamente uma única vez</strong>, sem repetições.</p>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">1</span>
+            <span>Mecânica e Regras Diretas</span>
+          </h3>
+          <p class="opacity-90 mb-2">
+            O objetivo do Sudoku é preencher todas as células vazias da grade de modo que <strong>cada linha horizontal</strong>, <strong>cada coluna vertical</strong> e <strong>cada sub-bloco interno</strong> (delimitado pelas bordas grossas) contenha todos os números do intervalo permitido <strong>exatamente uma única vez</strong>, sem repetições.
+          </p>
+          <ul class="list-disc pl-5 space-y-2 opacity-90">
+            <li><strong>Modo Padrão vs. Customizado:</strong> No modo padrão, a grade é 9×9 (blocos 3×3) com números de 1 a 9. No modo customizado, você pode definir qualquer intervalo (incluindo números negativos e dezenas, com ou sem o zero), e o sistema dimensiona matematicamente a grade e seus sub-blocos.</li>
+            <li><strong>Modo Lápis (Tecla N):</strong> Use para anotar pequenos candidatos em uma casa. Ao confirmar um valor definitivo em uma célula, o sistema remove automaticamente esse candidato das notas na mesma linha, coluna e sub-bloco.</li>
+            <li><strong>Verificação de Solução:</strong> Por padrão, erros de digitação não são denunciados imediatamente para preservar o desafio clássico. Ao preencher 100% da grade, clique em <em>"Conferir Solução"</em>.</li>
+          </ul>
         </div>
+
         <hr style="border-color: var(--board-border-cell);" />
+
         <div>
-          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2"><span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">2</span><span>Origens Históricas</span></h3>
-          <p class="opacity-90">As raízes conceituais do Sudoku remontam ao século XVIII, quando o brilhante matemático suíço <strong>Leonhard Euler</strong> desenvolveu os <em>"Quadrados Latinos"</em>.</p>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">2</span>
+            <span>Origens Históricas</span>
+          </h3>
+          <p class="opacity-90">
+            As raízes conceituais do Sudoku remontam ao século XVIII, quando o brilhante matemático suíço <strong>Leonhard Euler</strong> desenvolveu os <em>"Quadrados Latinos"</em> (grades onde símbolos não se repetem em linhas ou colunas).
+          </p>
+          <p class="opacity-90 mt-2">
+            O formato moderno com sub-blocos regionais foi criado pelo arquiteto norte-americano <strong>Howard Garns</strong> em 1979 e publicado pela revista <em>Dell Magazines</em> sob o nome <em>Number Place</em>. Em 1984, a editora japonesa <strong>Nikoli</strong>, liderada por <strong>Maki Kaji</strong>, levou o quebra-cabeça ao Japão e o batizou de <strong>Sudoku</strong> (abreviação de <em>"Suji wa dokushin ni kagiru"</em> — "os números devem permanecer únicos").
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">3</span>
+            <span>Curiosidades Matemáticas</span>
+          </h3>
+          <p class="opacity-90">
+            Na combinatória, foi demonstrado em 2005 por Bertram Felgenhauer e Frazer Jarvis que existem exatamente <strong>6.670.903.752.021.072.936.960</strong> (cerca de 6,67 × 10<sup>21</sup>) grades válidas de Sudoku 9×9!
+          </p>
+          <p class="opacity-90 mt-2">
+            Outra descoberta célebre ocorreu em 2012, quando o matemático <strong>Gary McGuire</strong> e sua equipe provaram computacionalmente que o <strong>número mínimo de pistas iniciais</strong> para que um Sudoku 9×9 possua solução única é <strong>17</strong>. Nenhum puzzle válido de solução única pode existir com apenas 16 números iniciais.
+          </p>
         </div>
       </div>
     </div>
@@ -1091,6 +1145,10 @@
       </div>
       <div class="mt-6">
         <button id="btn-close-gift" type="button" class="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-md transition">Guardar no Coração 💖</button>
+      </div>
+      <div class="mt-4 flex flex-col items-center gap-1 text-[10px] opacity-75">
+        <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-rose-600 transition flex items-center gap-1.5"><i class="fa-brands fa-linkedin text-xs"></i> linkedin.com/in/marcos-dias-4b545127b</a>
+        <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-rose-600 transition flex items-center gap-1.5"><i class="fa-brands fa-github text-xs"></i> github.com/trevorbelmont</a>
       </div>
     </div>
   </div>
@@ -1136,6 +1194,75 @@
         </div>
         <div id="ocr-preview-wrapper" class="hidden flex-col items-center gap-3 pt-1">
           <canvas id="ocr-preview-canvas" width="360" height="360" class="w-48 h-48 rounded-lg border shadow-sm"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: CHANGELOG -->
+  <div id="modal-changelog" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-code-branch"></i>
+          <span>Changelog & Atualizações</span>
+        </h2>
+        <button id="btn-close-changelog" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
+        
+        <div class="relative pl-4 border-l-2 border-blue-500">
+          <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v4.3a <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Botão e Modal de Changelog interativo e scrollável.</li>
+            <li><strong>Novo:</strong> Inclusão de links do LinkedIn e GitHub no rodapé e no modal "Sobre".</li>
+            <li><strong>Restauração:</strong> Texto original completo da aba "Como Jogar", mantendo as origens matemáticas do Sudoku (Leonhard Euler) intactas.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v4.2 (Blindagem Local)</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Segurança:</strong> Sanitização profunda contra injeção de scripts (XSS). O `innerHTML` dinâmico foi removido em Toasts e renderizações do histórico, mitigando Payload Injection.</li>
+            <li><strong>Segurança:</strong> Implementada dupla barreira de `Schema Validation` (<code class="font-mono bg-slate-500/20 px-1 rounded">validateGameState</code>) para códigos importados. O sistema bloqueia payloads com formatos inválidos.</li>
+            <li><strong>Correção:</strong> O Modo de Criação Manual agora intercepta e impede o salvamento de grades impossíveis com pistas conflitantes.</li>
+            <li><strong>Correção:</strong> O Tesseract OCR agora aciona o Modo de Criação ao ler matrizes conflitantes (permitindo ao usuário revisar), evitando quebrar o motor matemático do jogo.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-purple-500">
+          <div class="absolute w-3 h-3 bg-purple-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-purple-600 dark:text-purple-400 mb-1">v4.1</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Modal de Dedicatória com ícone de coração e animação de confetes (via `canvas-confetti`).</li>
+            <li><strong>Novo:</strong> Tema <code class="font-mono bg-slate-500/20 px-1 rounded">Rainbow (7)</code> definido como padrão para a primeira sessão.</li>
+            <li><strong>Refatoração:</strong> Os botões de URL base64 foram alterados para "Copiar Cód. da Grade" e "Copiar Cód. do Estado", sem sobrepor a URL atual no navegador.</li>
+            <li><strong>Novo:</strong> Adicionado botão nativo "Carregar Código" para instanciar tabuleiros diretamente pelo Base64 transferido na área de transferência.</li>
+            <li><strong>Correção:</strong> Highlight/destaque de células recuperado e estabilizado com `toggle` (habilitado por padrão). Ele agora restringe o mapeamento a células não-vazias (`val !== ''`).</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-gray-400">
+          <div class="absolute w-3 h-3 bg-gray-400 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base opacity-90 mb-1">v4.0</h3>
+          <ul class="list-disc pl-5 opacity-80 space-y-1">
+            <li><strong>Correção:</strong> Resolvido o glitch visual onde a marcação de uma casa gerava o preenchimento fantasma ("ilusão automática") em outros quadrantes por causa de variáveis CSS de matiz.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-gray-400">
+          <div class="absolute w-3 h-3 bg-gray-400 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base opacity-90 mb-1">v1.0 – v3.9</h3>
+          <ul class="list-disc pl-5 opacity-80 space-y-1">
+            <li><strong>Fundação:</strong> Sistema dinâmico NxN com matrizes customizáveis (ex: -9 a 16).</li>
+            <li><strong>Funcionalidades:</strong> OCR com Tesseract.js, Auto-Save (LocalStorage), Modo Lápis, Retorno de Erro Imediato e temas cromáticos completos.</li>
+            <li><strong>Motor Lógico:</strong> Importação das matrizes Mínimas Históricas 9x9 e Solver via Bitmask Heurístico (MRV).</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -2067,6 +2194,8 @@
         document.getElementById('btn-victory-export').addEventListener('click', () => { closeModal('modal-victory'); exportBoardAsPNG(); });
         document.getElementById('btn-victory-close').addEventListener('click', () => closeModal('modal-victory'));
         
+        document.getElementById('btn-open-changelog').addEventListener('click', () => openModal('modal-changelog'));
+        document.getElementById('btn-close-changelog').addEventListener('click', () => closeModal('modal-changelog'));
         document.getElementById('btn-open-howto').addEventListener('click', () => openModal('modal-howto'));
         document.getElementById('btn-close-howto').addEventListener('click', () => closeModal('modal-howto'));
         document.getElementById('btn-open-gift').addEventListener('click', () => {
