@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Sudoku Aneróthico PRÓ v4.1 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v4.2 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -683,7 +683,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v4.1 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v4.2 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -1228,8 +1228,18 @@
         const iconMap = { info: 'fa-circle-info', success: 'fa-circle-check', warn: 'fa-triangle-exclamation' };
         toast.className = 'theme-panel px-4 py-3 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xl border pointer-events-auto transition-all duration-300';
         toast.style.borderColor = 'var(--accent)';
-        toast.innerHTML = `<i class="fa-solid ${iconMap[type] || iconMap.info}" style="color: var(--accent)"></i><span>${message}</span>`;
+        
+        const icon = document.createElement('i');
+        icon.className = `fa-solid ${iconMap[type] || iconMap.info}`;
+        icon.style.color = 'var(--accent)';
+        
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message;
+        
+        toast.appendChild(icon);
+        toast.appendChild(textSpan);
         container.appendChild(toast);
+        
         setTimeout(() => {
           toast.style.opacity = '0';
           toast.style.transform = 'translateY(8px)';
@@ -1243,6 +1253,39 @@
         const hrs = Math.floor(mins / 60);
         if (hrs > 0) return `${String(hrs).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+
+      
+      function isValidMatrix(matrix, N, symbols) {
+        if (!Array.isArray(matrix) || matrix.length !== N) return false;
+        for (let r = 0; r < N; r++) {
+          if (!Array.isArray(matrix[r]) || matrix[r].length !== N) return false;
+          for (let c = 0; c < N; c++) {
+            const val = matrix[r][c];
+            if (val !== '' && !symbols.includes(val)) return false;
+          }
+        }
+        return true;
+      }
+
+      function validateGameState(data) {
+        if (!data || typeof data !== 'object') return null;
+        const N = parseInt(data.N, 10);
+        if (isNaN(N) || N < 4 || N > 25) return null;
+        const bR = parseInt(data.bR || data.blockR, 10);
+        const bC = parseInt(data.bC || data.blockC, 10);
+        if (isNaN(bR) || isNaN(bC) || bR * bC !== N) return null;
+        const symList = data.s || data.symbols;
+        if (!Array.isArray(symList) || symList.length !== N) return null;
+        const symbols = symList.map(String);
+        
+        const initial = data.i || data.initial;
+        if (!isValidMatrix(initial, N, symbols)) return null;
+        
+        const sol = data.sol || data.solution;
+        if (sol && !isValidMatrix(sol, N, symbols)) return null;
+        
+        return { N, bR, bC, symbols, initial, sol };
       }
 
       function buildSymbolsFromRange(minVal, maxVal, includeZero) {
@@ -1383,7 +1426,7 @@
             const b = Math.floor(r / blockR) * numBlocksPerRow + Math.floor(c / blockC);
             if (v !== -1) {
               const bit = 1 << v;
-              if ((rowMask[r] & bit) || (colMask[c] & bit) || (blkMask[b] & bit)) { idxGrid[r][c] = -1; emptyCells.push({ r, c, b }); }
+              if ((rowMask[r] & bit) || (colMask[c] & bit) || (blkMask[b] & bit)) return null;
               else { rowMask[r] |= bit; colMask[c] |= bit; blkMask[b] |= bit; }
             } else { emptyCells.push({ r, c, b }); }
           }
@@ -1413,7 +1456,7 @@
           return false;
         }
         if (solve(emptyCells.length)) return idxGrid.map(row => row.map(v => symbols[v]));
-        return generateCompleteValidGrid(N, blockR, blockC, symbols);
+        return null;
       }
 
       const SEEDS_17_CLUES = ['8...3..........4.7..2.8....4....3...5......2.....7...3.5..........2..61..6.......', '.......1.4.........2...........5.4.7..8...3....1.9....3..4..2...5.1........8.6...', '.......12........3..23..4....18....5.6..7.8.......9.....85.....9...4.5..47...6...', '.....6....59.....82....8....45........3........6..3.54...325..6..................', '....14....3....2...7..........9...3.6.1.............8.2.....1.4....5.6.....7.8...'];
@@ -1762,7 +1805,7 @@
       }
 
       function updateHeaderSubtitle() { document.getElementById('subtitle-mode-info').textContent = `Grade ${state.N}×${state.N} • Blocos ${state.blockR}×${state.blockC} • Intervalo [${state.symbols[0]} a ${state.symbols[state.symbols.length - 1]}] • ${DIFFICULTY_LABELS[state.difficulty] || '🛸Suave na Nave👽'}`; }
-      function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEYS.SAVED_GAMES); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+      function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEYS.SAVED_GAMES); if (!raw) return []; const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed.filter(g => validateGameState(g) !== null) : []; } catch (e) { return []; } }
       function saveCurrentGameState() {
         if (!state.gameId) return;
         try {
@@ -1808,9 +1851,14 @@
           const total = item.N * item.N; let filled = 0; item.board.forEach(r => r.forEach(v => { if (v !== '') filled++; }));
           const card = document.createElement('div'); const isCurrent = item.gameId === state.gameId;
           card.className = 'theme-panel-alt p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 border'; card.style.borderColor = isCurrent ? 'var(--accent)' : 'var(--board-border-cell)';
-          card.innerHTML = `<div class="flex flex-col gap-0.5"><div class="font-extrabold flex items-center gap-2 flex-wrap"><span>Grade ${item.N}×${item.N} (${item.blockR}×${item.blockC})</span><span class="px-2 py-0.5 rounded text-[10px] btn-accent">${DIFFICULTY_LABELS[item.difficulty] || item.difficulty}</span>${isCurrent ? '<span class="text-[10px] font-bold opacity-80">(Atual)</span>' : ''}</div><div class="text-xs opacity-80 font-mono">Intervalo [${item.symbols[0]} .. ${item.symbols[item.symbols.length - 1]}] • Tempo: ${formatTime(item.timerSeconds)} • Progresso: ${Math.floor((filled / total) * 100)}%</div></div><div class="flex items-center gap-2"><button type="button" data-resume="${item.gameId}" class="px-3 py-1.5 rounded-xl btn-accent font-bold text-xs">${item.completed ? 'Visualizar' : 'Retomar'}</button><button type="button" data-delete="${item.gameId}" class="w-8 h-8 rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500 hover:text-white transition flex items-center justify-center"><i class="fa-solid fa-trash-can text-xs"></i></button></div>`;
-          card.querySelector(`[data-resume="${item.gameId}"]`).addEventListener('click', () => { loadSavedGameRecord(item); closeModal('modal-history'); showToast('Partida restaurada!', 'success'); });
-          card.querySelector(`[data-delete="${item.gameId}"]`).addEventListener('click', () => { const updated = getAllSavedGames().filter(g => g.gameId !== item.gameId); localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(updated)); updateSavedBadgeCount(updated); renderHistoryModalList(); });
+          card.innerHTML = `<div class="flex flex-col gap-0.5"><div class="font-extrabold flex items-center gap-2 flex-wrap"><span class="h-title"></span><span class="px-2 py-0.5 rounded text-[10px] btn-accent h-diff"></span><span class="text-[10px] font-bold opacity-80 h-cur hidden">(Atual)</span></div><div class="text-xs opacity-80 font-mono h-desc"></div></div><div class="flex items-center gap-2"><button type="button" class="px-3 py-1.5 rounded-xl btn-accent font-bold text-xs h-btn-res"></button><button type="button" class="w-8 h-8 rounded-xl bg-red-500/15 text-red-500 hover:bg-red-500 hover:text-white transition flex items-center justify-center h-btn-del"><i class="fa-solid fa-trash-can text-xs pointer-events-none"></i></button></div>`;
+          card.querySelector('.h-title').textContent = `Grade ${item.N}×${item.N} (${item.blockR}×${item.blockC})`;
+          card.querySelector('.h-diff').textContent = DIFFICULTY_LABELS[item.difficulty] || item.difficulty;
+          if (isCurrent) card.querySelector('.h-cur').classList.remove('hidden');
+          card.querySelector('.h-desc').textContent = `Intervalo [${item.symbols[0]} .. ${item.symbols[item.symbols.length - 1]}] • Tempo: ${formatTime(item.timerSeconds)} • Progresso: ${Math.floor((filled / total) * 100)}%`;
+          card.querySelector('.h-btn-res').textContent = item.completed ? 'Visualizar' : 'Retomar';
+          card.querySelector('.h-btn-res').addEventListener('click', () => { loadSavedGameRecord(item); closeModal('modal-history'); showToast('Partida restaurada!', 'success'); });
+          card.querySelector('.h-btn-del').addEventListener('click', () => { const updated = getAllSavedGames().filter(g => g.gameId !== item.gameId); localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(updated)); updateSavedBadgeCount(updated); renderHistoryModalList(); });
           container.appendChild(card);
         }
       }
@@ -1842,27 +1890,35 @@
 
       function processLoadedCode(encoded) {
         try {
-          const data = JSON.parse(decodeURIComponent(atob(encoded)));
-          if (!data || !Array.isArray(data.s) || !Array.isArray(data.i)) return false;
-          state.gameId = 'shared_' + Date.now(); state.mode = data.m || 'standard'; state.difficulty = data.d || 'medio';
-          state.minVal = data.minV ?? 1; state.maxVal = data.maxV ?? 9; state.includeZero = !!data.incZ;
-          state.symbols = data.s; state.N = data.N || data.s.length; state.blockR = data.bR; state.blockC = data.bC;
-          state.initial = data.i; state.solution = data.sol || solvePartialGrid(data.i, state.N, state.blockR, state.blockC, state.symbols);
-          if (data.st === 1 && Array.isArray(data.b)) {
-            state.board = data.b.map(r => r.slice());
-            state.notes = Array.isArray(data.n) ? data.n.map(row => row.map(arr => new Set(arr))) : Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
-            state.revealedErrors = Array.isArray(data.re) ? data.re : Array.from({ length: state.N }, () => Array(state.N).fill(false));
-            state.timerSeconds = typeof data.t === 'number' ? data.t : 0; state.completed = !!data.c;
+          const rawData = JSON.parse(decodeURIComponent(atob(encoded)));
+          const validMeta = validateGameState({ N: rawData.N || (rawData.s ? rawData.s.length : 0), bR: rawData.bR, bC: rawData.bC, s: rawData.s, i: rawData.i, sol: rawData.sol });
+          if (!validMeta) return false;
+          if (rawData.st === 1 && !isValidMatrix(rawData.b, validMeta.N, validMeta.symbols)) return false;
+          
+          state.gameId = 'shared_' + Date.now(); state.mode = rawData.m || 'standard'; state.difficulty = rawData.d || 'medio';
+          state.minVal = rawData.minV ?? 1; state.maxVal = rawData.maxV ?? 9; state.includeZero = !!rawData.incZ;
+          state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
+          state.initial = validMeta.initial; 
+          
+          const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
+          if (!solved) return false;
+          state.solution = solved;
+
+          if (rawData.st === 1 && Array.isArray(rawData.b)) {
+            state.board = rawData.b.map(r => r.slice());
+            state.notes = Array.isArray(rawData.n) ? rawData.n.map(row => row.map(arr => new Set(arr))) : Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+            state.revealedErrors = Array.isArray(rawData.re) ? rawData.re : Array.from({ length: state.N }, () => Array(state.N).fill(false));
+            state.timerSeconds = typeof rawData.t === 'number' ? rawData.t : 0; state.completed = !!rawData.c;
           } else {
             state.isManualCreating = false; const mcBarShare = document.getElementById('manual-create-bar'); if (mcBarShare) { mcBarShare.classList.remove('flex'); mcBarShare.classList.add('hidden'); }
-            state.board = data.i.map(r => r.slice()); state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+            state.board = validMeta.initial.map(r => r.slice()); state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
             state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false)); state.timerSeconds = 0; state.completed = false;
           }
           syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle(); document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
           renderVirtualNumpad(); renderSudokuBoard();
           if (state.completed) pauseTimer(); else startTimer();
           saveCurrentGameState();
-          showToast(data.st === 1 ? 'Estado completo carregado com sucesso!' : 'Grade carregada com sucesso!', 'success');
+          showToast(rawData.st === 1 ? 'Estado completo carregado com sucesso!' : 'Grade carregada com sucesso!', 'success');
           return true;
         } catch (e) { return false; }
       }
@@ -1909,8 +1965,25 @@
           }
           await worker.terminate();
           const symbols = buildSymbolsFromRange(1, 9, false);
+          const solved = solvePartialGrid(recognizedInitial, 9, 3, 3, symbols);
+          
+          if (!solved) {
+            state.mode = 'standard'; state.difficulty = 'medio'; state.minVal = 1; state.maxVal = 9; state.includeZero = false; state.symbols = symbols; state.N = 9; state.blockR = 3; state.blockC = 3;
+            state.initial = Array.from({ length: 9 }, () => Array(9).fill('')); 
+            state.board = recognizedInitial.map(row => row.slice());
+            state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set())); 
+            state.revealedErrors = Array.from({ length: 9 }, () => Array(9).fill(false)); 
+            state.gameId = 'ocr_manual_' + Date.now(); state.timerSeconds = 0; state.completed = false;
+            state.isManualCreating = true;
+            syncModeTabsUI(); updateHeaderSubtitle(); renderVirtualNumpad(); renderSudokuBoard();
+            document.getElementById('manual-create-bar').classList.remove('hidden'); document.getElementById('manual-create-bar').classList.add('flex');
+            closeModal('modal-ocr');
+            showToast('Algumas casas foram lidas com erro. Corrija os conflitos e inicie a partida.', 'warn');
+            return;
+          }
+
           state.mode = 'standard'; state.difficulty = 'medio'; state.minVal = 1; state.maxVal = 9; state.includeZero = false; state.symbols = symbols; state.N = 9; state.blockR = 3; state.blockC = 3;
-          state.initial = recognizedInitial; state.solution = solvePartialGrid(recognizedInitial, 9, 3, 3, symbols); state.board = recognizedInitial.map(row => row.slice());
+          state.initial = recognizedInitial; state.solution = solved; state.board = recognizedInitial.map(row => row.slice());
           state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set())); state.revealedErrors = Array.from({ length: 9 }, () => Array(9).fill(false)); state.gameId = 'ocr_' + Date.now(); state.timerSeconds = 0; state.completed = false;
           syncModeTabsUI(); updateHeaderSubtitle(); renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
           closeModal('modal-ocr'); showToast('Grade 9×9 importada via OCR com sucesso!', 'success');
@@ -1977,7 +2050,13 @@
         document.getElementById('btn-finish-manual').addEventListener('click', () => {
           let hasClues = false; for(let r=0; r<state.N; r++) for(let c=0; c<state.N; c++) if (state.board[r][c] !== '') hasClues = true;
           if (!hasClues) { showToast('Preencha ao menos uma pista!', 'warn'); return; }
-          state.initial = state.board.map(row => row.slice()); state.solution = solvePartialGrid(state.initial, state.N, state.blockR, state.blockC, state.symbols); state.isManualCreating = false;
+          const newInitial = state.board.map(row => row.slice());
+          const newSolution = solvePartialGrid(newInitial, state.N, state.blockR, state.blockC, state.symbols);
+          if (!newSolution) {
+             showToast('A grade possui conflitos ou não tem solução lógica.', 'warn');
+             return; 
+          }
+          state.initial = newInitial; state.solution = newSolution; state.isManualCreating = false;
           document.getElementById('manual-create-bar').classList.remove('flex'); document.getElementById('manual-create-bar').classList.add('hidden');
           state.gameId = 'manual_' + Date.now(); renderSudokuBoard(); startTimer(); saveCurrentGameState(); showToast('Pistas fixadas! Boa sorte!', 'success');
         });
