@@ -7,7 +7,7 @@
         if (e.key === 'ArrowDown') { e.preventDefault(); focusCellByCoords((r + 1) % state.N, c); return; }
         if (e.key === 'ArrowLeft') { e.preventDefault(); focusCellByCoords(r, (c - 1 + state.N) % state.N); return; }
         if (e.key === 'ArrowRight') { e.preventDefault(); focusCellByCoords(r, (c + 1) % state.N); return; }
-        if (e.key === 'n' || e.key === 'N') { e.preventDefault(); togglePencilMode(); return; }
+        if (e.key === 'n' || e.key === 'N' || e.code === 'KeyN' || e.keyCode === 78) { e.preventDefault(); togglePencilMode(); return; }
         if (state.initial[r][c] !== '') { e.preventDefault(); return; }
         if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); clearTypingBuffer(); eraseCell(r, c); return; }
         if (e.key === '-' || (e.key >= '0' && e.key <= '9')) { e.preventDefault(); state.lastKeydownTimestamp = Date.now(); processTypedChar(r, c, e.key); }

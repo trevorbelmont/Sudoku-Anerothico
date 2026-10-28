@@ -95,11 +95,29 @@ async function exportBoardAsPNG() {
 
     // O zoom é uma ferramenta da interface e não faz parte da imagem exportada.
     boardClone.querySelectorAll('#board-zoom-controls, #pause-overlay, #manual-create-bar').forEach(el => el.remove());
-    // Mantém os IDs do clone para que os seletores CSS existentes continuem aplicados durante a captura.
-    boardClone.querySelectorAll('button, input, select, textarea').forEach(el => {
-      if (el.matches('input, textarea')) el.remove();
-      else el.remove();
+    // html2canvas nem sempre pinta o value atual de inputs flex/centralizados.
+    // Substitui SOMENTE no clone de exportação os campos .sudoku-input por divs
+    // com a mesma classe/estilo e com o valor vivo da célula. O tabuleiro real
+    // nunca é alterado; o clone inteiro é descartado no finally.
+    boardClone.querySelectorAll('.sudoku-input').forEach(clonedInput => {
+      const cell = clonedInput.closest('.sudoku-cell');
+      const row = cell ? Number(cell.dataset.r) : NaN;
+      const column = cell ? Number(cell.dataset.c) : NaN;
+      const originalInput = Number.isInteger(row) && Number.isInteger(column)
+        ? wrapper.querySelector(`#cell-input-${row}-${column}`)
+        : null;
+      const printableCell = document.createElement('div');
+      printableCell.className = clonedInput.className;
+      printableCell.style.cssText = clonedInput.style.cssText;
+      printableCell.textContent = originalInput ? originalInput.value : clonedInput.value;
+      const ariaLabel = clonedInput.getAttribute('aria-label');
+      if (ariaLabel) printableCell.setAttribute('aria-label', ariaLabel);
+      printableCell.setAttribute('aria-hidden', 'true');
+      clonedInput.replaceWith(printableCell);
     });
+
+    // Remove apenas controles da cópia; as divs que representam os números ficam visíveis.
+    boardClone.querySelectorAll('button, input, select, textarea').forEach(el => el.remove());
     stage.appendChild(boardClone);
     document.body.appendChild(stage);
 

@@ -1,4 +1,4 @@
-# Sudoku Aneróthico PRÓ v6.1
+# Sudoku Aneróthico PRÓ v6.2
 
 ## Execução local no Windows
 
@@ -62,3 +62,12 @@ Todos os arquivos `.js` passaram na verificação sintática do Node.js. A valid
 - Cada uso da NASA é registrado como uma ação `NASA` no histórico de movimentos do Firebase. A contagem é cumulativa por instância e a porcentagem é calculada separadamente das casas atribuídas aos jogadores; o preenchimento especial identifica apenas as casas ainda atribuídas à NASA.
 - O modo de foco maximiza o tabuleiro e mantém um botão para restaurar a interface. Atalhos adicionais: `H` (NASA), `E` (votação/alternância do erro imediato), `I` (destacar iguais) e `F11` (modo de foco, conforme suporte do navegador).
 
+
+
+## Versão 6.2 — ajustes de apresentação, teclado, votação e PNG
+
+- A atribuição da NASA anima somente o brilho/cor do caractere numérico. As células não recebem preenchimento tracejado nem contorno tracejado; o estilo funciona também nos temas Rainbow e épicos.
+- O atalho `N` alterna o Modo Lápis uma única vez quando uma célula está focada. A correção evita que o manipulador da célula e o atalho global invertam o estado duas vezes.
+- Votações de recursos multiplayer exigem maioria estrita: mais de 50% dos jogadores conectados. Em uma sala com dois jogadores, ambos precisam aprovar.
+- A exportação PNG converte os campos numéricos em elementos de texto apenas na cópia temporária do tabuleiro usada para captura. Os números aparecem na imagem sem alterar as células reais nem o estado da partida.
+- Ao entrar em uma sala já criada, o modo efetivo e a opção de métricas em tempo real são carregados dos metadados da própria sala; a seleção local de modo é usada para criar salas, não para substituir as configurações da sala de destino.

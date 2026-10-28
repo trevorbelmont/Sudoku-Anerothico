@@ -269,7 +269,8 @@ function initEventListeners() {
           if ((key === '+' || key === '=') && canUseGlobalShortcut) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) + 25); return; }
           if (key === '-' && canUseGlobalShortcut && (!isTyping || (isSudokuCell && !state.symbols.some(symbol => String(symbol).startsWith('-'))) || state.boardFocusMode)) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) - 25); return; }
           if ((lower === 'r') && canUseGlobalShortcut) { e.preventDefault(); setBoardZoom(100); return; }
-          if (canUseGlobalShortcut && lower === 'n') { e.preventDefault(); togglePencilMode(); return; }
+          // A focused Sudoku cell handles N in handleCellKeyDown. Skipping it here prevents the old double-toggle (on then off).
+          if (canUseGlobalShortcut && !isSudokuCell && (lower === 'n' || e.code === 'KeyN' || e.keyCode === 78)) { e.preventDefault(); togglePencilMode(); return; }
           if (canUseGlobalShortcut && lower === 'h' && !state.symbols.includes(key.toUpperCase())) {
             e.preventDefault();
             if (state.multiplayer.active && state.multiplayer.roomId) requestFeatureVote('nasa'); else giveNasaHint();

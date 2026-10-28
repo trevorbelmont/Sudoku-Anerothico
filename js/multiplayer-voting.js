@@ -272,10 +272,16 @@ function renderFeatureVoteCard(vote) {
     title.textContent = vote.type === 'nasa' ? '🪐 Votação: chamar a NASA' : '🗳️ Votação: erro imediato';
     message.textContent = `${vote.proposerName || 'Um jogador'} quer ${featureName}. Vote aqui no canto; dá para continuar jogando enquanto decide.`;
     const votes = vote.votes && typeof vote.votes === 'object' ? vote.votes : {};
+    const eligibleIds = new Set(Object.keys(state.multiplayer.players || {}));
+    if (state.multiplayer.playerId) eligibleIds.add(state.multiplayer.playerId);
+    const online = Math.max(1, eligibleIds.size);
     const count = { yes: 0, no: 0, abstain: 0 };
-    Object.values(votes).forEach(v => { if (v && count[v.choice] !== undefined) count[v.choice]++; });
-    const online = Math.max(1, Object.keys(state.multiplayer.players || {}).length);
-    status.textContent = `A favor: ${count.yes} · Contra: ${count.no} · Abstenções: ${count.abstain} · Conectados: ${online}. Aprovação exige pelo menos ${Math.ceil(online / 2)} voto(s) a favor.`;
+    Object.entries(votes).forEach(([voterId, v]) => {
+        if (!eligibleIds.has(voterId) || !v || count[v.choice] === undefined) return;
+        count[v.choice]++;
+    });
+    const threshold = Math.floor(online / 2) + 1;
+    status.textContent = `A favor: ${count.yes} · Contra: ${count.no} · Abstenções: ${count.abstain} · Conectados: ${online}. Aprovação exige maioria estrita: ${threshold} voto(s) a favor (mais de 50%).`;
     const mine = votes[state.multiplayer.playerId];
     actionButtons.classList.toggle('hidden', !!mine);
     const [yesBtn, noBtn, abstainBtn] = actionButtons.querySelectorAll('[data-feature-vote]');
@@ -321,10 +327,12 @@ function evaluateFeatureVote(vote) {
     const voterIds = Object.keys(state.multiplayer.players || {});
     if (!voterIds.includes(state.multiplayer.playerId)) voterIds.push(state.multiplayer.playerId);
     const total = Math.max(1, voterIds.length);
-    const threshold = Math.ceil(total / 2);
+    // Strict majority: a tie or exactly 50% can never approve a feature change.
+    // For two connected players, both must vote in favour.
+    const threshold = Math.floor(total / 2) + 1;
     const votes = vote.votes && typeof vote.votes === 'object' ? vote.votes : {};
-    const yes = Object.values(votes).filter(v => v && v.choice === 'yes').length;
-    const no = Object.values(votes).filter(v => v && v.choice === 'no').length;
+    const yes = voterIds.filter(id => votes[id] && votes[id].choice === 'yes').length;
+    const no = voterIds.filter(id => votes[id] && votes[id].choice === 'no').length;
     const allAnswered = voterIds.every(id => !!votes[id]);
     let nextStatus = null;
     if (yes >= threshold) nextStatus = 'approved';
