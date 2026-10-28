@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sudoku Aneróthico PRÓ v5.1 🧠</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&family=Playfair+Display:ital,wght@0,700;1,400;1,600&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Tesseract.js (OCR) & html2canvas (PNG Export) & Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<link rel="stylesheet" href="css/app.css" />
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <!-- ==========================================================================
+       CABEÇALHO PRINCIPAL (NAVBAR)
+       ========================================================================== -->
+  <header class="theme-panel sticky top-0 z-30 border-b px-3 py-2.5 sm:px-6">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <!-- Logo & Título Oficial -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl btn-accent flex items-center justify-center text-xl font-black shadow-sm">
+          <span>9</span>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
+            <span>Sudoku Aneróthico PRÓ v5.1 🧠</span>
+          </h1>
+          <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
+            Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
+          </p>
+        </div>
+      </div>
+
+      <!-- Ações Rápidas, Temas, Como Jogar e Presente Especial (💝) -->
+      <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+        <div class="relative flex items-center">
+          <i class="fa-solid fa-palette absolute left-2.5 text-xs opacity-70 pointer-events-none"></i>
+          <select id="theme-selector" aria-label="Selecionar Tema"
+            class="theme-panel-alt text-xs sm:text-sm font-semibold pl-7 pr-6 py-2 rounded-lg border border-transparent focus:outline-none focus:ring-2 cursor-pointer">
+            <option value="claro">☀️ 1. Claro</option>
+            <option value="escuro">🌙 2. Escuro</option>
+            <option value="roxo">🔮 3. Roxo</option>
+            <option value="verde">🌿 4. Verde</option>
+            <option value="epico1">🌆 5. Épico 1 (Cyberpunk Sunset)</option>
+            <option value="epico2">🏝️ 6. Épico 2 (Tropical Aurora)</option>
+            <option value="rainbow">🌈 7. Rainbow</option>
+            <option value="altocontraste">👁️ 8. Alto Contraste</option>
+            <option value="daltonico">🎨 9. Daltônico (Okabe-Ito)</option>
+          </select>
+        </div>
+
+        <button id="btn-open-history" type="button"
+          class="theme-panel-alt hover:opacity-90 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition"
+          title="Jogos Salvos e Concluídos">
+          <i class="fa-solid fa-folder-open"></i>
+          <span class="hidden md:inline">Salvos</span>
+          <span id="saved-count-badge" class="px-1.5 py-0.5 text-[10px] rounded-full btn-accent font-bold">0</span>
+        </button>
+
+        <button id="btn-open-changelog" type="button"
+          class="theme-panel-alt hover:opacity-90 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition"
+          title="Ver o Histórico de Versões">
+          <i class="fa-solid fa-code-branch"></i>
+          <span class="hidden lg:inline">Changelog</span>
+        </button>
+
+        <button id="btn-open-howto" type="button"
+          class="theme-panel-alt hover:opacity-90 px-2.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition"
+          title="Como Jogar e Curiosidades">
+          <i class="fa-solid fa-circle-question"></i>
+          <span class="hidden sm:inline">Como Jogar</span>
+        </button>
+
+        <button id="btn-open-gift" type="button"
+          class="theme-panel-alt hover:scale-105 active:scale-95 px-2.5 py-1.5 rounded-lg text-base sm:text-lg transition flex items-center justify-center border border-pink-400/30 shadow-sm"
+          title="Sobre (Presente Especial 💝)" aria-label="Sobre - Presente Especial">
+          <span>💝</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       CONTEÚDO PRINCIPAL (LAYOUT RESPONSIVO PC & MOBILE)
+       ========================================================================== -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+    <!-- COLUNA ESQUERDA / TOPO -->
+    <section class="lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
+      <!-- Configuração de Jogo -->
+      <div class="theme-panel rounded-2xl p-4 flex flex-col gap-3.5">
+        <div class="flex items-center justify-between border-b pb-2.5" style="border-color: var(--board-border-cell);">
+          <h2 class="font-bold text-sm sm:text-base flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-sm opacity-80"></i>
+            <span>Configuração da Partida</span>
+          </h2>
+          <div class="flex rounded-lg p-0.5 theme-panel-alt text-xs font-bold">
+            <button id="tab-mode-standard" type="button" class="px-2.5 py-1 rounded-md btn-accent transition">
+              Padrão 9×9
+            </button>
+            <button id="tab-mode-custom" type="button" class="px-2.5 py-1 rounded-md opacity-75 hover:opacity-100 transition">
+              Customizado
+            </button>
+          </div>
+        </div>
+
+        <div id="panel-mode-standard" class="flex flex-col gap-3">
+          <p class="text-xs opacity-80 leading-relaxed">
+            Grade clássica <strong>9×9</strong> com sub-blocos <strong>3×3</strong> usando os números de <strong>1 a 9</strong> e solução lógica única garantida.
+          </p>
+        </div>
+
+        <div id="panel-mode-custom" class="hidden flex-col gap-3 theme-panel-alt p-3 rounded-xl border" style="border-color: var(--board-border-cell);">
+          <div class="text-xs font-semibold opacity-90">
+            Defina o intervalo personalizado de números inteiros:
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label for="custom-min-input" class="block text-[11px] font-bold uppercase opacity-75 mb-1">Mínimo (ex: -9)</label>
+              <input id="custom-min-input" type="number" value="-3" min="-50" max="50"
+                class="w-full px-2.5 py-1.5 rounded-lg theme-panel font-mono text-sm font-bold focus:outline-none focus:ring-2" />
+            </div>
+            <div>
+              <label for="custom-max-input" class="block text-[11px] font-bold uppercase opacity-75 mb-1">Máximo (ex: 16)</label>
+              <input id="custom-max-input" type="number" value="6" min="-50" max="50"
+                class="w-full px-2.5 py-1.5 rounded-lg theme-panel font-mono text-sm font-bold focus:outline-none focus:ring-2" />
+            </div>
+          </div>
+
+          <label class="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none pt-0.5">
+            <input id="custom-include-zero" type="checkbox" class="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
+            <span>Incluir o número <strong>0</strong> no intervalo</span>
+          </label>
+
+          <div class="flex flex-wrap gap-1.5 pt-1">
+            <span class="text-[11px] opacity-70 w-full">Exemplos rápidos:</span>
+            <button type="button" data-preset="-4,4,1" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -4 a 4 (com 0) → 9×9
+            </button>
+            <button type="button" data-preset="-3,9,0" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -3 a 9 (sem 0) → 12×12
+            </button>
+            <button type="button" data-preset="1,16,0" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              1 a 16 → 16×16
+            </button>
+            <button type="button" data-preset="-7,8,1" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -7 a 8 (com 0) → 16×16
+            </button>
+            <button type="button" data-preset="-9,16,0" class="preset-range-btn text-[11px] px-2 py-1 rounded theme-panel font-mono hover:opacity-80">
+              -9 a 16 (sem 0) → 25×25
+            </button>
+          </div>
+
+          <div id="custom-calc-preview" class="text-xs p-2 rounded-lg theme-panel font-medium leading-snug">
+            Calculando dimensões...
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2.5 pt-1">
+          <div class="flex flex-col gap-1.5">
+            <span class="text-xs font-bold uppercase opacity-75">Dificuldade:</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5" role="group" aria-label="Dificuldade">
+              <button type="button" data-diff="facil" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold btn-accent text-left flex items-center justify-between">
+                <span>🍭Melzinho na Chupeta🍼</span>
+                <span data-diff-clues="facil" class="text-[10px] opacity-80 font-mono">~47 pistas (58%)</span>
+              </button>
+              <button type="button" data-diff="medio" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>🛸Suave na Nave👽</span>
+                <span data-diff-clues="medio" class="text-[10px] opacity-80 font-mono">~37 pistas (46%)</span>
+              </button>
+              <button type="button" data-diff="dificil" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>Uai, Sô🤠⁉️</span>
+                <span data-diff-clues="dificil" class="text-[10px] opacity-80 font-mono">~30 pistas (37%)</span>
+              </button>
+              <button type="button" data-diff="uaiso" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>🚂Doido D➕ da Conta‼️🤪</span>
+                <span data-diff-clues="uaiso" class="text-[10px] opacity-80 font-mono">~23 pistas (28%)</span>
+              </button>
+              <button type="button" data-diff="doido" class="diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between">
+                <span>🌵Oxe, 🫠Que Miséria‼️🤦</span>
+                <span data-diff-clues="doido" class="text-[10px] opacity-80 font-mono">~17 pistas (21%)</span>
+              </button>
+            </div>
+          </div>
+
+          <button id="btn-new-game" type="button"
+            class="w-full py-2.5 px-4 rounded-xl font-bold text-sm btn-accent shadow-md flex items-center justify-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Gerar Novo Sudoku</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Card de Ferramentas -->
+      <div class="theme-panel rounded-2xl p-4 flex flex-col gap-3">
+        <h3 class="font-bold text-sm flex items-center gap-2 border-b pb-2" style="border-color: var(--board-border-cell);">
+          <i class="fa-solid fa-toolbox opacity-80"></i>
+          <span>Ferramentas & Compartilhamento</span>
+        </h3>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+          
+          <button id="btn-manual-create" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-pen-to-square text-sm"></i>
+            <span>Criar Instância Manual</span>
+          </button>
+          
+          <button id="btn-open-ocr" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-camera text-sm"></i>
+            <span>Importar Imagem (OCR 9×9)</span>
+          </button>
+
+          <!-- Sharing and export actions -->
+          <button id="btn-share-url" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-copy text-sm"></i>
+            <span>Copiar Código da Instância</span>
+          </button>
+          
+          <!-- Multiplayer room controls -->
+          <button id="btn-create-room" type="button"
+            class="bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border border-blue-500 shadow-md">
+            <i class="fa-solid fa-network-wired text-sm"></i>
+            <span>Abrir Sala Multiplayer</span>
+          </button>
+          <div id="room-status-badge" class="hidden flex-col gap-2 mt-[-4px] mb-1">
+             <div class="text-center text-[10px] font-bold text-green-500 animate-pulse">
+                <i class="fa-solid fa-circle text-[8px]"></i> Conectado à Sala: <span id="current-room-id-label">---</span>
+             </div>
+             
+             <!-- Lista de Jogadores na Sala -->
+             <div id="mp-players-list" class="flex flex-col gap-1.5 w-full bg-slate-500/5 p-2 rounded-xl border border-slate-200 dark:border-slate-700/50">
+                <!-- Populated by the multiplayer interface module. -->
+             </div>
+             
+             <button id="btn-disconnect-room" type="button" class="w-full py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white text-[11px] font-bold transition flex items-center justify-center gap-1.5 border border-red-500/30">
+                <i class="fa-solid fa-plug-circle-xmark"></i>
+                Desconectar da Sala
+             </button>
+          </div>
+
+          <button id="btn-share-state-url" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);"
+            title="Copia o código do puzzle exatamente com os números preenchidos, notas e tempo atuais">
+            <i class="fa-solid fa-clipboard text-sm"></i>
+            <span>Copiar Código do Estado</span>
+          </button>
+
+          <button id="btn-open-load-code" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border border-dashed border-blue-500 text-blue-600 dark:text-blue-400"
+            title="Carregar um jogo através do código copiado">
+            <i class="fa-solid fa-file-import text-sm"></i>
+            <span>Carregar Código</span>
+          </button>
+
+          <button id="btn-export-png" type="button"
+            class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+            style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-download text-sm"></i>
+            <span>Exportar Imagem (.PNG)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLUNA CENTRAL / DIREITA -->
+    <section class="lg:col-span-8 flex flex-col gap-3.5 order-1 lg:order-2">
+
+      <div class="theme-panel rounded-2xl p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3">
+        <!-- Timer -->
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl theme-panel-alt font-mono font-bold text-sm sm:text-base">
+            <i class="fa-regular fa-clock opacity-75"></i>
+            <span id="timer-display">00:00</span>
+          </div>
+          <button id="btn-pause-timer" type="button"
+            class="theme-panel-alt w-9 h-9 rounded-xl flex items-center justify-center hover:opacity-80 transition"
+            title="Pausar / Retomar Partida">
+            <i id="icon-pause-timer" class="fa-solid fa-pause text-xs"></i>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs sm:text-sm font-semibold">
+          <span class="opacity-75">Preenchido:</span>
+          <span id="progress-badge" class="font-mono font-bold px-2.5 py-1 rounded-lg theme-panel-alt">
+            0 / 81 (0%)
+          </span>
+        </div>
+
+        <!-- Toggles -->
+        <div class="flex flex-col sm:flex-row gap-2">
+          <label class="flex items-center gap-2 cursor-pointer select-none text-[10px] sm:text-[11px] font-semibold theme-panel-alt px-2 py-1.5 rounded-xl">
+            <input id="toggle-immediate-error" type="checkbox" class="sr-only peer" />
+            <div class="w-6 h-3 bg-slate-400/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-2 after:w-2 after:transition-all relative peer-checked:bg-red-500"></div>
+            <span>Erro imediato</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer select-none text-[10px] sm:text-[11px] font-semibold theme-panel-alt px-2 py-1.5 rounded-xl">
+            <input id="toggle-highlight-same" type="checkbox" class="sr-only peer" checked />
+            <div class="w-6 h-3 bg-slate-400/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-2 after:w-2 after:transition-all relative peer-checked:bg-blue-500"></div>
+            <span>Destacar iguais</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+
+        <div class="xl:col-span-8 flex flex-col items-center justify-center w-full">
+          <div id="sudoku-board-wrapper" class="w-full max-w-[560px] mx-auto relative">
+            <div id="pause-overlay" class="hidden absolute inset-0 z-20 rounded-lg backdrop-blur-md bg-slate-900/75 flex flex-col items-center justify-center text-white p-6 text-center">
+              <i class="fa-solid fa-pause-circle text-5xl mb-3 opacity-90"></i>
+              <h3 class="text-xl font-extrabold mb-1">Jogo Pausado</h3>
+              <p class="text-xs opacity-80 mb-4">O cronômetro está parado. Clique abaixo para continuar resolvendo.</p>
+              <button id="btn-resume-overlay" type="button" class="px-5 py-2.5 rounded-xl font-bold text-sm btn-accent">
+                Continuar Partida
+              </button>
+            </div>
+
+            <div id="manual-create-bar" class="hidden w-full max-w-[560px] mx-auto mb-3 theme-panel p-3 rounded-xl flex-col sm:flex-row items-center justify-between gap-3 border-2 border-dashed border-blue-500 shadow-lg">
+              <div class="text-xs sm:text-sm font-bold flex items-center gap-2">
+                <i class="fa-solid fa-pen-ruler text-blue-500"></i>
+                <span>Modo de Criação Manual Ativo</span>
+              </div>
+              <button id="btn-finish-manual" type="button" class="btn-accent px-4 py-2 rounded-lg text-xs font-bold shadow-md w-full sm:w-auto hover:opacity-90">
+                Salvar Pistas e Iniciar Partida
+              </button>
+            </div>
+            <div id="sudoku-grid" role="grid" aria-label="Tabuleiro de Sudoku"></div>
+            
+            <!-- Game title field -->
+            <div class="mt-4 flex items-center justify-center w-full">
+              <div class="theme-panel-alt px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm border border-slate-200 dark:border-slate-700/50">
+                <i class="fa-solid fa-tag text-xs opacity-60"></i>
+                <input type="text" id="game-name-input" placeholder="Nome da partida (opcional)" class="bg-transparent border-none focus:outline-none text-sm font-bold w-48 text-center" maxlength="25" />
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="xl:col-span-4 flex flex-col gap-3 w-full max-w-[560px] mx-auto">
+          <div class="theme-panel rounded-2xl p-3 flex flex-col gap-2.5">
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-pencil-mode" type="button"
+                class="theme-panel-alt py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border relative"
+                style="border-color: var(--board-border-cell);"
+                title="Atalho: Tecla N">
+                <i class="fa-solid fa-pencil"></i>
+                <span>Modo Lápis (N)</span>
+                <span id="pencil-status-badge" class="px-1.5 py-0.5 text-[10px] rounded bg-slate-500/20 font-extrabold">OFF</span>
+              </button>
+
+              <button id="btn-erase-cell" type="button"
+                class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
+                style="border-color: var(--board-border-cell);">
+                <i class="fa-solid fa-eraser"></i>
+                <span>Apagar Casa</span>
+              </button>
+            </div>
+
+            <button id="btn-nasa-hint" type="button"
+              class="theme-panel-alt hover:opacity-95 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition border shadow-sm"
+              style="border-color: var(--accent);">
+              <span>🪐Chama a Nasa...🚀👨🏾‍🚀</span>
+            </button>
+
+            <button id="btn-check-solution" type="button" disabled
+              class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm btn-accent shadow-md flex items-center justify-center gap-2">
+              <i class="fa-solid fa-circle-check"></i>
+              <span id="btn-check-solution-text">Conferir Solução</span>
+            </button>
+          </div>
+
+          <div class="theme-panel rounded-2xl p-3 flex flex-col gap-2">
+            <div class="flex items-center justify-between text-xs font-bold opacity-80 px-1">
+              <span>Teclado Virtual</span>
+              <span id="numpad-range-label" class="font-mono text-[11px]">[1 .. 9]</span>
+            </div>
+            <div id="virtual-numpad" class="grid grid-cols-5 sm:grid-cols-9 xl:grid-cols-3 gap-1.5 max-h-[270px] overflow-y-auto p-0.5">
+            </div>
+            <p class="text-[11px] opacity-70 leading-tight px-1 pt-1">
+              <i class="fa-regular fa-keyboard mr-1"></i>
+              Você também pode digitar diretamente nas células (incluindo negativos como <code class="font-mono">-9</code> e dezenas como <code class="font-mono">16</code>) e navegar com as setas.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+    <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v5.1</div>
+        <div class="flex items-center gap-4 text-xs opacity-60">
+            <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
+            <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
+        </div>
+    </footer>
+
+
+  <!-- MODAL 1: PARABÉNS! -->
+  <div id="modal-victory" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col items-center gap-4 animate-bounce-once">
+      <div class="w-16 h-16 rounded-2xl btn-accent flex items-center justify-center text-3xl shadow-lg">🎉</div>
+      <div>
+        <h2 class="text-2xl font-black tracking-tight">Parabéns! Solução Perfeita!</h2>
+        <p class="text-xs sm:text-sm opacity-80 mt-1">Você concluiu todo o tabuleiro respeitando todas as regras lógicas!</p>
+      </div>
+      <div class="w-full grid grid-cols-2 gap-2.5 theme-panel-alt p-3.5 rounded-2xl text-left text-xs">
+        <div><span class="opacity-70 block">Tempo Total:</span><strong id="victory-time" class="text-base font-mono">00:00</strong></div>
+        <div><span class="opacity-70 block">Dificuldade:</span><strong id="victory-diff" class="text-base capitalize">Médio</strong></div>
+        <div><span class="opacity-70 block">Dimensão do Grid:</span><strong id="victory-dim" class="text-sm font-mono">9×9 (3×3)</strong></div>
+        <div><span class="opacity-70 block">Intervalo Usado:</span><strong id="victory-range" class="text-sm font-mono">1 a 9</strong></div>
+      </div>
+      <div class="flex w-full gap-2.5 pt-2">
+        <button id="btn-victory-export" type="button" class="flex-1 py-2.5 px-3 rounded-xl theme-panel-alt font-bold text-xs flex items-center justify-center gap-1.5"><i class="fa-solid fa-download"></i><span>Baixar PNG</span></button>
+        <button id="btn-victory-new" type="button" class="flex-1 py-2.5 px-3 rounded-xl btn-accent font-bold text-xs flex items-center justify-center gap-1.5"><i class="fa-solid fa-play"></i><span>Novo Jogo</span></button>
+      </div>
+      <button id="btn-victory-close" type="button" class="text-xs opacity-70 hover:opacity-100 underline">Fechar e ver tabuleiro</button>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ERROS -->
+  <div id="modal-errors-prompt" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-red-500/20 text-red-500 flex items-center justify-center text-2xl font-bold"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <div>
+        <h2 class="text-xl font-extrabold">A solução está incorreta</h2>
+        <p class="text-xs sm:text-sm opacity-85 mt-1.5 leading-relaxed">Encontramos <strong id="error-count-label">algumas</strong> inconsistências no preenchimento atual. O cronômetro continua rodando!</p>
+        <p class="text-sm font-bold mt-3">Deseja revelar os erros?</p>
+      </div>
+      <div class="flex w-full gap-3 pt-1">
+        <button id="btn-reveal-errors-no" type="button" class="flex-1 py-2.5 px-4 rounded-xl theme-panel-alt font-bold text-xs sm:text-sm hover:opacity-90 transition">Não, continuar tentando</button>
+        <button id="btn-reveal-errors-yes" type="button" class="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition shadow-md">Sim, revelar erros</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: COMO JOGAR -->
+  <div id="modal-howto" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-book-open"></i>
+          <span>Como Jogar & Curiosidades do Sudoku</span>
+        </h2>
+        <button id="btn-close-howto" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm leading-relaxed">
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">1</span>
+            <span>Mecânica e Regras Diretas</span>
+          </h3>
+          <p class="opacity-90 mb-2">
+            O objetivo do Sudoku é preencher todas as células vazias da grade de modo que <strong>cada linha horizontal</strong>, <strong>cada coluna vertical</strong> e <strong>cada sub-bloco interno</strong> (delimitado pelas bordas grossas) contenha todos os números do intervalo permitido <strong>exatamente uma única vez</strong>, sem repetições.
+          </p>
+          <ul class="list-disc pl-5 space-y-2 opacity-90">
+            <li><strong>Modo Padrão vs. Customizado:</strong> No modo padrão, a grade é 9×9 (blocos 3×3) com números de 1 a 9. No modo customizado, você pode definir qualquer intervalo (incluindo números negativos e dezenas, com ou sem o zero), e o sistema dimensiona matematicamente a grade e seus sub-blocos.</li>
+            <li><strong>Modo Lápis (Tecla N):</strong> Use para anotar pequenos candidatos em uma casa. Ao confirmar um valor definitivo em uma célula, o sistema remove automaticamente esse candidato das notas na mesma linha, coluna e sub-bloco.</li>
+            <li><strong>Verificação de Solução:</strong> Por padrão, erros de digitação não são denunciados imediatamente para preservar o desafio clássico. Ao preencher 100% da grade, clique em <em>"Conferir Solução"</em>.</li>
+          </ul>
+        </div>
+
+        <hr style="border-color: var(--board-border-cell);" />
+
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">2</span>
+            <span>Origens Históricas</span>
+          </h3>
+          <p class="opacity-90">
+            As raízes conceituais do Sudoku remontam ao século XVIII, quando o brilhante matemático suíço <strong>Leonhard Euler</strong> desenvolveu os <em>"Quadrados Latinos"</em> (grades onde símbolos não se repetem em linhas ou colunas).
+          </p>
+          <p class="opacity-90 mt-2">
+            O formato moderno com sub-blocos regionais foi criado pelo arquiteto norte-americano <strong>Howard Garns</strong> em 1979 e publicado pela revista <em>Dell Magazines</em> sob o nome <em>Number Place</em>. Em 1984, a editora japonesa <strong>Nikoli</strong>, liderada por <strong>Maki Kaji</strong>, levou o quebra-cabeça ao Japão e o batizou de <strong>Sudoku</strong> (abreviação de <em>"Suji wa dokushin ni kagiru"</em> — "os números devem permanecer únicos").
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-extrabold text-base mb-1.5 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-md btn-accent inline-flex items-center justify-center text-xs">3</span>
+            <span>Curiosidades Matemáticas</span>
+          </h3>
+          <p class="opacity-90">
+            Na combinatória, foi demonstrado em 2005 por Bertram Felgenhauer e Frazer Jarvis que existem exatamente <strong>6.670.903.752.021.072.936.960</strong> (cerca de 6,67 × 10<sup>21</sup>) grades válidas de Sudoku 9×9!
+          </p>
+          <p class="opacity-90 mt-2">
+            Outra descoberta célebre ocorreu em 2012, quando o matemático <strong>Gary McGuire</strong> e sua equipe provaram computacionalmente que o <strong>número mínimo de pistas iniciais</strong> para que um Sudoku 9×9 possua solução única é <strong>17</strong>. Nenhum puzzle válido de solução única pode existir com apenas 16 números iniciais.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: PRESENTE (💝) -->
+  <div id="modal-gift" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="gift-card-modal rounded-3xl max-w-lg w-full p-6 sm:p-8 relative text-center overflow-hidden">
+      <!-- Laço Decorativo de Presente -->
+      <div class="flex justify-center mb-4">
+        <div class="w-16 h-16 rounded-full bg-rose-500 text-white flex items-center justify-center text-3xl shadow-lg border-4 border-white">
+          <span class="animate-heartbeat">💝</span>
+        </div>
+      </div>
+      <div class="text-xs font-extrabold uppercase tracking-widest text-rose-600 mb-3">✨ Dedicatória Especial ✨</div>
+      <div class="bg-white/85 backdrop-blur-sm rounded-2xl p-5 border border-rose-300 shadow-inner text-sm sm:text-base leading-relaxed font-medium text-rose-950 space-y-3">
+        <p>De PF pra PF (<i>from Passion Fruit</i>🐈‍⬛🐋 <i>to Pear Flower</i> 🍐 💮) com beijos, xamegos, mordidas e queijos! 🤤 Além de muito amor <i>codado!</i>! 💝 🍐🐋💞</p>
+        <p class="font-extrabold text-base sm:text-lg text-rose-700 pt-1" style="font-family: 'Playfair Display', Georgia, serif;">Marcos Dias pra Lorena Heringer</p>
+      </div>
+      <div class="mt-6">
+        <button id="btn-close-gift" type="button" class="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-md transition">Guardar no Coração 💖</button>
+      </div>
+      <div class="mt-4 flex flex-col items-center gap-1 text-[10px] opacity-75">
+        <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-rose-600 transition flex items-center gap-1.5"><i class="fa-brands fa-linkedin text-xs"></i> linkedin.com/in/marcos-dias-4b545127b</a>
+        <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-rose-600 transition flex items-center gap-1.5"><i class="fa-brands fa-github text-xs"></i> github.com/trevorbelmont</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: HISTÓRICO -->
+  <div id="modal-history" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i><span>Partidas Salvas (Auto-Save)</span></h2>
+        <button id="btn-close-history" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex border-b px-6 pt-3 gap-4 text-xs sm:text-sm font-bold" style="border-color: var(--board-border-cell);">
+        <button id="tab-hist-ongoing" type="button" class="pb-2.5 border-b-2 border-current text-blue-500">Jogos em Andamento (<span id="count-ongoing">0</span>)</button>
+        <button id="tab-hist-completed" type="button" class="pb-2.5 border-b-2 border-transparent opacity-60 hover:opacity-100">Jogos Concluídos (<span id="count-completed">0</span>)</button>
+      </div>
+      <div id="history-list-container" class="p-5 overflow-y-auto flex-1 space-y-2.5 text-xs sm:text-sm"></div>
+    </div>
+  </div>
+
+  <!-- MODAL 6: OCR -->
+  <div id="modal-ocr" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2"><i class="fa-solid fa-camera"></i><span>Importar Sudoku 9×9 por Imagem (OCR)</span></h2>
+        <button id="btn-close-ocr" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <p class="opacity-85 leading-relaxed">Envie a foto ou captura de tela recortada de uma grade de Sudoku <strong>9×9 impressa</strong>. O motor <strong>Tesseract.js</strong> analisará as 81 casas diretamente no seu navegador.</p>
+        <div class="flex flex-wrap gap-2">
+          <label class="flex-1 min-w-[180px] cursor-pointer py-3 px-4 rounded-xl btn-accent font-bold text-xs flex items-center justify-center gap-2 text-center shadow-sm">
+            <i class="fa-solid fa-upload"></i><span>Escolher Imagem do Sudoku...</span>
+            <input id="ocr-file-input" type="file" accept="image/*" class="hidden" />
+          </label>
+          <button id="btn-ocr-sample" type="button" class="py-3 px-4 rounded-xl theme-panel-alt font-bold text-xs flex items-center justify-center gap-2 hover:opacity-90 border" style="border-color: var(--board-border-cell);">
+            <i class="fa-solid fa-wand-sparkles"></i><span>Testar Exemplo</span>
+          </button>
+        </div>
+        <div id="ocr-progress-box" class="hidden flex-col gap-2 theme-panel-alt p-3.5 rounded-xl">
+          <div class="flex justify-between text-xs font-bold"><span id="ocr-status-text">Inicializando...</span><span id="ocr-percent-text">0%</span></div>
+          <div class="w-full h-2.5 bg-slate-500/20 rounded-full overflow-hidden">
+            <div id="ocr-progress-bar" class="h-full btn-accent transition-all duration-150" style="width: 0%;"></div>
+          </div>
+        </div>
+        <div id="ocr-preview-wrapper" class="hidden flex-col items-center gap-3 pt-1">
+          <canvas id="ocr-preview-canvas" width="360" height="360" class="w-48 h-48 rounded-lg border shadow-sm"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: CHANGELOG -->
+  <div id="modal-changelog" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-code-branch"></i>
+          <span>Changelog & Atualizações</span>
+        </h2>
+        <button id="btn-close-changelog" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
+        
+        <div class="relative pl-4 border-l-2 border-blue-500">
+          <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.1 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Avatares Flexíveis. Os indicadores visuais coloridos agora suportam múltiplos cursores sobre a mesma célula sem tampar as notas do Modo Lápis (ancorados lado a lado na aresta inferior da casa).</li>
+            <li><strong>Novo:</strong> Consenso de Instância. Gerar um novo tabuleiro no meio de uma sala ativa exige o voto de Aceitar/Negar dos conectados, prevenindo interrupções abruptas.</li>
+            <li><strong>Novo:</strong> Versionamento de Séries. Múltiplos tabuleiros gerados seguidos na mesma sala são salvos e identificados sequencialmente (ex: `Sala Namorados #0`, `#1`, etc).</li>
+            <li><strong>Correção:</strong> As anotações de lápis (candidates) agora são processadas corretamente no streaming de rede.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v5.0</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Sistema de Desconexão. Botão para encerrar a sincronização multiplayer e continuar a partida offline de onde parou.</li>
+            <li><strong>Novo:</strong> Visualização de Jogadores Ativos. Os avatares de todos conectados na sala aparecem agora em uma lista fixa ao lado, com nome completo por tooltip no hover.</li>
+            <li><strong>Novo:</strong> Nomenclatura Automática. Jogos multiplayer recebem automaticamente o nome da sala (ex: `Sala: Namorados`) no seu histórico para fácil rastreio e filtragem.</li>
+            <li><strong>Refatoração:</strong> O payload de rede do Firebase foi completamente explícito (ex: <code class="font-mono">row</code>, <code class="font-mono">value</code>, <code class="font-mono">userId</code>) abandonando as contrações para facilitar o parsing e auditorias futuras de dados.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v4.3b</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Mini-visualizador de tabuleiro (preview estático) renderizado no menu de Histórico (Auto-Save).</li>
+            <li><strong>Novo:</strong> Campo de nome personalizado inserido abaixo do tabuleiro. Agora você pode renomear cada jogo (ex: "Desafio da Lorena").</li>
+            <li><strong>Refatoração:</strong> Os carimbos de tempo do Histórico agora possuem extrema precisão (<code class="font-mono bg-slate-500/20 px-1 rounded">DD/MM/AAAA às HH:MM:SS</code>), impedindo confusão entre partidas do mesmo dia.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v4.3a</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Botão e Modal de Changelog interativo e scrollável.</li>
+            <li><strong>Novo:</strong> Inclusão de links do LinkedIn e GitHub no rodapé e no modal "Sobre".</li>
+            <li><strong>Restauração:</strong> Texto original completo da aba "Como Jogar", mantendo as origens matemáticas do Sudoku (Leonhard Euler) intactas.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v4.2 (Blindagem Local)</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Segurança:</strong> Sanitização profunda contra injeção de scripts (XSS). O `innerHTML` dinâmico foi removido em Toasts e renderizações do histórico, mitigando Payload Injection.</li>
+            <li><strong>Segurança:</strong> Implementada dupla barreira de `Schema Validation` (<code class="font-mono bg-slate-500/20 px-1 rounded">validateGameState</code>) para códigos importados. O sistema bloqueia payloads com formatos inválidos.</li>
+            <li><strong>Correção:</strong> O Modo de Criação Manual agora intercepta e impede o salvamento de grades impossíveis com pistas conflitantes.</li>
+            <li><strong>Correção:</strong> O Tesseract OCR agora aciona o Modo de Criação ao ler matrizes conflitantes (permitindo ao usuário revisar), evitando quebrar o motor matemático do jogo.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-purple-500">
+          <div class="absolute w-3 h-3 bg-purple-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-purple-600 dark:text-purple-400 mb-1">v4.1</h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Modal de Dedicatória com ícone de coração e animação de confetes (via `canvas-confetti`).</li>
+            <li><strong>Novo:</strong> Tema <code class="font-mono bg-slate-500/20 px-1 rounded">Rainbow (7)</code> definido como padrão para a primeira sessão.</li>
+            <li><strong>Refatoração:</strong> Os botões de URL base64 foram alterados para "Copiar Cód. da Grade" e "Copiar Cód. do Estado", sem sobrepor a URL atual no navegador.</li>
+            <li><strong>Novo:</strong> Adicionado botão nativo "Carregar Código" para instanciar tabuleiros diretamente pelo Base64 transferido na área de transferência.</li>
+            <li><strong>Correção:</strong> Highlight/destaque de células recuperado e estabilizado com `toggle` (habilitado por padrão). Ele agora restringe o mapeamento a células não-vazias (`val !== ''`).</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-gray-400">
+          <div class="absolute w-3 h-3 bg-gray-400 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base opacity-90 mb-1">v4.0</h3>
+          <ul class="list-disc pl-5 opacity-80 space-y-1">
+            <li><strong>Correção:</strong> Resolvido o glitch visual onde a marcação de uma casa gerava o preenchimento fantasma ("ilusão automática") em outros quadrantes por causa de variáveis CSS de matiz.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-gray-400">
+          <div class="absolute w-3 h-3 bg-gray-400 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base opacity-90 mb-1">v1.0 – v3.9</h3>
+          <ul class="list-disc pl-5 opacity-80 space-y-1">
+            <li><strong>Fundação:</strong> Sistema dinâmico NxN com matrizes customizáveis (ex: -9 a 16).</li>
+            <li><strong>Funcionalidades:</strong> OCR com Tesseract.js, Auto-Save (LocalStorage), Modo Lápis, Retorno de Erro Imediato e temas cromáticos completos.</li>
+            <li><strong>Motor Lógico:</strong> Importação das matrizes Mínimas Históricas 9x9 e Solver via Bitmask Heurístico (MRV).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: CARREGAR CÓDIGO -->
+  <div id="modal-load-code" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b pb-2" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-file-import"></i>
+          <span>Carregar Código</span>
+        </h2>
+        <button id="btn-close-load-code" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-xs sm:text-sm opacity-80 text-left">
+        Cole abaixo o código (texto base64) para carregar a grade ou o estado de um jogo salvo:
+      </p>
+      <textarea id="load-code-input" rows="4" class="w-full theme-panel-alt p-3 rounded-xl border text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Cole o código aqui..."></textarea>
+      <button id="btn-submit-load-code" type="button" class="w-full py-3 rounded-xl btn-accent font-bold text-sm shadow-md transition hover:opacity-90">
+        Carregar Jogo
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL 9: MULTIPLAYER / SALA -->
+  <div id="modal-multiplayer" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b pb-2" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-network-wired"></i>
+          <span>Multiplayer (Firebase)</span>
+        </h2>
+        <button id="btn-close-multiplayer" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-xs sm:text-sm opacity-80 text-left leading-relaxed">
+        Jogue online e em tempo real. Digite seu apelido e o ID da sala para entrar, ou crie uma nova com o tabuleiro atual.
+      </p>
+      
+      <div class="flex flex-col gap-3 text-left">
+          <div>
+            <label class="block text-[11px] font-bold uppercase opacity-75 mb-1">Seu Nome/Apelido</label>
+            <input type="text" id="multiplayer-name-input" placeholder="Ex: Marcos" class="w-full theme-panel-alt p-2.5 rounded-xl border text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="100" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase opacity-75 mb-1">ID da Sala (Para Entrar ou Criar)</label>
+            <input type="text" id="multiplayer-room-input" placeholder="Ex: Sala da Lorena" class="w-full theme-panel-alt p-2.5 rounded-xl border text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="50" />
+          </div>
+      </div>
+      
+      <div class="flex gap-2 mt-2">
+          <button id="btn-join-room" type="button" class="flex-1 py-3 rounded-xl theme-panel-alt border font-bold text-sm shadow-sm transition hover:opacity-90">
+            Entrar na Sala
+          </button>
+          <button id="btn-host-room" type="button" class="flex-1 py-3 rounded-xl btn-accent font-bold text-sm shadow-md transition hover:opacity-90">
+            Hospedar Atual
+          </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- MODAL 10: VOTAÇÃO NOVO JOGO -->
+  <div id="modal-vote-newgame" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/70 backdrop-blur-md p-4">
+    <div class="theme-panel rounded-3xl max-w-sm w-full p-6 text-center flex flex-col gap-4 animate-bounce-once border-2 border-amber-500 shadow-2xl">
+      <div class="flex justify-center mb-1">
+         <div class="w-16 h-16 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-3xl shadow-lg">
+           <i class="fa-solid fa-wand-magic-sparkles"></i>
+         </div>
+      </div>
+      <div>
+        <h2 class="text-xl font-black tracking-tight">Nova Partida Solicitada</h2>
+        <p class="text-sm opacity-85 mt-2 leading-relaxed">
+          <strong id="vote-proposer-name" class="text-amber-600 dark:text-amber-400">Alguém</strong> quer sortear um novo tabuleiro 
+          <strong id="vote-dim">9x9</strong> (<span id="vote-diff">Fácil</span>).
+        </p>
+      </div>
+      <div class="flex gap-3 mt-3" id="vote-action-buttons">
+        <button id="btn-vote-reject" type="button" class="flex-1 py-2.5 rounded-xl theme-panel-alt font-bold text-sm shadow-sm transition hover:opacity-90 border">Negar</button>
+        <button id="btn-vote-accept" type="button" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md transition">Aceitar</button>
+      </div>
+      
+      <div id="vote-wait-container" class="hidden flex-col items-center gap-2 mt-3">
+          <div class="text-xs font-bold text-amber-600 animate-pulse">Aguardando aprovação...</div>
+          <div id="vote-acceptors-list" class="flex items-center justify-center gap-1.5 min-h-6 flex-wrap"></div>
+          <div id="vote-acceptance-count" class="text-[10px] opacity-75 font-semibold">0 de 0 jogador(es) aceitaram</div>
+          <button id="btn-vote-cancel" type="button" class="text-[11px] font-bold text-red-500 hover:underline mt-1">Cancelar Proposta</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+
+
+  <!-- Application modules. The order preserves shared state bindings across classic scripts. -->
+  <script src="js/app-state.js"></script>
+  <script src="js/multiplayer-ui.js"></script>
+  <script src="js/multiplayer-service.js"></script>
+  <script src="js/multiplayer-voting.js"></script>
+  <script src="js/ui-helpers.js"></script>
+  <script src="js/sudoku-engine.js"></script>
+  <script src="js/board-view.js"></script>
+  <script src="js/input-controller.js"></script>
+  <script src="js/gameplay.js"></script>
+  <script src="js/game-storage.js"></script>
+  <script src="js/sharing.js"></script>
+  <script src="js/png-export.js"></script>
+  <script src="js/ocr-import.js"></script>
+  <script src="js/ui-controller.js"></script>
+  <script src="js/app-events.js"></script>
+  <script type="module" src="js/firebase-client.js"></script>
+
+</body>
+</html>

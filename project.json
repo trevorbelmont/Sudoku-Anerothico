@@ -1,0 +1,23 @@
+{
+  "name": "Sudoku Aneróthico PRÓ",
+  "entry": "index.html",
+  "javascript_modules": [
+    "js/app-events.js",
+    "js/app-state.js",
+    "js/board-view.js",
+    "js/firebase-client.js",
+    "js/firebase-config.js",
+    "js/game-storage.js",
+    "js/gameplay.js",
+    "js/input-controller.js",
+    "js/multiplayer-service.js",
+    "js/multiplayer-ui.js",
+    "js/multiplayer-voting.js",
+    "js/ocr-import.js",
+    "js/png-export.js",
+    "js/sharing.js",
+    "js/sudoku-engine.js",
+    "js/ui-controller.js",
+    "js/ui-helpers.js"
+  ]
+}
