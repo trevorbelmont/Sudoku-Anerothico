@@ -1,4 +1,19 @@
-# Sudoku Aneróthico PRÓ — versão modular
+# Sudoku Aneróthico PRÓ v5.7
+
+## Execução local no Windows
+
+1. Extraia o ZIP inteiro para uma pasta no computador.
+2. Dê dois cliques em `Iniciar-Sudoku.bat`.
+3. Aguarde a abertura do navegador. Mantenha a janela do terminal aberta enquanto estiver usando o jogo.
+4. Para encerrar, pressione `X` no terminal ou digite `exit` e pressione Enter. Confirme com `Y` para desligar; `N` mantém o servidor ativo. Também é possível usar `Ctrl+C`. Depois da mensagem de encerramento, pressione Enter para fechar a janela.
+
+O iniciador utiliza o Windows PowerShell, incluído no Windows, sem exigir instalação de Python ou Node.js. O servidor local escuta somente em `127.0.0.1` e não publica a pasta para outros dispositivos da rede.
+
+**Importante:** não abra `index.html` diretamente com `file://`. A interface offline pode funcionar, mas os módulos ES do Firebase precisam ser carregados por HTTP/HTTPS. Para jogar juntos, cada pessoa inicia a própria cópia usando `Iniciar-Sudoku.bat`; ambas precisam de internet e se conectam ao mesmo Firebase.
+
+Para abrir em outro navegador instalado neste computador, copie e cole o endereço exibido no terminal (normalmente `http://127.0.0.1:8765/`) na barra de endereços enquanto o servidor estiver ativo. Se a porta padrão estiver ocupada, o iniciador selecionará uma porta próxima e mostrará o endereço correto.
+
+Em outros sistemas, use um servidor HTTP estático ou hospede a pasta em um serviço de hospedagem estática HTTPS.
 
 ## Mapa dos arquivos
 
@@ -21,19 +36,6 @@
 - `js/app-events.js` — associação de eventos e inicialização da aplicação.
 - `js/firebase-client.js` — inicialização do SDK e adaptador usado pelo jogo.
 - `js/firebase-config.js` — configuração central da aplicação Firebase.
-
-## Como executar no Windows sem instalar Python
-
-1. Extraia a pasta inteira do ZIP para um local no computador.
-2. Dê dois cliques em `Iniciar-Sudoku.bat`.
-3. O navegador abrirá o Sudoku automaticamente. Mantenha a janela preta do servidor aberta durante a partida.
-4. Para encerrar, feche a janela do servidor.
-
-O iniciador usa o Windows PowerShell, que já vem instalado no Windows. O servidor escuta somente em `127.0.0.1` (este computador); ele não publica a pasta na rede local.
-
-**Importante:** não abra `index.html` diretamente com `file://`. A interface offline pode funcionar, mas os módulos ES do Firebase precisam ser carregados por HTTP/HTTPS e falham com frequência ao abrir como arquivo local. Para jogar juntos, cada pessoa pode iniciar a própria cópia pelo arquivo `.bat`; ambas as cópias se conectam ao mesmo Firebase pela internet.
-
-Em outros sistemas, use qualquer servidor HTTP estático ou hospede a pasta em um serviço de hospedagem estática HTTPS.
 
 ## Trocar a configuração Firebase
 

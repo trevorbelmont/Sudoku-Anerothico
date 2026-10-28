@@ -699,3 +699,96 @@
       background: var(--board-border-cell);
       border-radius: 9999px;
     }
+
+
+/* v5.7: compactable header, zoomable board, and scalable pencil notes */
+.app-header {
+  transition: padding 0.18s ease;
+}
+.app-header[data-header-collapsed="true"] {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+.app-header[data-header-collapsed="true"] .header-actions {
+  display: none !important;
+}
+.app-header[data-header-collapsed="true"] .header-subtitle {
+  display: none !important;
+}
+.app-header[data-header-collapsed="true"] .header-logo {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  border-radius: 0.5rem !important;
+  font-size: 0.9rem !important;
+}
+.app-header[data-header-collapsed="true"] .header-brand-title {
+  font-size: 0.82rem !important;
+  line-height: 1.1 !important;
+}
+.app-header[data-header-collapsed="true"] .header-brand {
+  gap: 0.45rem !important;
+  width: 100%;
+}
+.app-header[data-header-collapsed="true"] .header-title-block {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.app-header[data-header-collapsed="true"] .header-brand-title span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-header[data-header-collapsed="true"] #btn-toggle-header {
+  padding: 0.35rem 0.55rem;
+}
+
+.board-zoom-controls input[type="range"] {
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.board-zoom-controls button {
+  color: var(--text-main);
+  border: 1px solid var(--board-border-cell);
+  touch-action: manipulation;
+}
+.board-zoom-controls button:focus-visible,
+.board-zoom-controls input:focus-visible,
+#btn-toggle-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sudoku-board-viewport {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--bg-panel-alt);
+  border-radius: 8px;
+}
+.sudoku-board-viewport #sudoku-grid {
+  flex: 0 0 auto;
+  max-width: none;
+}
+.pencil-grid {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.pencil-note {
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .board-zoom-controls { padding: 0.4rem; }
+  .board-zoom-controls p { font-size: 9px; }
+}

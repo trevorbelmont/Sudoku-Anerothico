@@ -33,6 +33,7 @@
         includeZero: false,
         symbols: [],
         N: 9,
+        boardZoom: 1,
         blockR: 3,
         blockC: 3,
         solution: [],

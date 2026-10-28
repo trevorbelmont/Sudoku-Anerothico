@@ -2,6 +2,34 @@
 
 function initEventListeners() {
         document.getElementById('theme-selector').addEventListener('change', (e) => applyTheme(e.target.value));
+        const header = document.getElementById('main-app-header');
+        const headerToggle = document.getElementById('btn-toggle-header');
+        const setHeaderCollapsed = (collapsed) => {
+          header.dataset.headerCollapsed = collapsed ? 'true' : 'false';
+          headerToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+          headerToggle.setAttribute('aria-label', collapsed ? 'Expandir cabeçalho' : 'Recolher cabeçalho');
+          document.getElementById('header-toggle-label').textContent = collapsed ? 'Expandir cabeçalho' : 'Recolher cabeçalho';
+          document.getElementById('header-toggle-icon').className = `fa-solid ${collapsed ? 'fa-chevron-down' : 'fa-chevron-up'} text-xs`;
+          try { localStorage.setItem('sudoku_anerothico_header_collapsed_v1', collapsed ? 'true' : 'false'); } catch (_) {}
+        };
+        let savedHeaderState = false;
+        try { savedHeaderState = localStorage.getItem('sudoku_anerothico_header_collapsed_v1') === 'true'; } catch (_) {}
+        setHeaderCollapsed(savedHeaderState);
+        headerToggle.addEventListener('click', () => setHeaderCollapsed(header.dataset.headerCollapsed !== 'true'));
+
+        const zoomSlider = document.getElementById('board-zoom');
+        zoomSlider.addEventListener('input', (e) => setBoardZoom(Number(e.target.value)));
+        document.getElementById('btn-board-zoom-out').addEventListener('click', () => setBoardZoom(Number(zoomSlider.value) - 25));
+        document.getElementById('btn-board-zoom-in').addEventListener('click', () => setBoardZoom(Number(zoomSlider.value) + 25));
+        document.getElementById('btn-board-zoom-reset').addEventListener('click', () => setBoardZoom(100));
+        let lastBoardViewportWidth = document.getElementById('sudoku-board-viewport').clientWidth;
+        window.addEventListener('resize', () => {
+          const viewportWidth = document.getElementById('sudoku-board-viewport').clientWidth;
+          if (viewportWidth > 0 && Math.abs(viewportWidth - lastBoardViewportWidth) > 2) {
+            lastBoardViewportWidth = viewportWidth;
+            if (state.board && state.board.length) renderSudokuBoard();
+          }
+        });
         document.getElementById('game-name-input').addEventListener('input', (e) => { state.gameName = e.target.value; saveCurrentGameState(); if (state.multiplayer.active && state.multiplayer.roomId) { const fb = getFirebaseAPI(); if (fb) fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState')), { gameName: state.gameName, lastUpdatedByPlayerId: state.multiplayer.playerId, updatedAtTimestamp: Date.now() }).catch(() => {}); } });
         document.getElementById('tab-mode-standard').addEventListener('click', () => { state.mode = 'standard'; syncModeTabsUI(); });
         document.getElementById('tab-mode-custom').addEventListener('click', () => { state.mode = 'custom'; syncModeTabsUI(); });

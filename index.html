@@ -2,8 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Sudoku Aneróthico PRÓ v5.1 🧠</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku Aneróthico PRÓ v5.7 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -28,25 +28,29 @@
   <!-- ==========================================================================
        CABEÇALHO PRINCIPAL (NAVBAR)
        ========================================================================== -->
-  <header class="theme-panel sticky top-0 z-30 border-b px-3 py-2.5 sm:px-6">
+  <header id="main-app-header" data-header-collapsed="false" class="app-header theme-panel sticky top-0 z-30 border-b px-3 py-2.5 sm:px-6">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
       <!-- Logo & Título Oficial -->
-      <div class="flex items-center gap-2.5">
-        <div class="w-10 h-10 rounded-xl btn-accent flex items-center justify-center text-xl font-black shadow-sm">
+      <div class="header-brand flex items-center gap-2.5 min-w-0">
+        <div class="header-logo w-10 h-10 rounded-xl btn-accent flex items-center justify-center text-xl font-black shadow-sm shrink-0">
           <span>9</span>
         </div>
-        <div>
-          <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v5.1 🧠</span>
+        <div class="header-title-block min-w-0">
+          <h1 class="header-brand-title text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
+            <span>Sudoku Aneróthico PRÓ v5.7 🧠</span>
           </h1>
-          <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
+          <p id="subtitle-mode-info" class="header-subtitle text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
           </p>
         </div>
+        <button id="btn-toggle-header" type="button" class="theme-panel-alt hover:opacity-90 rounded-lg border p-2 flex items-center justify-center shrink-0 transition" style="border-color: var(--board-border-cell);" aria-expanded="true" aria-controls="header-actions" aria-label="Recolher cabeçalho" title="Recolher ou expandir o cabeçalho">
+          <i id="header-toggle-icon" class="fa-solid fa-chevron-up text-xs"></i>
+          <span id="header-toggle-label" class="sr-only">Recolher cabeçalho</span>
+        </button>
       </div>
 
       <!-- Ações Rápidas, Temas, Como Jogar e Presente Especial (💝) -->
-      <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+      <div id="header-actions" class="header-actions flex items-center flex-wrap gap-1.5 sm:gap-2">
         <div class="relative flex items-center">
           <i class="fa-solid fa-palette absolute left-2.5 text-xs opacity-70 pointer-events-none"></i>
           <select id="theme-selector" aria-label="Selecionar Tema"
@@ -325,6 +329,19 @@
       <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
 
         <div class="xl:col-span-8 flex flex-col items-center justify-center w-full">
+            <div id="board-zoom-controls" class="board-zoom-controls w-full max-w-[560px] mx-auto theme-panel-alt rounded-xl p-2.5 mb-2 flex flex-col gap-1.5 border" style="border-color: var(--board-border-cell);">
+              <div class="flex items-center justify-between gap-2">
+                <label for="board-zoom" class="text-[11px] font-extrabold flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass-plus opacity-75"></i> Zoom do tabuleiro</label>
+                <output id="board-zoom-value" for="board-zoom" class="font-mono font-extrabold text-xs px-2 py-0.5 rounded-md theme-panel">100%</output>
+              </div>
+              <div class="flex items-center gap-2">
+                <button id="btn-board-zoom-out" type="button" class="theme-panel rounded-md w-8 h-8 font-black text-base shrink-0" aria-label="Diminuir zoom" title="Diminuir zoom">−</button>
+                <input id="board-zoom" type="range" min="50" max="500" step="25" value="100" class="flex-1 min-w-0 accent-current cursor-pointer" aria-label="Nível de zoom do tabuleiro" />
+                <button id="btn-board-zoom-in" type="button" class="theme-panel rounded-md w-8 h-8 font-black text-base shrink-0" aria-label="Aumentar zoom" title="Aumentar zoom">+</button>
+                <button id="btn-board-zoom-reset" type="button" class="theme-panel rounded-md px-2 h-8 text-[10px] font-extrabold shrink-0" title="Voltar ao zoom de 100%">100%</button>
+              </div>
+              <p class="text-[10px] opacity-70 leading-tight">Em grades grandes, aumente o zoom para ler as notas do Modo Lápis. O tabuleiro pode ser rolado horizontalmente.</p>
+            </div>
           <div id="sudoku-board-wrapper" class="w-full max-w-[560px] mx-auto relative">
             <div id="pause-overlay" class="hidden absolute inset-0 z-20 rounded-lg backdrop-blur-md bg-slate-900/75 flex flex-col items-center justify-center text-white p-6 text-center">
               <i class="fa-solid fa-pause-circle text-5xl mb-3 opacity-90"></i>
@@ -344,7 +361,9 @@
                 Salvar Pistas e Iniciar Partida
               </button>
             </div>
-            <div id="sudoku-grid" role="grid" aria-label="Tabuleiro de Sudoku"></div>
+            <div id="sudoku-board-viewport" class="sudoku-board-viewport">
+              <div id="sudoku-grid" role="grid" aria-label="Tabuleiro de Sudoku"></div>
+            </div>
             
             <!-- Game title field -->
             <div class="mt-4 flex items-center justify-center w-full">
@@ -408,7 +427,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v5.1</div>
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v5.7</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -601,7 +620,19 @@
         
         <div class="relative pl-4 border-l-2 border-blue-500">
           <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.1 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.7 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Zoom ajustável do tabuleiro, com controle deslizante, botões de aproximação/afastamento e rolagem para grades maiores.</li>
+            <li><strong>Melhoria:</strong> O tamanho das anotações do Modo Lápis acompanha o tamanho real das células, permitindo ampliar grades grandes (incluindo 16×16 e 25×25) para consultar as notas.</li>
+            <li><strong>Novo:</strong> Cabeçalho retrátil, com opção persistente para economizar espaço de tela e controle sempre acessível para expandi-lo novamente.</li>
+            <li><strong>Melhoria:</strong> Iniciador local com terminal colorido, endereços para abrir em qualquer navegador deste computador e comandos claros de encerramento, incluindo confirmação Y/N e saída por Ctrl+C.</li>
+            <li><strong>Atualização:</strong> Identificação de versão atualizada para v5.7 na interface, no título da página, no rodapé e no iniciador local.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-blue-500">
+          <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.1</h3>
           <ul class="list-disc pl-5 opacity-90 space-y-1">
             <li><strong>Novo:</strong> Avatares Flexíveis. Os indicadores visuais coloridos agora suportam múltiplos cursores sobre a mesma célula sem tampar as notas do Modo Lápis (ancorados lado a lado na aresta inferior da casa).</li>
             <li><strong>Novo:</strong> Consenso de Instância. Gerar um novo tabuleiro no meio de uma sala ativa exige o voto de Aceitar/Negar dos conectados, prevenindo interrupções abruptas.</li>

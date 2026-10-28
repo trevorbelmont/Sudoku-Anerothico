@@ -1,10 +1,13 @@
 @echo off
+chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
-title Sudoku Anerothico PRO - Servidor local
+title Sudoku Aneróthico PRÓ v5.7 - Servidor local
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0servidor-local.ps1"
 if errorlevel 1 (
   echo.
-  echo Nao foi possivel iniciar o Sudoku. Verifique se o Windows PowerShell esta disponivel.
+  echo [ERRO] O servidor terminou com um erro. Leia a mensagem acima.
+  echo.
   pause
 )
+endlocal

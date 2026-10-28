@@ -3,16 +3,25 @@
       function renderSudokuBoard() {
         const gridEl = document.getElementById('sudoku-grid'); gridEl.innerHTML = '';
         const { N, blockR, blockC } = state;
+        const viewportEl = document.getElementById('sudoku-board-viewport');
+        const availableWidth = (viewportEl && viewportEl.clientWidth) || (gridEl.parentElement && gridEl.parentElement.clientWidth) || 560;
+        const baseWidth = Math.max(1, Math.min(availableWidth, 560));
+        const zoomFactor = Math.max(0.5, Math.min(5, Number(state.boardZoom) || 1));
+        const gridWidth = baseWidth * zoomFactor;
+        gridEl.style.width = `${gridWidth}px`;
+        gridEl.style.maxWidth = 'none';
+        gridEl.style.flex = '0 0 auto';
         gridEl.style.gridTemplateColumns = `repeat(${N}, minmax(0, 1fr))`;
         gridEl.style.gridTemplateRows = `repeat(${N}, minmax(0, 1fr))`;
         const maxSymbolLen = Math.max(1, ...state.symbols.map(s => String(s).length));
-        const gridWidth = gridEl.clientWidth || gridEl.getBoundingClientRect().width || 560;
         const cellWidth = gridWidth / Math.max(1, N);
         const widthFactor = maxSymbolLen >= 3 ? 0.34 : (maxSymbolLen === 2 ? 0.43 : 0.58);
         const mainFontPx = Math.max(6, Math.min(N <= 9 ? 27 : 22, cellWidth * widthFactor));
         const mainFontSize = `${mainFontPx.toFixed(2)}px`;
         const noteCols = Math.ceil(Math.sqrt(N)), noteRows = Math.ceil(N / noteCols);
-        let noteFontSize = (N > 9 || maxSymbolLen >= 2) ? 'clamp(0.36rem, 0.85vw, 0.52rem)' : 'clamp(0.45rem, 1.15vw, 0.65rem)';
+        const noteSlotWidth = cellWidth / Math.max(noteCols, noteRows);
+        const noteFontPx = Math.max(2.5, Math.min(12, noteSlotWidth * 0.72));
+        const noteFontSize = `${noteFontPx.toFixed(2)}px`;
         const rainbowColors = ['#ff0040', '#ff7300', '#ffeb00', '#00e676', '#00e5ff', '#2979ff', '#651fff', '#d500f9'];
         const isRainbow = document.documentElement.getAttribute('data-theme') === 'rainbow';
         for (let r = 0; r < N; r++) {
@@ -43,6 +52,16 @@
           }
         }
         updateAllCellVisuals(); updateProgressUI();
+      }
+
+      function setBoardZoom(percent) {
+        const clampedPercent = Math.max(50, Math.min(500, Math.round(Number(percent) / 25) * 25));
+        state.boardZoom = clampedPercent / 100;
+        const slider = document.getElementById('board-zoom');
+        const output = document.getElementById('board-zoom-value');
+        if (slider) slider.value = String(clampedPercent);
+        if (output) output.textContent = `${clampedPercent}%`;
+        if (state.board && state.board.length && document.getElementById('sudoku-grid')) renderSudokuBoard();
       }
 
       function updateCellPencilDOM(r, c) {

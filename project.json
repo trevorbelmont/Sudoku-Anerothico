@@ -19,5 +19,7 @@
     "js/sudoku-engine.js",
     "js/ui-controller.js",
     "js/ui-helpers.js"
-  ]
+  ],
+  "version": "5.7",
+  "release": "v5.7"
 }
