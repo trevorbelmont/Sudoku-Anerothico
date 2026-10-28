@@ -24,7 +24,7 @@
   <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, push, child, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+    import { getDatabase, ref, set, onValue, push, child, update, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
     // Your web app's Firebase configuration
     const firebaseConfig = {
@@ -42,7 +42,7 @@
     
     // Attach to window so our legacy script can access it easily without needing a bundler
     window.firebaseDB = {
-        db, ref, set, onValue, push, child, update, remove, onDisconnect
+        db, ref, set, onValue, push, child, update, remove, onDisconnect, get
     };
   </script>
 
@@ -78,8 +78,8 @@
         align-items: flex-end;
         gap: 2px;
         pointer-events: none;
-        z-index: 10;
-        transform: translateY(35%);
+        z-index: 40;
+        transform: translateY(48%);
     }
     
     .mp-avatars-container .mp-avatar {
@@ -98,8 +98,12 @@
     .sudoku-cell.has-mp-cursor {
         animation: avatarPulse 1.5s infinite;
         border: 2px solid var(--avatar-color) !important;
-        z-index: 5;
+        z-index: 25;
+        overflow: visible;
     }
+
+    .sudoku-cell.has-mp-cursor .mp-avatars-container { z-index: 40; }
+    .sudoku-cell.has-mp-cursor .mp-avatar { position: relative; z-index: 41; }
 
     /* ==========================================================================
        SISTEMA DE TEMAS DINÂMICOS (9 TEMAS EXATOS)
@@ -553,7 +557,7 @@
       background-color: var(--board-bg);
       border: 3.5px solid var(--board-border-outer);
       border-radius: 8px;
-      overflow: hidden;
+      overflow: visible;
       user-select: none;
       margin: 0 auto;
     }
@@ -567,7 +571,7 @@
       border-right: 1px solid var(--board-border-cell);
       border-bottom: 1px solid var(--board-border-cell);
       transition: background-color 0.1s ease;
-      overflow: hidden;
+      overflow: visible;
       cursor: pointer;
     }
 
@@ -1485,11 +1489,17 @@
           <strong id="vote-dim">9x9</strong> (<span id="vote-diff">Fácil</span>).
         </p>
       </div>
-      <div class="flex gap-3 mt-3">
+      <div class="flex gap-3 mt-3" id="vote-action-buttons">
         <button id="btn-vote-reject" type="button" class="flex-1 py-2.5 rounded-xl theme-panel-alt font-bold text-sm shadow-sm transition hover:opacity-90 border">Negar</button>
         <button id="btn-vote-accept" type="button" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md transition">Aceitar</button>
       </div>
-      <div id="vote-wait-msg" class="hidden text-xs font-bold text-amber-600 animate-pulse mt-2">Aguardando outros jogadores...</div>
+      
+      <div id="vote-wait-container" class="hidden flex-col items-center gap-2 mt-3">
+          <div class="text-xs font-bold text-amber-600 animate-pulse">Aguardando aprovação...</div>
+          <div id="vote-acceptors-list" class="flex items-center justify-center gap-1.5 min-h-6 flex-wrap"></div>
+          <div id="vote-acceptance-count" class="text-[10px] opacity-75 font-semibold">0 de 0 jogador(es) aceitaram</div>
+          <button id="btn-vote-cancel" type="button" class="text-[11px] font-bold text-red-500 hover:underline mt-1">Cancelar Proposta</button>
+      </div>
     </div>
   </div>
 
@@ -1561,6 +1571,18 @@
             playerName: 'Jogador',
             playerId: 'player_' + Math.random().toString(36).substr(2, 9),
             listener: null,
+            listeners: [],
+            presenceRef: null,
+            players: {},
+            peers: {},
+            processedMoveIds: {},
+            lastObservedProposalId: null,
+            observedProposalVoteIds: {},
+            currentProposal: null,
+            executingProposalId: null,
+            completedProposalIds: [],
+            lastAppliedInstanceNumber: null,
+            pendingBoardState: null,
             lastProcessedSeq: 0,
             instanceCount: 0
         }
@@ -1573,496 +1595,777 @@
       
       function renderMultiplayerSidebar() {
           const listContainer = document.getElementById('mp-players-list');
-          if (!listContainer || !state.multiplayer.active) return;
-          
+          if (!listContainer) return;
+          if (!state.multiplayer.active) {
+              listContainer.innerHTML = '';
+              return;
+          }
           listContainer.innerHTML = '';
           const now = Date.now();
-          
-          // Adiciona nós mesmos no topo
-          if(!state.multiplayer.color) {
-              const colors = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
-              let hash = 0;
-              for (let i = 0; i < state.multiplayer.playerName.length; i++) hash = state.multiplayer.playerName.charCodeAt(i) + ((hash << 5) - hash);
-              state.multiplayer.color = colors[Math.abs(hash) % colors.length];
-          }
-          
-          const selfItem = document.createElement('div');
-          selfItem.className = 'flex items-center gap-2 px-2 py-1';
-          selfItem.innerHTML = `
-              <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0" style="background-color: ${state.multiplayer.color}" title="${state.multiplayer.playerName}">
-                  ${state.multiplayer.playerName.charAt(0).toUpperCase()}
-              </div>
-              <span class="text-[11px] font-bold opacity-90 truncate" title="${state.multiplayer.playerName}">${state.multiplayer.playerName} (Você)</span>
-          `;
-          listContainer.appendChild(selfItem);
-          
-          // Adiciona os peers
-          if (state.multiplayer.peers) {
-              Object.values(state.multiplayer.peers).forEach(peer => {
-                  if (now - peer.lastSeen < 120000) { // Mostra na lista se visto nos últimos 2 minutos
-                      const peerItem = document.createElement('div');
-                      peerItem.className = 'flex items-center gap-2 px-2 py-1';
-                      peerItem.innerHTML = `
-                          <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0" style="background-color: ${peer.color}" title="${peer.name}">
-                              ${peer.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span class="text-[11px] font-semibold opacity-75 truncate" title="${peer.name}">${peer.name}</span>
-                      `;
-                      listContainer.appendChild(peerItem);
-                  }
-              });
-          }
-      }
-
-      
-      function requestNewGameConsensus() {
-          const fb = getFirebaseAPI();
-          if (!fb) return;
-          
-          let N = 9, difficulty = state.difficulty;
-          if (state.mode === 'custom') {
-              const cfg = updateCustomRangePreview();
-              if (!cfg) { showToast('Ajuste o intervalo.', 'warn'); return; }
-              N = cfg.N;
-          }
-          
-          const proposalId = 'prop_' + Date.now();
-          const propRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal`);
-          fb.set(propRef, {
-              id: proposalId,
-              proposerId: state.multiplayer.playerId,
-              proposerName: state.multiplayer.playerName,
-              mode: state.mode,
-              difficulty: difficulty,
-              minVal: state.mode === 'custom' ? document.getElementById('custom-min-input').value : 1,
-              maxVal: state.mode === 'custom' ? document.getElementById('custom-max-input').value : 9,
-              includeZero: state.mode === 'custom' ? document.getElementById('custom-include-zero').checked : false
-          });
-          
-          // Abre o modal de espera para o próprio criador
-          document.getElementById('vote-proposer-name').textContent = "Você";
-          document.getElementById('vote-dim').textContent = `${N}x${N}`;
-          document.getElementById('vote-diff').textContent = DIFFICULTY_LABELS[difficulty] || difficulty;
-          document.getElementById('btn-vote-reject').classList.add('hidden');
-          document.getElementById('btn-vote-accept').classList.add('hidden');
-          document.getElementById('vote-wait-msg').classList.remove('hidden');
-          openModal('modal-vote-newgame');
-      }
-
-      function handleNewGameProposal(prop) {
-          if (!prop || !state.multiplayer.active) return;
-          state.multiplayer.currentProposal = prop;
-          
-          // Se fui eu que propus, apenas espero.
-          if (prop.proposerId === state.multiplayer.playerId) return;
-          
-          let N = 9;
-          if (prop.mode === 'custom') {
-              const syms = buildSymbolsFromRange(parseInt(prop.minVal), parseInt(prop.maxVal), prop.includeZero);
-              N = syms.length;
-          }
-          
-          document.getElementById('vote-proposer-name').textContent = prop.proposerName;
-          document.getElementById('vote-dim').textContent = `${N}x${N}`;
-          document.getElementById('vote-diff').textContent = DIFFICULTY_LABELS[prop.difficulty] || prop.difficulty;
-          
-          document.getElementById('btn-vote-reject').classList.remove('hidden');
-          document.getElementById('btn-vote-accept').classList.remove('hidden');
-          document.getElementById('vote-wait-msg').classList.add('hidden');
-          openModal('modal-vote-newgame');
-      }
-      
-      function executeMultiplayerNewGame(prop) {
-          // O host (ou quem quer que tenha os poderes, vamos deixar o host atual gerar a matrix para sincronizar)
-          // Na verdade, para garantir q todos fiquem sincronizados, quem propôs deve gerar a matrix e subir no Meta!
-          if (prop.proposerId === state.multiplayer.playerId) {
-              
-              // Incrementa contagem da instancia global
-              state.multiplayer.instanceCount++;
-              
-              // Gera o puzzle
-              let N = 9, blockR = 3, blockC = 3, minVal = parseInt(prop.minVal), maxVal = parseInt(prop.maxVal), includeZero = prop.includeZero, symbols = buildSymbolsFromRange(1, 9, false);
-              if (prop.mode === 'custom') {
-                  symbols = buildSymbolsFromRange(minVal, maxVal, includeZero);
-                  N = symbols.length;
-                  const dims = computeBlockDimensions(N);
-                  blockR = dims.blockR; blockC = dims.blockC;
+          ensureMultiplayerColor();
+          const appendPlayer = (name, color, suffix = '') => {
+              const row = document.createElement('div');
+              row.className = 'flex items-center gap-2 px-2 py-1';
+              const avatar = document.createElement('div');
+              avatar.className = 'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0';
+              avatar.style.backgroundColor = color || '#64748b';
+              avatar.title = name;
+              avatar.textContent = String(name || '?').charAt(0).toUpperCase();
+              const label = document.createElement('span');
+              label.className = `text-[11px] ${suffix ? 'font-bold opacity-90' : 'font-semibold opacity-75'} truncate`;
+              label.title = name;
+              label.textContent = `${name}${suffix}`;
+              row.appendChild(avatar);
+              row.appendChild(label);
+              listContainer.appendChild(row);
+          };
+          appendPlayer(state.multiplayer.playerName || 'Você', state.multiplayer.color, ' (Você)');
+          const onlinePlayers = state.multiplayer.players && Object.keys(state.multiplayer.players).length
+              ? state.multiplayer.players
+              : state.multiplayer.peers || {};
+          Object.entries(onlinePlayers).forEach(([playerId, player]) => {
+              if (playerId === state.multiplayer.playerId) return;
+              const peer = state.multiplayer.peers[playerId] || {};
+              const name = player.playerName || peer.name || player.name || 'Jogador';
+              const color = player.playerColor || peer.color || player.color || '#64748b';
+              const lastSeen = peer.lastSeen || now;
+              if (state.multiplayer.players && Object.keys(state.multiplayer.players).length || now - lastSeen < 120000) {
+                  appendPlayer(name, color);
               }
-              const { solution, initial } = createUniqueSudokuPuzzle(N, blockR, blockC, symbols, prop.difficulty);
-              
-              const fb = getFirebaseAPI();
-              const roomRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}`);
-              
-              const metaPayload = {
-                  createdAt: Date.now(),
-                  ownerId: prop.proposerId,
-                  instanceCount: state.multiplayer.instanceCount,
-                  m: prop.mode,
-                  d: prop.difficulty,
-                  N: N,
-                  bR: blockR,
-                  bC: blockC,
-                  s: symbols,
-                  i: initial,
-                  sol: solution
-              };
-              
-              // Limpa o histórico de movimentos antigo
-              fb.remove(fb.child(roomRef, 'moves'));
-              
-              // Grava o novo Meta
-              fb.set(fb.child(roomRef, 'meta'), metaPayload).then(() => {
-                  fb.remove(fb.child(roomRef, 'proposal'));
-              });
-          }
-      }
-      
-      function forceApplyNewMetaState(meta) {
-          closeModal('modal-vote-newgame');
-          const validMeta = validateGameState(meta);
-          if (validMeta) {
-              state.mode = meta.m || 'standard'; 
-              state.difficulty = meta.d || 'medio';
-              state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
-              state.initial = validMeta.initial; 
-              const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
-              if (solved) state.solution = solved;
-              
-              state.board = validMeta.initial.map(r => r.slice()); 
-              state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
-              state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false)); 
-              state.timerSeconds = 0; state.completed = false;
-              
-              state.multiplayer.instanceCount = meta.instanceCount || 0;
-              state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
-              state.gameName = 'Sala: ' + state.multiplayer.roomId + ' #' + state.multiplayer.instanceCount;
-              document.getElementById('game-name-input').value = state.gameName;
-              
-              state.multiplayer.lastProcessedSeq = 0; // Zera para a nova rodada
-              
-              syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle();
-              renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
-              showToast(`Novo tabuleiro gerado!`, 'success');
-          }
+          });
       }
 
       function getFirebaseAPI() {
           return window.firebaseDB; // injected via ES module
       }
-      
-      function pushMoveToFirebase(act, r, c, val) {
+
+      function ensureMultiplayerColor() {
+          if (state.multiplayer.color) return state.multiplayer.color;
+          const colors = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
+          let hash = 0;
+          const name = state.multiplayer.playerName || 'Jogador';
+          for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+          state.multiplayer.color = colors[Math.abs(hash) % colors.length];
+          return state.multiplayer.color;
+      }
+
+      function stopRoomListeners() {
+          (state.multiplayer.listeners || []).forEach(unsubscribe => {
+              try { if (typeof unsubscribe === 'function') unsubscribe(); } catch (e) { console.warn('Falha ao encerrar listener multiplayer.', e); }
+          });
+          state.multiplayer.listeners = [];
+      }
+
+      function roomPath(roomId, childName = '') {
+          return `rooms/${roomId}${childName ? '/' + childName : ''}`;
+      }
+
+      function createRoomMeta(instanceNumber, ownerPlayerId, overrides = {}) {
+          return {
+              createdAtTimestamp: Date.now(),
+              ownerPlayerId,
+              instanceNumber,
+              gameMode: overrides.gameMode ?? state.mode,
+              difficultyLevel: overrides.difficultyLevel ?? state.difficulty,
+              minimumSymbolValue: overrides.minimumSymbolValue ?? state.minVal,
+              maximumSymbolValue: overrides.maximumSymbolValue ?? state.maxVal,
+              includesZeroValue: overrides.includesZeroValue ?? state.includeZero,
+              boardDimension: overrides.boardDimension ?? state.N,
+              blockRowCount: overrides.blockRowCount ?? state.blockR,
+              blockColumnCount: overrides.blockColumnCount ?? state.blockC,
+              symbolValues: overrides.symbolValues ?? state.symbols.slice(),
+              fixedInitialGrid: overrides.fixedInitialGrid ?? state.initial.map(row => row.slice()),
+              solutionGrid: overrides.solutionGrid ?? state.solution.map(row => row.slice())
+          };
+      }
+
+      // O formato usado no Firebase é deliberadamente descritivo: nada de N, bR, i, sol, m ou d.
+      function validateRoomMeta(meta) {
+          if (!meta || typeof meta !== 'object') return null;
+          const normalized = {
+              dimension: meta.boardDimension,
+              blockRow: meta.blockRowCount,
+              blockCol: meta.blockColumnCount,
+              symbols: meta.symbolValues,
+              initialGrid: meta.fixedInitialGrid,
+              solutionGrid: meta.solutionGrid,
+              mode: meta.gameMode,
+              difficulty: meta.difficultyLevel,
+              instanceCount: meta.instanceNumber
+          };
+          const valid = validateGameState(normalized);
+          if (!valid) return null;
+          valid.instanceCount = Number.isFinite(Number(meta.instanceNumber)) ? Number(meta.instanceNumber) : 0;
+          valid.minVal = Number.isFinite(Number(meta.minimumSymbolValue)) ? Number(meta.minimumSymbolValue) : Number(valid.symbols[0]);
+          valid.maxVal = Number.isFinite(Number(meta.maximumSymbolValue)) ? Number(meta.maximumSymbolValue) : Number(valid.symbols[valid.symbols.length - 1]);
+          valid.includeZero = !!meta.includesZeroValue;
+          return valid;
+      }
+
+      function serializeCurrentRoomBoard(instanceNumber = state.multiplayer.instanceCount) {
+          return {
+              boardInstanceNumber: instanceNumber,
+              boardValues: state.board.map(row => row.map(value => value == null ? '' : String(value))),
+              pencilNotes: state.notes.map(row => row.map(notes => Array.from(notes || []))),
+              elapsedSeconds: state.timerSeconds,
+              isCompleted: !!state.completed,
+              gameName: state.gameName || '',
+              lastUpdatedByPlayerId: state.multiplayer.playerId,
+              updatedAtTimestamp: Date.now()
+          };
+      }
+
+      function applyRoomBoardState(roomState) {
+          if (!roomState || !Array.isArray(roomState.boardValues)) return;
+          const N = state.N;
+          // Durante a entrada na sala, boardState pode chegar antes de meta. Guarde-o até a dimensão/instância serem aplicadas.
+          if (state.multiplayer.lastAppliedInstanceNumber === null || state.multiplayer.lastAppliedInstanceNumber === undefined || Number(roomState.boardInstanceNumber) !== Number(state.multiplayer.instanceCount)) {
+              state.multiplayer.pendingBoardState = roomState;
+              return;
+          }
+          if (roomState.boardValues.length !== N || roomState.boardValues.some(row => !Array.isArray(row) || row.length !== N)) {
+              state.multiplayer.pendingBoardState = roomState;
+              return;
+          }
+          state.multiplayer.pendingBoardState = null;
+          state.board = roomState.boardValues.map(row => row.map(value => value == null ? '' : String(value)));
+          const notesData = Array.isArray(roomState.pencilNotes) ? roomState.pencilNotes : [];
+          state.notes = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => {
+              const cellNotes = notesData[r] && Array.isArray(notesData[r][c]) ? notesData[r][c] : [];
+              return new Set(cellNotes.map(String).filter(symbol => state.symbols.includes(symbol)));
+          }));
+          if (roomState.gameName) {
+              state.gameName = String(roomState.gameName);
+              const nameInput = document.getElementById('game-name-input');
+              if (nameInput && nameInput.value !== state.gameName) nameInput.value = state.gameName;
+          }
+          // Atualiza o DOM sem recriar os inputs; isso evita perder o foco enquanto o outro jogador digita.
+          for (let r = 0; r < N; r++) {
+              for (let c = 0; c < N; c++) {
+                  const input = document.getElementById(`cell-input-${r}-${c}`);
+                  if (input && document.activeElement !== input && !state.typingBuffer) input.value = state.board[r][c];
+                  updateCellPencilDOM(r, c);
+              }
+          }
+          updateAllCellVisuals();
+          updateProgressUI();
+          saveCurrentGameState();
+      }
+
+      function publishRoomBoardState() {
           if (!state.multiplayer.active || !state.multiplayer.roomId) return;
           const fb = getFirebaseAPI();
           if (!fb) return;
-          
-          state.multiplayer.lastProcessedSeq++;
-          
-          // Usamos uma cor fixa pseudo-aleatória gerada a partir do nome para o avatar do jogador
-          if(!state.multiplayer.color) {
-              const colors = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
-              let hash = 0;
-              for (let i = 0; i < state.multiplayer.playerName.length; i++) hash = state.multiplayer.playerName.charCodeAt(i) + ((hash << 5) - hash);
-              state.multiplayer.color = colors[Math.abs(hash) % colors.length];
-          }
+          const boardStateRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState'));
+          fb.update(boardStateRef, {
+              boardValues: state.board.map(row => row.map(value => value == null ? '' : String(value))),
+              pencilNotes: state.notes.map(row => row.map(notes => Array.from(notes || []))),
+              elapsedSeconds: state.timerSeconds,
+              isCompleted: !!state.completed,
+              gameName: state.gameName || '',
+              lastUpdatedByPlayerId: state.multiplayer.playerId,
+              updatedAtTimestamp: Date.now()
+          }).catch(error => console.error('Falha ao sincronizar o estado do tabuleiro:', error));
+      }
 
-          const payload = {
+      function publishRoomBoardCell(row, column, includePeerNotes = false) {
+          if (!state.multiplayer.active || !state.multiplayer.roomId || !Number.isInteger(row) || !Number.isInteger(column)) return;
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          const boardStateRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState'));
+          // Atualização por célula, para que jogadas simultâneas em casas diferentes não se sobrescrevam.
+          const patch = {
+              [`boardValues/${row}/${column}`]: state.board[row][column] == null ? '' : String(state.board[row][column]),
+              [`pencilNotes/${row}/${column}`]: Array.from(state.notes[row][column] || []),
+              lastUpdatedByPlayerId: state.multiplayer.playerId,
+              updatedAtTimestamp: Date.now(),
+              isCompleted: !!state.completed,
+              elapsedSeconds: state.timerSeconds,
+              gameName: state.gameName || ''
+          };
+          if (includePeerNotes) {
+              const affected = new Set();
+              for (let index = 0; index < state.N; index++) {
+                  affected.add(`${row},${index}`);
+                  affected.add(`${index},${column}`);
+              }
+              const startRow = Math.floor(row / state.blockR) * state.blockR;
+              const startColumn = Math.floor(column / state.blockC) * state.blockC;
+              for (let r = startRow; r < startRow + state.blockR; r++) {
+                  for (let c = startColumn; c < startColumn + state.blockC; c++) affected.add(`${r},${c}`);
+              }
+              affected.forEach(coordinate => {
+                  const [r, c] = coordinate.split(',').map(Number);
+                  patch[`pencilNotes/${r}/${c}`] = Array.from(state.notes[r][c] || []);
+              });
+          }
+          fb.update(boardStateRef, patch).catch(error => console.error('Falha ao sincronizar a casa do Sudoku:', error));
+      }
+
+      function registerRoomPresence(roomId) {
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          ensureMultiplayerColor();
+          const playerRef = fb.ref(fb.db, roomPath(roomId, `players/${state.multiplayer.playerId}`));
+          state.multiplayer.presenceRef = playerRef;
+          const presence = {
+              playerId: state.multiplayer.playerId,
+              playerName: state.multiplayer.playerName,
+              playerColor: state.multiplayer.color,
+              joinedAtTimestamp: Date.now()
+          };
+          fb.onDisconnect(playerRef).remove()
+              .then(() => fb.set(playerRef, presence))
+              .catch(error => {
+                  console.error('Falha ao registrar presença multiplayer:', error);
+                  fb.set(playerRef, presence).catch(() => {});
+              });
+      }
+
+      function renderProposalAcceptors(proposal) {
+          const list = document.getElementById('vote-acceptors-list');
+          const count = document.getElementById('vote-acceptance-count');
+          if (!list) return;
+          list.innerHTML = '';
+          const voters = proposal && proposal.voters && typeof proposal.voters === 'object' ? proposal.voters : {};
+          const requiredIds = Array.isArray(proposal && proposal.requiredPlayerIds) ? proposal.requiredPlayerIds : [];
+          const eligibleOtherPlayers = requiredIds.filter(id => id !== proposal.proposerId);
+          const acceptedCount = eligibleOtherPlayers.filter(id => !!voters[id]).length;
+          Object.entries(voters).forEach(([playerId, voter]) => {
+              if (!eligibleOtherPlayers.includes(playerId)) return;
+              const avatar = document.createElement('div');
+              avatar.className = 'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white shadow-sm border border-white/40';
+              avatar.style.backgroundColor = voter.playerColor || voter.color || '#64748b';
+              avatar.textContent = String(voter.playerName || voter.name || '?').charAt(0).toUpperCase();
+              avatar.title = `${voter.playerName || voter.name || 'Jogador'} aceitou`;
+              list.appendChild(avatar);
+          });
+          if (count) count.textContent = `${acceptedCount} de ${eligibleOtherPlayers.length} jogador(es) aceitaram`;
+      }
+
+      function showProposalWaitingState(proposal, isProposer) {
+          document.getElementById('vote-proposer-name').textContent = isProposer ? 'Você' : (proposal.proposerName || 'Outro jogador');
+          let N = Number(proposal.boardDimension) || 9;
+          if (proposal.gameMode === 'custom') {
+              N = buildSymbolsFromRange(Number(proposal.minimumSymbolValue), Number(proposal.maximumSymbolValue), !!proposal.includesZeroValue).length;
+          }
+          document.getElementById('vote-dim').textContent = `${N}x${N}`;
+          document.getElementById('vote-diff').textContent = DIFFICULTY_LABELS[proposal.difficultyLevel] || proposal.difficultyLevel || 'Dificuldade atual';
+          document.getElementById('vote-action-buttons').classList.add('hidden');
+          document.getElementById('vote-wait-container').classList.remove('hidden');
+          document.getElementById('btn-vote-cancel').classList.toggle('hidden', !isProposer);
+          if (isProposer) renderProposalAcceptors(proposal);
+          else {
+              const list = document.getElementById('vote-acceptors-list');
+              if (list) list.innerHTML = '';
+              const count = document.getElementById('vote-acceptance-count');
+              if (count) count.textContent = 'Sua resposta foi registrada.';
+          }
+          openModal('modal-vote-newgame');
+      }
+
+      function handleNewGameProposal(proposal) {
+          if (!proposal || !state.multiplayer.active || proposal.proposerId === state.multiplayer.playerId) return;
+          state.multiplayer.currentProposal = proposal;
+          document.getElementById('vote-proposer-name').textContent = proposal.proposerName || 'Outro jogador';
+          let N = Number(proposal.boardDimension) || 9;
+          if (proposal.gameMode === 'custom') {
+              N = buildSymbolsFromRange(Number(proposal.minimumSymbolValue), Number(proposal.maximumSymbolValue), !!proposal.includesZeroValue).length;
+          }
+          document.getElementById('vote-dim').textContent = `${N}x${N}`;
+          document.getElementById('vote-diff').textContent = DIFFICULTY_LABELS[proposal.difficultyLevel] || proposal.difficultyLevel || 'Dificuldade atual';
+          document.getElementById('vote-action-buttons').classList.remove('hidden');
+          document.getElementById('btn-vote-reject').classList.remove('hidden');
+          document.getElementById('btn-vote-accept').classList.remove('hidden');
+          document.getElementById('vote-wait-container').classList.add('hidden');
+          document.getElementById('btn-vote-cancel').classList.add('hidden');
+          openModal('modal-vote-newgame');
+      }
+
+      async function requestNewGameConsensus() {
+          const fb = getFirebaseAPI();
+          if (!fb || !state.multiplayer.active || !state.multiplayer.roomId) return;
+          let N = state.N;
+          if (state.mode === 'custom') {
+              const cfg = updateCustomRangePreview();
+              if (!cfg) { showToast('Ajuste o intervalo antes de solicitar outro tabuleiro.', 'warn'); return; }
+              N = cfg.N;
+          } else N = 9;
+
+          let livePlayers = {};
+          try {
+              const playersSnapshot = await fb.get(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'players')));
+              livePlayers = playersSnapshot.val() || {};
+          } catch (error) {
+              console.error('Falha ao consultar os jogadores online:', error);
+              showToast('Não foi possível conferir quem está online para abrir a votação.', 'warn');
+              return;
+          }
+          const proposalId = 'proposal_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+          const requiredPlayerIds = Array.from(new Set([
+              ...Object.keys(livePlayers),
+              state.multiplayer.playerId
+          ]));
+          const proposal = {
+              proposalId,
+              proposerId: state.multiplayer.playerId,
+              proposerName: state.multiplayer.playerName,
+              gameMode: state.mode,
+              difficultyLevel: state.difficulty,
+              minimumSymbolValue: state.mode === 'custom' ? Number(document.getElementById('custom-min-input').value) : 1,
+              maximumSymbolValue: state.mode === 'custom' ? Number(document.getElementById('custom-max-input').value) : 9,
+              includesZeroValue: state.mode === 'custom' ? document.getElementById('custom-include-zero').checked : false,
+              boardDimension: N,
+              requiredPlayerIds,
+              baseInstanceNumber: state.multiplayer.instanceCount,
+              status: 'pending',
+              voters: {},
+              createdAtTimestamp: Date.now()
+          };
+          const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
+          state.multiplayer.currentProposal = proposal;
+          state.multiplayer.lastObservedProposalId = proposalId;
+          state.multiplayer.observedProposalVoteIds = {};
+          fb.set(propRef, proposal).then(() => {
+              showProposalWaitingState(proposal, true);
+          }).catch(error => {
+              console.error('Não foi possível solicitar novo tabuleiro:', error);
+              showToast('Não foi possível enviar a proposta de novo tabuleiro.', 'warn');
+          });
+      }
+
+      function executeMultiplayerNewGame(proposal) {
+          if (!proposal || proposal.proposerId !== state.multiplayer.playerId || proposal.status !== 'pending') return;
+          if (state.multiplayer.executingProposalId === proposal.proposalId) return;
+          state.multiplayer.executingProposalId = proposal.proposalId;
+          const fb = getFirebaseAPI();
+          if (!fb) { state.multiplayer.executingProposalId = null; return; }
+
+          try {
+              const mode = proposal.gameMode || 'standard';
+              const difficulty = proposal.difficultyLevel || 'medio';
+              let minVal = 1, maxVal = 9, includeZero = false;
+              let symbols = buildSymbolsFromRange(1, 9, false), N = 9, blockR = 3, blockC = 3;
+              if (mode === 'custom') {
+                  minVal = Number(proposal.minimumSymbolValue);
+                  maxVal = Number(proposal.maximumSymbolValue);
+                  includeZero = !!proposal.includesZeroValue;
+                  symbols = buildSymbolsFromRange(minVal, maxVal, includeZero);
+                  N = symbols.length;
+                  const dims = computeBlockDimensions(N);
+                  blockR = dims.blockR;
+                  blockC = dims.blockC;
+              }
+              if (N < 4 || N > 25) throw new Error('Dimensão inválida para um novo tabuleiro.');
+              const { solution, initial } = createUniqueSudokuPuzzle(N, blockR, blockC, symbols, difficulty);
+              const nextInstanceNumber = Number(state.multiplayer.instanceCount || 0) + 1;
+              const metaPayload = createRoomMeta(nextInstanceNumber, proposal.proposerId, {
+                  gameMode: mode,
+                  difficultyLevel: difficulty,
+                  minimumSymbolValue: minVal,
+                  maximumSymbolValue: maxVal,
+                  includesZeroValue: includeZero,
+                  boardDimension: N,
+                  blockRowCount: blockR,
+                  blockColumnCount: blockC,
+                  symbolValues: symbols,
+                  fixedInitialGrid: initial,
+                  solutionGrid: solution
+              });
+              const blankBoardState = {
+                  boardInstanceNumber: nextInstanceNumber,
+                  boardValues: initial.map(row => row.slice()),
+                  pencilNotes: Array.from({ length: N }, () => Array.from({ length: N }, () => [])),
+                  elapsedSeconds: 0,
+                  isCompleted: false,
+                  gameName: `Sala: ${state.multiplayer.roomId} #${nextInstanceNumber}`,
+                  lastUpdatedByPlayerId: proposal.proposerId,
+                  updatedAtTimestamp: Date.now()
+              };
+              const roomRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId));
+              const metaRef = fb.child(roomRef, 'meta');
+              const boardStateRef = fb.child(roomRef, 'boardState');
+              const movesRef = fb.child(roomRef, 'moves');
+
+              // A gravação de meta + boardState é explícita e versionada; todos aplicam a instância nova pela escuta contínua de meta.
+              Promise.all([
+                  fb.set(metaRef, metaPayload),
+                  fb.set(boardStateRef, blankBoardState),
+                  fb.remove(movesRef)
+              ]).then(() => {
+                  state.multiplayer.instanceCount = nextInstanceNumber;
+                  state.multiplayer.executedProposalId = proposal.proposalId;
+                  const propRef = fb.child(roomRef, 'proposal');
+                  return fb.update(propRef, {
+                      status: 'completed',
+                      resultingInstanceNumber: nextInstanceNumber,
+                      completedAtTimestamp: Date.now()
+                  });
+              }).then(() => {
+                  setTimeout(() => {
+                      const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
+                      fb.remove(propRef).catch(() => {});
+                  }, 900);
+              }).catch(error => {
+                  console.error('Falha ao gerar a nova instância multiplayer:', error);
+                  showToast('A votação foi aprovada, mas não foi possível gravar o novo tabuleiro. Tente novamente.', 'warn');
+              }).finally(() => {
+                  state.multiplayer.executingProposalId = null;
+              });
+          } catch (error) {
+              state.multiplayer.executingProposalId = null;
+              console.error(error);
+              showToast(error.message || 'Não foi possível gerar o novo tabuleiro.', 'warn');
+          }
+      }
+
+      function forceApplyNewMetaState(meta, announceNewInstance = true) {
+          const validMeta = validateRoomMeta(meta);
+          if (!validMeta) {
+              console.error('Os metadados da sala não são válidos:', meta);
+              showToast('A sala enviou metadados de Sudoku inválidos.', 'warn');
+              return false;
+          }
+          closeModal('modal-vote-newgame');
+          state.mode = validMeta.mode;
+          state.difficulty = validMeta.difficulty;
+          state.minVal = validMeta.minVal;
+          state.maxVal = validMeta.maxVal;
+          state.includeZero = validMeta.includeZero;
+          state.symbols = validMeta.symbols;
+          state.N = validMeta.N;
+          state.blockR = validMeta.bR;
+          state.blockC = validMeta.bC;
+          state.initial = validMeta.initial.map(row => row.slice());
+          const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
+          if (solved) state.solution = solved.map(row => row.slice());
+          state.board = state.initial.map(row => row.slice());
+          state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+          state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false));
+          state.timerSeconds = 0;
+          state.completed = false;
+          state.multiplayer.instanceCount = validMeta.instanceCount;
+          state.multiplayer.lastAppliedInstanceNumber = validMeta.instanceCount;
+          state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
+          state.gameName = 'Sala: ' + state.multiplayer.roomId + ' #' + state.multiplayer.instanceCount;
+          document.getElementById('game-name-input').value = state.gameName;
+          document.getElementById('timer-display').textContent = '00:00';
+          syncModeTabsUI();
+          syncDifficultyButtonsUI();
+          updateHeaderSubtitle();
+          renderVirtualNumpad();
+          renderSudokuBoard();
+          startTimer();
+          saveCurrentGameState();
+          const pending = state.multiplayer.pendingBoardState;
+          if (pending && Number(pending.boardInstanceNumber) === state.multiplayer.instanceCount) applyRoomBoardState(pending);
+          if (announceNewInstance) showToast(`O novo tabuleiro da sala foi sincronizado (instância ${state.multiplayer.instanceCount}).`, 'success');
+          return true;
+      }
+
+
+      function pushMoveToFirebase(action, row, column, value) {
+          if (!state.multiplayer.active || !state.multiplayer.roomId) return;
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          ensureMultiplayerColor();
+          state.multiplayer.lastProcessedSeq = (state.multiplayer.lastProcessedSeq || 0) + 1;
+          const movePayload = {
               sequence: state.multiplayer.lastProcessedSeq,
               timestamp: Date.now(),
               userId: state.multiplayer.playerId,
               userName: state.multiplayer.playerName,
               userColor: state.multiplayer.color,
-              action: act,
-              row: r,
-              column: c,
-              value: val
+              action,
+              row,
+              column,
+              value
           };
-          
-          const movesRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/moves`);
-          fb.push(movesRef, payload).catch(err => {
-              console.error("Erro ao enviar jogada para o Firebase:", err);
-          });
+          const movesRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'moves'));
+          fb.push(movesRef, movePayload).catch(error => console.error('Erro ao enviar jogada para o Firebase:', error));
+          if (action !== 'FOCUS') publishRoomBoardCell(row, column, action === 'SET');
       }
-      
-      function processIncomingMove(move) {
-          // Trata tanto a sintaxe antiga (se houver no bd) quanto a nova explícita
-          const mUserId = move.userId || move.u;
-          const mSeq = move.sequence || move.seq;
-          const mAction = move.action || move.act;
-          const r = move.row !== undefined ? move.row : move.r;
-          const c = move.column !== undefined ? move.column : move.c;
-          const val = move.value !== undefined ? move.value : move.val;
-          const mName = move.userName || move.name || 'P';
-          const mColor = move.userColor || '#3b82f6';
 
-          if (mUserId === state.multiplayer.playerId) return;
-          
-          if (mSeq > state.multiplayer.lastProcessedSeq) {
-              state.multiplayer.lastProcessedSeq = mSeq;
-          }
-          
-          // Registra o cursor/avatar temporário deste jogador na casa que ele interagiu
+      function processIncomingMove(move) {
+          if (!move || !state.multiplayer.active) return;
+          const userId = move.userId || move.u;
+          const action = move.action || move.act;
+          const row = move.row !== undefined ? Number(move.row) : Number(move.r);
+          const column = move.column !== undefined ? Number(move.column) : Number(move.c);
+          const userName = move.userName || move.name || 'Jogador';
+          const userColor = move.userColor || '#3b82f6';
+          if (!userId || userId === state.multiplayer.playerId) return;
+          if (Date.now() - Number(move.timestamp || 0) > 120000) return;
+          if (!Number.isInteger(row) || !Number.isInteger(column) || row < 0 || column < 0 || row >= state.N || column >= state.N) return;
           state.multiplayer.peers = state.multiplayer.peers || {};
-          state.multiplayer.peers[mUserId] = { row: r, column: c, name: mName, color: mColor, lastSeen: Date.now() };
-          
-          if (mAction === 'FOCUS') {
-              // Apenas atualiza a posição do avatar
-          } else if (mAction === 'SET') {
-              state.board[r][c] = val;
-              state.notes[r][c].clear();
-              removeAutoNotesPeers(r, c, val);
-          } else if (mAction === 'NOTE') {
-              if (state.board[r][c] !== '') state.board[r][c] = '';
-              if (state.notes[r][c].has(val)) {
-                  state.notes[r][c].delete(val);
-              } else {
-                  state.notes[r][c].add(val);
-              }
-          } else if (move.act === 'ERASE') {
-              state.board[r][c] = '';
-              state.notes[r][c].clear();
-              state.revealedErrors[r][c] = false;
+          state.multiplayer.peers[userId] = { row, column, name: userName, color: userColor, lastSeen: Date.now() };
+          // O conteúdo do tabuleiro chega por boardState; o log de movimentos serve para cursores/avatar e presença da atividade.
+          if (action === 'FOCUS' || action === 'SET' || action === 'ERASE' || action === 'NOTE') {
+              updateAllCellVisuals();
+              renderMultiplayerSidebar();
           }
-          
-          // Mostra toast discreto apenas se for uma ação final
-          // if (move.act === 'SET') {
-          //    showToast(`${move.name} jogou ${val} na grade.`, 'info');
-          // }
-          
-          updateCellPencilDOM(r, c);
-          updateAllCellVisuals();
-          updateProgressUI();
-          saveCurrentGameState();
-          renderMultiplayerSidebar();
       }
-      
+
+      function onRoomMetaChanged(meta) {
+          if (!meta || !state.multiplayer.active) return;
+          const valid = validateRoomMeta(meta);
+          if (!valid) return;
+          const incomingInstance = valid.instanceCount;
+          const hasAppliedInstance = state.multiplayer.lastAppliedInstanceNumber !== null && state.multiplayer.lastAppliedInstanceNumber !== undefined;
+          if (!hasAppliedInstance || incomingInstance !== Number(state.multiplayer.lastAppliedInstanceNumber)) {
+              forceApplyNewMetaState(meta, hasAppliedInstance);
+          }
+      }
+
+      function onRoomPlayersChanged(players) {
+          state.multiplayer.players = players && typeof players === 'object' ? players : {};
+          const onlineIds = new Set(Object.keys(state.multiplayer.players));
+          Object.keys(state.multiplayer.peers || {}).forEach(playerId => {
+              if (!onlineIds.has(playerId)) delete state.multiplayer.peers[playerId];
+          });
+          Object.entries(state.multiplayer.players).forEach(([playerId, player]) => {
+              if (playerId === state.multiplayer.playerId) return;
+              const previous = state.multiplayer.peers[playerId] || {};
+              state.multiplayer.peers[playerId] = {
+                  row: Number.isInteger(previous.row) ? previous.row : -1,
+                  column: Number.isInteger(previous.column) ? previous.column : -1,
+                  name: player.playerName || previous.name || 'Jogador',
+                  color: player.playerColor || previous.color || '#3b82f6',
+                  lastSeen: previous.lastSeen || Date.now()
+              };
+          });
+          renderMultiplayerSidebar();
+          updateAllCellVisuals();
+          const proposal = state.multiplayer.currentProposal;
+          if (proposal && proposal.status === 'pending' && proposal.proposerId === state.multiplayer.playerId && Array.isArray(proposal.requiredPlayerIds)) {
+              const requiredNow = proposal.requiredPlayerIds.filter(id => id === state.multiplayer.playerId || onlineIds.has(id));
+              if (requiredNow.length !== proposal.requiredPlayerIds.length) {
+                  const fb = getFirebaseAPI();
+                  if (fb && state.multiplayer.roomId) {
+                      fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal')), { requiredPlayerIds: requiredNow }).catch(() => {});
+                  }
+              }
+          }
+      }
+
+      function onRoomProposalChanged(proposal) {
+          const modal = document.getElementById('modal-vote-newgame');
+          if (!proposal) {
+              const previous = state.multiplayer.currentProposal;
+              const modalWasOpen = modal.classList.contains('flex');
+              if (modalWasOpen) closeModal('modal-vote-newgame');
+              if (previous && previous.status === 'pending' && !state.multiplayer.completedProposalIds.includes(previous.proposalId)) {
+                  // O modal do proponente fecha localmente antes da remoção e não recebe toast duplicado.
+                  if (modalWasOpen) showToast(`${previous.proposerName || 'O proponente'} cancelou a proposta de novo tabuleiro.`, 'info');
+              }
+              state.multiplayer.currentProposal = null;
+              state.multiplayer.lastObservedProposalId = null;
+              state.multiplayer.observedProposalVoteIds = {};
+              return;
+          }
+
+          state.multiplayer.currentProposal = proposal;
+          const proposalId = proposal.proposalId || proposal.id || `proposal_${proposal.createdAtTimestamp || 0}`;
+          if (state.multiplayer.lastObservedProposalId !== proposalId) {
+              state.multiplayer.lastObservedProposalId = proposalId;
+              state.multiplayer.observedProposalVoteIds = {};
+          }
+
+          if (proposal.status === 'rejected') {
+              if (!state.multiplayer.handledProposalEndIds) state.multiplayer.handledProposalEndIds = [];
+              if (!state.multiplayer.handledProposalEndIds.includes(proposalId)) {
+                  state.multiplayer.handledProposalEndIds.push(proposalId);
+                  const rejectorName = proposal.rejectedByName || 'Um jogador';
+                  showToast(`${rejectorName} recusou a proposta de novo tabuleiro. A partida atual continua.`, 'warn');
+              }
+              if (modal.classList.contains('flex')) closeModal('modal-vote-newgame');
+              if (state.multiplayer.playerId === proposal.proposerId) {
+                  setTimeout(() => {
+                      const fb = getFirebaseAPI();
+                      if (fb && state.multiplayer.roomId) fb.remove(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'))).catch(() => {});
+                  }, 1200);
+              }
+              return;
+          }
+
+          if (proposal.status === 'completed') {
+              if (!state.multiplayer.completedProposalIds.includes(proposalId)) state.multiplayer.completedProposalIds.push(proposalId);
+              if (!state.multiplayer.handledProposalEndIds) state.multiplayer.handledProposalEndIds = [];
+              if (!state.multiplayer.handledProposalEndIds.includes(proposalId)) {
+                  state.multiplayer.handledProposalEndIds.push(proposalId);
+                  showToast(`Todos aceitaram a proposta de ${proposal.proposerName || 'novo tabuleiro'}; a nova instância foi gerada.`, 'success');
+              }
+              if (modal.classList.contains('flex')) closeModal('modal-vote-newgame');
+              if (state.multiplayer.playerId === proposal.proposerId) {
+                  setTimeout(() => {
+                      const fb = getFirebaseAPI();
+                      if (fb && state.multiplayer.roomId) fb.remove(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'))).catch(() => {});
+                  }, 900);
+              }
+              return;
+          }
+
+          const voters = proposal.voters && typeof proposal.voters === 'object' ? proposal.voters : {};
+          Object.entries(voters).forEach(([voterId, voter]) => {
+              if (voterId === proposal.proposerId) return;
+              if (!state.multiplayer.observedProposalVoteIds[voterId]) {
+                  state.multiplayer.observedProposalVoteIds[voterId] = true;
+                  const voterName = voter.playerName || voter.name || 'Um jogador';
+                  showToast(`${voterName} aceitou a proposta de novo tabuleiro.`, 'success');
+              }
+          });
+
+          if (proposal.proposerId === state.multiplayer.playerId) {
+              showProposalWaitingState(proposal, true);
+              renderProposalAcceptors(proposal);
+              const requiredIds = Array.isArray(proposal.requiredPlayerIds) ? proposal.requiredPlayerIds : [proposal.proposerId];
+              const otherPlayers = requiredIds.filter(id => id !== proposal.proposerId);
+              const consensusReached = otherPlayers.every(id => !!voters[id]);
+              if (consensusReached) executeMultiplayerNewGame(proposal);
+          } else if (voters[state.multiplayer.playerId]) {
+              showProposalWaitingState(proposal, false);
+          } else {
+              handleNewGameProposal(proposal);
+          }
+      }
+
+      function setupRoomListeners(roomId) {
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          stopRoomListeners();
+          const metaRef = fb.ref(fb.db, roomPath(roomId, 'meta'));
+          const boardStateRef = fb.ref(fb.db, roomPath(roomId, 'boardState'));
+          const playersRef = fb.ref(fb.db, roomPath(roomId, 'players'));
+          const proposalRef = fb.ref(fb.db, roomPath(roomId, 'proposal'));
+          const movesRef = fb.ref(fb.db, roomPath(roomId, 'moves'));
+
+          state.multiplayer.listeners.push(fb.onValue(metaRef, snapshot => {
+              const meta = snapshot.val();
+              if (!meta) {
+                  showToast('A sala não foi encontrada ou foi encerrada.', 'warn');
+                  return;
+              }
+              onRoomMetaChanged(meta);
+          }));
+          state.multiplayer.listeners.push(fb.onValue(boardStateRef, snapshot => {
+              const roomState = snapshot.val();
+              if (roomState) applyRoomBoardState(roomState);
+          }));
+          state.multiplayer.listeners.push(fb.onValue(playersRef, snapshot => onRoomPlayersChanged(snapshot.val())));
+          state.multiplayer.listeners.push(fb.onValue(proposalRef, snapshot => onRoomProposalChanged(snapshot.val())));
+          state.multiplayer.listeners.push(fb.onValue(movesRef, snapshot => {
+              const moves = snapshot.val();
+              if (!moves) return;
+              const entries = Object.entries(moves).sort((a, b) => Number((a[1] || {}).timestamp || 0) - Number((b[1] || {}).timestamp || 0));
+              entries.forEach(([moveId, move]) => {
+                  if (state.multiplayer.processedMoveIds[moveId]) return;
+                  state.multiplayer.processedMoveIds[moveId] = true;
+                  processIncomingMove(move);
+              });
+              const processedIds = Object.keys(state.multiplayer.processedMoveIds);
+              if (processedIds.length > 1500) {
+                  state.multiplayer.processedMoveIds = Object.fromEntries(processedIds.slice(-750).map(id => [id, true]));
+              }
+          }));
+      }
+
       function joinRoom(roomId, playerName) {
           const fb = getFirebaseAPI();
           if (!fb) { showToast('Firebase indisponível.', 'warn'); return; }
-          
-          const roomRef = fb.ref(fb.db, `rooms/${roomId}/meta`);
-          
-          // 1. Puxa os metadados para montar a sala
-          fb.onValue(roomRef, (snapshot) => {
+          if (state.multiplayer.active) {
+              showToast('Desconecte da sala atual antes de entrar em outra.', 'warn');
+              return;
+          }
+          const metaRef = fb.ref(fb.db, roomPath(roomId, 'meta'));
+          fb.onValue(metaRef, snapshot => {
               const meta = snapshot.val();
-              if (!meta) {
-                  showToast('Sala não encontrada ou já encerrada.', 'warn');
+              const validMeta = validateRoomMeta(meta);
+              if (!validMeta) {
+                  showToast('Sala não encontrada ou com metadados inválidos.', 'warn');
                   return;
               }
-              
-              // Se a sala mudar (nova instância votada e gerada), força a atualização
-              if (state.multiplayer.active && state.multiplayer.roomId === roomId) {
-                  const currentInstance = meta.instanceCount || 0;
-                  if (currentInstance > state.multiplayer.instanceCount) {
-                      forceApplyNewMetaState(meta);
-                  }
-                  return;
-              }
-              
-              // Se for a primeira leitura, inicializa o jogo com os dados da sala
-              if (!state.multiplayer.active) {
-                  state.multiplayer.active = true;
-                  state.multiplayer.roomId = roomId;
-                  state.multiplayer.playerName = playerName || 'Jogador';
-                  document.getElementById('room-status-badge').classList.remove('hidden');
-                  document.getElementById('current-room-id-label').textContent = roomId;
-                  
-                  // Descodifica a instância
-                  const validMeta = validateGameState(meta);
-                  if (validMeta) {
-                      state.mode = meta.m || 'standard'; 
-                      state.difficulty = meta.d || 'medio';
-                      state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
-                      state.initial = validMeta.initial; 
-                      const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
-                      if (solved) state.solution = solved;
-                      
-                      state.board = validMeta.initial.map(r => r.slice()); 
-                      state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
-                      state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false)); 
-                      state.timerSeconds = 0; state.completed = false;
-                      
-                      // Define o nome da partida local automaticamente como o nome da sala
-                      state.multiplayer.instanceCount = meta.instanceCount || 0;
-                      state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
-                      state.gameName = 'Sala: ' + roomId + ' #' + state.multiplayer.instanceCount;
-                      document.getElementById('game-name-input').value = state.gameName;
-                      
-                      syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle();
-                      renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
-                      
-                      document.getElementById('room-status-badge').classList.remove('hidden');
-                      document.getElementById('room-status-badge').classList.add('flex');
-                      document.getElementById('btn-create-room').classList.add('hidden');
-                      renderMultiplayerSidebar();
-                      closeModal('modal-multiplayer');
-                      showToast(`Conectado à sala ${roomId}!`, 'success');
-                      
-                      // 2. Inicia o listener de movimentos
-                      
-                      // 3. Listener para votações de novo jogo
-                      const propRef = fb.ref(fb.db, `rooms/${roomId}/proposal`);
-                      fb.onValue(propRef, (propSnap) => {
-                          const prop = propSnap.val();
-                          if (!prop) {
-                              // Se a proposta foi removida (negada ou concluída), fecha o modal se estiver aberto
-                              if (document.getElementById('modal-vote-newgame').classList.contains('flex')) {
-                                  closeModal('modal-vote-newgame');
-                                  if (state.multiplayer.currentProposal && state.multiplayer.currentProposal.proposerId === state.multiplayer.playerId) {
-                                      // Fui eu que propus e sumiu sem gerar o board, logo foi negado
-                                      showToast('Sua proposta foi negada pelo parceiro.', 'warn');
-                                  }
-                              }
-                              state.multiplayer.currentProposal = null;
-                          } else {
-                              if (prop.acceptedBy) {
-                                  // Alguém aceitou, gera o jogo se eu for o proposer!
-                                  executeMultiplayerNewGame(prop);
-                              } else {
-                                  // Nova proposta na mesa
-                                  handleNewGameProposal(prop);
-                              }
-                          }
-                      });
-
-                      const movesRef = fb.ref(fb.db, `rooms/${roomId}/moves`);
-                      fb.onValue(movesRef, (movesSnap) => {
-                          const moves = movesSnap.val();
-                          if (!moves) return;
-                          
-                          // Processa de forma sequencial
-                          const getSeq = (obj) => obj.sequence !== undefined ? obj.sequence : obj.seq;
-                          const moveList = Object.values(moves).sort((a, b) => getSeq(a) - getSeq(b));
-                          let needsRender = false;
-                          
-                          moveList.forEach(m => {
-                              if (getSeq(m) > state.multiplayer.lastProcessedSeq) {
-                                  processIncomingMove(m);
-                                  needsRender = true;
-                              }
-                          });
-                      });
-                  }
-              }
-          }, { onlyOnce: true });
-      }
-      
-      function hostRoom(playerName) {
-          if (state.isManualCreating) {
-              showToast('Finalize a criação manual antes de hospedar.', 'warn'); return;
-          }
-          
-          const fb = getFirebaseAPI();
-          if (!fb) { showToast('Firebase indisponível.', 'warn'); return; }
-          
-          const customRoomName = document.getElementById('multiplayer-room-input').value.trim();
-          let roomId = customRoomName;
-          
-          if (!roomId) {
-              roomId = Math.random().toString(36).substr(2, 4).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
-          } else {
-              // Limpa caracteres que o Firebase não aceita em chaves de banco de dados (., #, $, /, [, or ])
-              roomId = roomId.replace(/[\.#\$\[\]/]/g, '_');
-          }
-          
-          const roomRef = fb.ref(fb.db, `rooms/${roomId}`);
-          
-          const metaPayload = {
-              createdAt: Date.now(),
-              ownerId: state.multiplayer.playerId,
-              instanceCount: state.multiplayer.instanceCount,
-              m: state.mode,
-              d: state.difficulty,
-              N: state.N,
-              bR: state.blockR,
-              bC: state.blockC,
-              s: state.symbols,
-              i: state.initial,
-              sol: state.solution
-          };
-          
-          // Sobe a instância pro firebase
-          fb.set(fb.child(roomRef, 'meta'), metaPayload).then(() => {
-              
-              // Define o nome da partida local automaticamente como o nome da sala
-              state.multiplayer.instanceCount = 0;
-              state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
-                      state.gameName = 'Sala: ' + roomId + ' #' + state.multiplayer.instanceCount;
-              document.getElementById('game-name-input').value = state.gameName;
-              saveCurrentGameState();
-              // Simula um join na própria sala recém criada
               state.multiplayer.active = true;
               state.multiplayer.roomId = roomId;
-              state.multiplayer.playerName = playerName || 'Host';
+              state.multiplayer.playerName = playerName || 'Jogador';
+              state.multiplayer.color = null;
+              ensureMultiplayerColor();
+              state.multiplayer.instanceCount = validMeta.instanceCount;
+              state.multiplayer.lastAppliedInstanceNumber = null;
+              state.multiplayer.processedMoveIds = {};
+              state.multiplayer.peers = {};
+              state.multiplayer.players = {};
               state.multiplayer.lastProcessedSeq = 0;
+              registerRoomPresence(roomId);
+              setupRoomListeners(roomId);
+              document.getElementById('room-status-badge').classList.remove('hidden');
+              document.getElementById('room-status-badge').classList.add('flex');
+              document.getElementById('current-room-id-label').textContent = roomId;
+              document.getElementById('btn-create-room').classList.add('hidden');
+              closeModal('modal-multiplayer');
+              showToast(`Conectado à sala ${roomId}! O estado atual do tabuleiro será sincronizado.`, 'success');
+          }, { onlyOnce: true });
+      }
+
+      function hostRoom(playerName) {
+          if (state.isManualCreating) {
+              showToast('Finalize a criação manual antes de hospedar.', 'warn');
+              return;
+          }
+          const fb = getFirebaseAPI();
+          if (!fb) { showToast('Firebase indisponível.', 'warn'); return; }
+          if (state.multiplayer.active) {
+              showToast('Desconecte da sala atual antes de hospedar outra.', 'warn');
+              return;
+          }
+
+          const customRoomName = document.getElementById('multiplayer-room-input').value.trim();
+          let roomId = customRoomName;
+          if (!roomId) roomId = Math.random().toString(36).slice(2, 6).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+          else roomId = roomId.replace(/[.#$\[\]/]/g, '_');
+
+          state.multiplayer.active = true;
+          state.multiplayer.roomId = roomId;
+          state.multiplayer.playerName = playerName || 'Host';
+          state.multiplayer.color = null;
+          ensureMultiplayerColor();
+          state.multiplayer.instanceCount = 0;
+          state.multiplayer.lastAppliedInstanceNumber = 0;
+          state.multiplayer.lastProcessedSeq = 0;
+          state.multiplayer.processedMoveIds = {};
+          state.multiplayer.peers = {};
+          state.multiplayer.players = {};
+          state.gameId = 'mp_' + roomId + '_0';
+          state.gameName = 'Sala: ' + roomId + ' #0';
+          document.getElementById('game-name-input').value = state.gameName;
+
+          const roomRef = fb.ref(fb.db, roomPath(roomId));
+          const metaPayload = createRoomMeta(0, state.multiplayer.playerId);
+          const boardState = serializeCurrentRoomBoard(0);
+          boardState.gameName = state.gameName;
+          Promise.all([
+              fb.set(fb.child(roomRef, 'meta'), metaPayload),
+              fb.set(fb.child(roomRef, 'boardState'), boardState),
+              fb.set(fb.child(roomRef, 'moves'), {})
+          ]).then(() => {
+              registerRoomPresence(roomId);
+              setupRoomListeners(roomId);
+              saveCurrentGameState();
               document.getElementById('room-status-badge').classList.remove('hidden');
               document.getElementById('room-status-badge').classList.add('flex');
               document.getElementById('btn-create-room').classList.add('hidden');
               document.getElementById('current-room-id-label').textContent = roomId;
               renderMultiplayerSidebar();
               closeModal('modal-multiplayer');
-              showToast(`Sala ${roomId} criada! Compartilhe o ID.`, 'success');
-              
-              // Sobe todo o tabuleiro atual como um grande batch de jogadas (se já tivermos começado a jogar)
-              let initialSeq = 0;
-              for(let r=0; r<state.N; r++) {
-                  for(let c=0; c<state.N; c++) {
-                      if (state.initial[r][c] === '' && state.board[r][c] !== '') {
-                          initialSeq++;
-                          fb.push(fb.child(roomRef, 'moves'), {
-                              sequence: initialSeq, timestamp: Date.now(), userId: state.multiplayer.playerId, 
-                              userName: playerName, userColor: state.multiplayer.color,
-                              action: 'SET', row: r, column: c, value: state.board[r][c]
-                          });
-                      }
-                  }
-              }
-              state.multiplayer.lastProcessedSeq = initialSeq;
-              
-              // Inicia listener local
-              
-                      // 3. Listener para votações de novo jogo
-                      const propRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal`);
-                      fb.onValue(propRef, (propSnap) => {
-                          const prop = propSnap.val();
-                          if (!prop) {
-                              // Se a proposta foi removida (negada ou concluída), fecha o modal se estiver aberto
-                              if (document.getElementById('modal-vote-newgame').classList.contains('flex')) {
-                                  closeModal('modal-vote-newgame');
-                                  if (state.multiplayer.currentProposal && state.multiplayer.currentProposal.proposerId === state.multiplayer.playerId) {
-                                      // Fui eu que propus e sumiu sem gerar o board, logo foi negado
-                                      showToast('Sua proposta foi negada pelo parceiro.', 'warn');
-                                  }
-                              }
-                              state.multiplayer.currentProposal = null;
-                          } else {
-                              if (prop.acceptedBy) {
-                                  // Alguém aceitou, gera o jogo se eu for o proposer!
-                                  executeMultiplayerNewGame(prop);
-                              } else {
-                                  // Nova proposta na mesa
-                                  handleNewGameProposal(prop);
-                              }
-                          }
-                      });
-
-              const movesRef = fb.child(roomRef, 'moves');
-              fb.onValue(movesRef, (movesSnap) => {
-                  const moves = movesSnap.val();
-                  if (!moves) return;
-                  const getSeq = (obj) => obj.sequence !== undefined ? obj.sequence : obj.seq;
-                  const moveList = Object.values(moves).sort((a, b) => getSeq(a) - getSeq(b));
-                  moveList.forEach(m => {
-                      if (getSeq(m) > state.multiplayer.lastProcessedSeq) {
-                          processIncomingMove(m);
-                      }
-                  });
-              });
-              
-          }).catch(err => {
-              showToast('Erro ao criar sala. Verifique sua conexão.', 'warn');
+              showToast(`Sala ${roomId} criada! O tabuleiro e todos os preenchimentos atuais foram compartilhados.`, 'success');
+          }).catch(error => {
+              console.error('Erro ao criar sala multiplayer:', error);
+              state.multiplayer.active = false;
+              state.multiplayer.roomId = null;
+              state.multiplayer.lastAppliedInstanceNumber = null;
+              showToast('Erro ao criar sala. Verifique sua conexão e as regras do Firebase.', 'warn');
           });
       }
-      
+
       function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -2111,22 +2414,22 @@
 
       function validateGameState(data) {
         if (!data || typeof data !== 'object') return null;
-        const N = parseInt(data.N, 10);
+        const N = parseInt(data.dimension || data.N, 10);
         if (isNaN(N) || N < 4 || N > 25) return null;
-        const bR = parseInt(data.bR || data.blockR, 10);
-        const bC = parseInt(data.bC || data.blockC, 10);
+        const bR = parseInt(data.blockRow || data.bR || data.blockR, 10);
+        const bC = parseInt(data.blockCol || data.bC || data.blockC, 10);
         if (isNaN(bR) || isNaN(bC) || bR * bC !== N) return null;
-        const symList = data.s || data.symbols;
+        const symList = data.symbols || data.s;
         if (!Array.isArray(symList) || symList.length !== N) return null;
         const symbols = symList.map(String);
         
-        const initial = data.i || data.initial;
+        const initial = data.initialGrid || data.initial || data.i;
         if (!isValidMatrix(initial, N, symbols)) return null;
         
-        const sol = data.sol || data.solution;
+        const sol = data.solutionGrid || data.solution || data.sol;
         if (sol && !isValidMatrix(sol, N, symbols)) return null;
         
-        return { N, bR, bC, symbols, initial, sol };
+        return { N, bR, bC, symbols, initial, sol, mode: data.mode || data.m || 'standard', difficulty: data.difficulty || data.d || 'medio', instanceCount: data.instanceCount || 0 };
       }
 
       function buildSymbolsFromRange(minVal, maxVal, includeZero) {
@@ -2355,12 +2658,12 @@
         const { N, blockR, blockC } = state;
         gridEl.style.gridTemplateColumns = `repeat(${N}, minmax(0, 1fr))`;
         gridEl.style.gridTemplateRows = `repeat(${N}, minmax(0, 1fr))`;
-        const maxSymbolLen = Math.max(...state.symbols.map(s => s.length));
-        let mainFontSize = 'clamp(1rem, 3.8vw, 1.65rem)';
-        if (N >= 12 && N < 16) mainFontSize = 'clamp(0.75rem, 2.5vw, 1.15rem)';
-        else if (N >= 16 && N < 20) mainFontSize = 'clamp(0.65rem, 2vw, 0.95rem)';
-        else if (N >= 20) mainFontSize = 'clamp(0.52rem, 1.5vw, 0.78rem)';
-        else if (maxSymbolLen >= 2) mainFontSize = 'clamp(0.85rem, 3.1vw, 1.35rem)';
+        const maxSymbolLen = Math.max(1, ...state.symbols.map(s => String(s).length));
+        const gridWidth = gridEl.clientWidth || gridEl.getBoundingClientRect().width || 560;
+        const cellWidth = gridWidth / Math.max(1, N);
+        const widthFactor = maxSymbolLen >= 3 ? 0.34 : (maxSymbolLen === 2 ? 0.43 : 0.58);
+        const mainFontPx = Math.max(6, Math.min(N <= 9 ? 27 : 22, cellWidth * widthFactor));
+        const mainFontSize = `${mainFontPx.toFixed(2)}px`;
         const noteCols = Math.ceil(Math.sqrt(N)), noteRows = Math.ceil(N / noteCols);
         let noteFontSize = (N > 9 || maxSymbolLen >= 2) ? 'clamp(0.36rem, 0.85vw, 0.52rem)' : 'clamp(0.45rem, 1.15vw, 0.65rem)';
         const rainbowColors = ['#ff0040', '#ff7300', '#ffeb00', '#00e676', '#00e5ff', '#2979ff', '#651fff', '#d500f9'];
@@ -2862,11 +3165,33 @@
 
       async function exportBoardAsPNG() {
         showToast('Gerando imagem PNG de alta definição...', 'info');
+        const wrapper = document.getElementById('sudoku-board-wrapper');
+        const nameInput = document.getElementById('game-name-input');
+        
+        // Converte o input de nome temporariamente para div para o html2canvas renderizar o texto corretamente
+        const tempNameDisplay = document.createElement('div');
+        tempNameDisplay.className = 'text-sm font-bold text-center px-2';
+        tempNameDisplay.textContent = nameInput.value.trim() || 'Sudoku Sem Nome';
+        tempNameDisplay.style.cssText = 'display:block;width:max-content;max-width:none;white-space:nowrap;overflow:visible;word-break:keep-all;overflow-wrap:normal;line-height:1.25;flex:0 0 auto;';
+        const nameContainer = nameInput.parentNode;
+        nameContainer.style.width = 'max-content';
+        nameContainer.style.maxWidth = 'none';
+        nameInput.style.display = 'none';
+        nameContainer.insertBefore(tempNameDisplay, nameInput);
+
         try {
-          const canvas = await html2canvas(document.getElementById('sudoku-board-wrapper'), { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-app').trim() || '#ffffff', scale: 2 });
+          const canvas = await html2canvas(wrapper, { backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-app').trim() || '#ffffff', scale: 2, useCORS: true, logging: false });
           const link = document.createElement('a'); link.download = `Sudoku-Anerothico-PRO-${state.N}x${state.N}.png`; link.href = canvas.toDataURL('image/png'); link.click();
           showToast('Imagem .PNG exportada com sucesso!', 'success');
-        } catch (e) { showToast('Erro ao exportar PNG.', 'warn'); }
+        } catch (e) { 
+          showToast('Erro ao exportar PNG.', 'warn'); 
+        } finally {
+          // Reverte as alterações do DOM
+          tempNameDisplay.remove();
+          nameInput.style.display = '';
+          nameContainer.style.width = '';
+          nameContainer.style.maxWidth = '';
+        }
       }
 
       async function processOCRImageSource(imageSource) {
@@ -2950,7 +3275,7 @@
 
       function initEventListeners() {
         document.getElementById('theme-selector').addEventListener('change', (e) => applyTheme(e.target.value));
-        document.getElementById('game-name-input').addEventListener('input', (e) => { state.gameName = e.target.value; saveCurrentGameState(); });
+        document.getElementById('game-name-input').addEventListener('input', (e) => { state.gameName = e.target.value; saveCurrentGameState(); if (state.multiplayer.active && state.multiplayer.roomId) { const fb = getFirebaseAPI(); if (fb) fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState')), { gameName: state.gameName, lastUpdatedByPlayerId: state.multiplayer.playerId, updatedAtTimestamp: Date.now() }).catch(() => {}); } });
         document.getElementById('tab-mode-standard').addEventListener('click', () => { state.mode = 'standard'; syncModeTabsUI(); });
         document.getElementById('tab-mode-custom').addEventListener('click', () => { state.mode = 'custom'; syncModeTabsUI(); });
         ['custom-min-input', 'custom-max-input', 'custom-include-zero'].forEach(id => { document.getElementById(id).addEventListener('input', updateCustomRangePreview); document.getElementById(id).addEventListener('change', updateCustomRangePreview); });
@@ -2999,7 +3324,7 @@
         
         document.getElementById('btn-reveal-errors-yes').addEventListener('click', () => { closeModal('modal-errors-prompt'); revealErrorsOnBoard(); });
         document.getElementById('btn-reveal-errors-no').addEventListener('click', () => closeModal('modal-errors-prompt'));
-        document.getElementById('btn-victory-new').addEventListener('click', () => { closeModal('modal-victory'); startNewGame(); });
+        document.getElementById('btn-victory-new').addEventListener('click', () => { closeModal('modal-victory'); if (state.multiplayer.active && state.multiplayer.roomId) requestNewGameConsensus(); else startNewGame(); });
         document.getElementById('btn-victory-export').addEventListener('click', () => { closeModal('modal-victory'); exportBoardAsPNG(); });
         document.getElementById('btn-victory-close').addEventListener('click', () => closeModal('modal-victory'));
         
@@ -3035,42 +3360,82 @@
         
         document.getElementById('btn-close-multiplayer').addEventListener('click', () => closeModal('modal-multiplayer'));
         
+        
+        document.getElementById('btn-vote-cancel').addEventListener('click', () => {
+            const fb = getFirebaseAPI();
+            const proposal = state.multiplayer.currentProposal;
+            if (!fb || !state.multiplayer.roomId || !proposal || proposal.proposerId !== state.multiplayer.playerId) {
+                showToast('Somente quem propôs pode cancelar esta votação.', 'warn');
+                return;
+            }
+            const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
+            state.multiplayer.currentProposal = { ...proposal, status: 'cancelled' };
+            closeModal('modal-vote-newgame');
+            fb.remove(propRef).then(() => {
+                state.multiplayer.currentProposal = null;
+                showToast('Você cancelou a proposta de novo tabuleiro.', 'info');
+            }).catch(error => {
+                console.error(error);
+                showToast('Não foi possível cancelar a proposta.', 'warn');
+            });
+        });
+
         document.getElementById('btn-vote-reject').addEventListener('click', () => {
             const fb = getFirebaseAPI();
-            fb.remove(fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal`));
-            closeModal('modal-vote-newgame');
-            showToast('Proposta negada.', 'info');
+            const proposal = state.multiplayer.currentProposal;
+            if (!fb || !state.multiplayer.roomId || !proposal || proposal.proposerId === state.multiplayer.playerId) return;
+            const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
+            fb.update(propRef, {
+                status: 'rejected',
+                rejectedByPlayerId: state.multiplayer.playerId,
+                rejectedByName: state.multiplayer.playerName,
+                rejectedAtTimestamp: Date.now()
+            }).then(() => closeModal('modal-vote-newgame'))
+              .catch(error => { console.error(error); showToast('Não foi possível registrar sua recusa.', 'warn'); });
         });
         
         document.getElementById('btn-vote-accept').addEventListener('click', () => {
-            document.getElementById('btn-vote-reject').classList.add('hidden');
-            document.getElementById('btn-vote-accept').classList.add('hidden');
-            document.getElementById('vote-wait-msg').textContent = 'Processando...';
-            document.getElementById('vote-wait-msg').classList.remove('hidden');
-            
             const fb = getFirebaseAPI();
-            // Avisa o host/proposer que ele já pode gerar o novo board.
-            // Para simplificar: apenas disparamos um sinal verde no campo "acceptedBy"
-            const propRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal/acceptedBy`);
-            fb.set(propRef, state.multiplayer.playerId);
+            const proposal = state.multiplayer.currentProposal;
+            if (!fb || !state.multiplayer.roomId || !proposal || proposal.proposerId === state.multiplayer.playerId || proposal.status !== 'pending') return;
+            document.getElementById('vote-action-buttons').classList.add('hidden');
+            document.getElementById('vote-wait-container').classList.remove('hidden');
+            document.getElementById('btn-vote-cancel').classList.add('hidden');
+            const voteRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `proposal/voters/${state.multiplayer.playerId}`));
+            fb.set(voteRef, {
+                playerId: state.multiplayer.playerId,
+                playerName: state.multiplayer.playerName,
+                playerColor: ensureMultiplayerColor(),
+                acceptedAtTimestamp: Date.now()
+            }).then(() => {
+                showProposalWaitingState(proposal, false);
+            }).catch(error => {
+                console.error(error);
+                showToast('Não foi possível registrar seu aceite.', 'warn');
+            });
         });
 
         document.getElementById('btn-disconnect-room').addEventListener('click', () => {
             if (!state.multiplayer.active) return;
+            const fb = getFirebaseAPI();
+            const oldRoomId = state.multiplayer.roomId;
+            const presenceRef = state.multiplayer.presenceRef;
+            stopRoomListeners();
+            if (fb && presenceRef) fb.remove(presenceRef).catch(() => {});
             state.multiplayer.active = false;
             state.multiplayer.roomId = null;
+            state.multiplayer.presenceRef = null;
+            state.multiplayer.players = {};
             state.multiplayer.peers = {};
-            
+            state.multiplayer.currentProposal = null;
+            state.multiplayer.lastAppliedInstanceNumber = null;
+            state.multiplayer.pendingBoardState = null;
             document.getElementById('room-status-badge').classList.add('hidden');
             document.getElementById('room-status-badge').classList.remove('flex');
             document.getElementById('btn-create-room').classList.remove('hidden');
-            
-            // Força a remoção de todos os cursores multiplayer da tela atualizando visuais
             updateAllCellVisuals();
-            
-            // Opcional: Se houver implementação real do onDisconnect ou remoção de listeners do firebase, seria aqui, 
-            // mas desativar localmente e limpar os cursores já transforma a partida num save offline normal.
-            showToast('Desconectado da sala. Você pode continuar jogando offline.', 'info');
+            renderMultiplayerSidebar();
+            showToast(`Desconectado da sala${oldRoomId ? ' ' + oldRoomId : ''}. Você pode continuar jogando offline.`, 'info');
         });
 
         
