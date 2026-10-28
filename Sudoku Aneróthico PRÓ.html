@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Sudoku Aneróthico PRÓ v4.3b 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v5.0 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,7 +21,64 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue, push, child, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyCT-5O4D3cWy0EUIJq5ymO-uRWV7oHlBVA",
+      authDomain: "sudoku-anerothico.firebaseapp.com",
+      projectId: "sudoku-anerothico",
+      storageBucket: "sudoku-anerothico.firebasestorage.app",
+      messagingSenderId: "792101614587",
+      appId: "1:792101614587:web:7b54518f2b0cfada41515e"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    
+    // Attach to window so our legacy script can access it easily without needing a bundler
+    window.firebaseDB = {
+        db, ref, set, onValue, push, child, update, remove, onDisconnect
+    };
+  </script>
+
   <style>
+    /* Avatares Multiplayer */
+    .mp-avatar {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 800;
+        color: #ffffff;
+        z-index: 10;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        opacity: 0.9;
+        pointer-events: none;
+    }
+    
+    @keyframes avatarPulse {
+      0% { box-shadow: 0 0 0 0 var(--avatar-color); }
+      70% { box-shadow: 0 0 0 4px rgba(0,0,0,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+    }
+    
+    .sudoku-cell.has-mp-cursor {
+        animation: avatarPulse 1.5s infinite;
+        border: 2px solid var(--avatar-color) !important;
+        z-index: 5;
+    }
+
     /* ==========================================================================
        SISTEMA DE TEMAS DINÂMICOS (9 TEMAS EXATOS)
        ========================================================================== */
@@ -683,7 +740,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v4.3b 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v5.0 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -881,6 +938,28 @@
             <i class="fa-solid fa-copy text-sm"></i>
             <span>Copiar Código da Instância</span>
           </button>
+          
+          <!-- NOVO: MultiPlayer (Firebase) -->
+          <button id="btn-create-room" type="button"
+            class="bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border border-blue-500 shadow-md">
+            <i class="fa-solid fa-network-wired text-sm"></i>
+            <span>Abrir Sala Multiplayer</span>
+          </button>
+          <div id="room-status-badge" class="hidden flex-col gap-2 mt-[-4px] mb-1">
+             <div class="text-center text-[10px] font-bold text-green-500 animate-pulse">
+                <i class="fa-solid fa-circle text-[8px]"></i> Conectado à Sala: <span id="current-room-id-label">---</span>
+             </div>
+             
+             <!-- Lista de Jogadores na Sala -->
+             <div id="mp-players-list" class="flex flex-col gap-1.5 w-full bg-slate-500/5 p-2 rounded-xl border border-slate-200 dark:border-slate-700/50">
+                <!-- Preenchido via JS -->
+             </div>
+             
+             <button id="btn-disconnect-room" type="button" class="w-full py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white text-[11px] font-bold transition flex items-center justify-center gap-1.5 border border-red-500/30">
+                <i class="fa-solid fa-plug-circle-xmark"></i>
+                Desconectar da Sala
+             </button>
+          </div>
 
           <button id="btn-share-state-url" type="button"
             class="theme-panel-alt hover:opacity-90 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border"
@@ -1032,7 +1111,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v4.3b</div>
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v5.0</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -1225,7 +1304,18 @@
         
         <div class="relative pl-4 border-l-2 border-blue-500">
           <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v4.3b <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.0 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Sistema de Desconexão. Botão para encerrar a sincronização multiplayer e continuar a partida offline de onde parou.</li>
+            <li><strong>Novo:</strong> Visualização de Jogadores Ativos. Os avatares de todos conectados na sala aparecem agora em uma lista fixa ao lado, com nome completo por tooltip no hover.</li>
+            <li><strong>Novo:</strong> Nomenclatura Automática. Jogos multiplayer recebem automaticamente o nome da sala (ex: `Sala: Namorados`) no seu histórico para fácil rastreio e filtragem.</li>
+            <li><strong>Refatoração:</strong> O payload de rede do Firebase foi completamente explícito (ex: <code class="font-mono">row</code>, <code class="font-mono">value</code>, <code class="font-mono">userId</code>) abandonando as contrações para facilitar o parsing e auditorias futuras de dados.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v4.3b</h3>
           <ul class="list-disc pl-5 opacity-90 space-y-1">
             <li><strong>Novo:</strong> Mini-visualizador de tabuleiro (preview estático) renderizado no menu de Histórico (Auto-Save).</li>
             <li><strong>Novo:</strong> Campo de nome personalizado inserido abaixo do tabuleiro. Agora você pode renomear cada jogo (ex: "Desafio da Lorena").</li>
@@ -1309,6 +1399,44 @@
     </div>
   </div>
 
+  <!-- MODAL 9: MULTIPLAYER / SALA -->
+  <div id="modal-multiplayer" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="theme-panel rounded-3xl max-w-md w-full p-6 text-center flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b pb-2" style="border-color: var(--board-border-cell);">
+        <h2 class="text-lg font-extrabold flex items-center gap-2">
+          <i class="fa-solid fa-network-wired"></i>
+          <span>Multiplayer (Firebase)</span>
+        </h2>
+        <button id="btn-close-multiplayer" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center hover:opacity-80 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="text-xs sm:text-sm opacity-80 text-left leading-relaxed">
+        Jogue online e em tempo real. Digite seu apelido e o ID da sala para entrar, ou crie uma nova com o tabuleiro atual.
+      </p>
+      
+      <div class="flex flex-col gap-3 text-left">
+          <div>
+            <label class="block text-[11px] font-bold uppercase opacity-75 mb-1">Seu Nome/Apelido</label>
+            <input type="text" id="multiplayer-name-input" placeholder="Ex: Marcos" class="w-full theme-panel-alt p-2.5 rounded-xl border text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="100" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase opacity-75 mb-1">ID da Sala (Para Entrar ou Criar)</label>
+            <input type="text" id="multiplayer-room-input" placeholder="Ex: Sala da Lorena" class="w-full theme-panel-alt p-2.5 rounded-xl border text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" maxlength="50" />
+          </div>
+      </div>
+      
+      <div class="flex gap-2 mt-2">
+          <button id="btn-join-room" type="button" class="flex-1 py-3 rounded-xl theme-panel-alt border font-bold text-sm shadow-sm transition hover:opacity-90">
+            Entrar na Sala
+          </button>
+          <button id="btn-host-room" type="button" class="flex-1 py-3 rounded-xl btn-accent font-bold text-sm shadow-md transition hover:opacity-90">
+            Hospedar Atual
+          </button>
+      </div>
+    </div>
+  </div>
+  
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <script>
@@ -1337,7 +1465,9 @@
         doido: 0.79
       };
 
+      
       const state = {
+        // ... existing state
         gameId: null,
         gameName: '',
         mode: 'standard',
@@ -1358,7 +1488,7 @@
         highlightedSymbol: null,
         pencilMode: false,
         immediateErrorCheck: false,
-        highlightSameNumbers: true, // Habilitado por padrão
+        highlightSameNumbers: true,
         timerSeconds: 0,
         timerRunning: false,
         timerInterval: null,
@@ -1366,9 +1496,316 @@
         historyTab: 'ongoing',
         typingBuffer: '',
         typingTimeout: null,
-        isManualCreating: false
+        isManualCreating: false,
+        
+        // Multiplayer State
+        multiplayer: {
+            active: false,
+            roomId: null,
+            playerName: 'Jogador',
+            playerId: 'player_' + Math.random().toString(36).substr(2, 9),
+            listener: null,
+            lastProcessedSeq: 0
+        }
       };
 
+      
+      /* ========================================================================
+         FIREBASE MULTIPLAYER LOGIC
+         ======================================================================== */
+      
+      function renderMultiplayerSidebar() {
+          const listContainer = document.getElementById('mp-players-list');
+          if (!listContainer || !state.multiplayer.active) return;
+          
+          listContainer.innerHTML = '';
+          const now = Date.now();
+          
+          // Adiciona nós mesmos no topo
+          if(!state.multiplayer.color) {
+              const colors = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
+              let hash = 0;
+              for (let i = 0; i < state.multiplayer.playerName.length; i++) hash = state.multiplayer.playerName.charCodeAt(i) + ((hash << 5) - hash);
+              state.multiplayer.color = colors[Math.abs(hash) % colors.length];
+          }
+          
+          const selfItem = document.createElement('div');
+          selfItem.className = 'flex items-center gap-2 px-2 py-1';
+          selfItem.innerHTML = `
+              <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0" style="background-color: ${state.multiplayer.color}" title="${state.multiplayer.playerName}">
+                  ${state.multiplayer.playerName.charAt(0).toUpperCase()}
+              </div>
+              <span class="text-[11px] font-bold opacity-90 truncate" title="${state.multiplayer.playerName}">${state.multiplayer.playerName} (Você)</span>
+          `;
+          listContainer.appendChild(selfItem);
+          
+          // Adiciona os peers
+          if (state.multiplayer.peers) {
+              Object.values(state.multiplayer.peers).forEach(peer => {
+                  if (now - peer.lastSeen < 120000) { // Mostra na lista se visto nos últimos 2 minutos
+                      const peerItem = document.createElement('div');
+                      peerItem.className = 'flex items-center gap-2 px-2 py-1';
+                      peerItem.innerHTML = `
+                          <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0" style="background-color: ${peer.color}" title="${peer.name}">
+                              ${peer.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span class="text-[11px] font-semibold opacity-75 truncate" title="${peer.name}">${peer.name}</span>
+                      `;
+                      listContainer.appendChild(peerItem);
+                  }
+              });
+          }
+      }
+
+      function getFirebaseAPI() {
+          return window.firebaseDB; // injected via ES module
+      }
+      
+      function pushMoveToFirebase(act, r, c, val) {
+          if (!state.multiplayer.active || !state.multiplayer.roomId) return;
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          
+          state.multiplayer.lastProcessedSeq++;
+          
+          // Usamos uma cor fixa pseudo-aleatória gerada a partir do nome para o avatar do jogador
+          if(!state.multiplayer.color) {
+              const colors = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
+              let hash = 0;
+              for (let i = 0; i < state.multiplayer.playerName.length; i++) hash = state.multiplayer.playerName.charCodeAt(i) + ((hash << 5) - hash);
+              state.multiplayer.color = colors[Math.abs(hash) % colors.length];
+          }
+
+          const payload = {
+              sequence: state.multiplayer.lastProcessedSeq,
+              timestamp: Date.now(),
+              userId: state.multiplayer.playerId,
+              userName: state.multiplayer.playerName,
+              userColor: state.multiplayer.color,
+              action: act,
+              row: r,
+              column: c,
+              value: val
+          };
+          
+          const movesRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/moves`);
+          fb.push(movesRef, payload).catch(err => {
+              console.error("Erro ao enviar jogada para o Firebase:", err);
+          });
+      }
+      
+      function processIncomingMove(move) {
+          // Trata tanto a sintaxe antiga (se houver no bd) quanto a nova explícita
+          const mUserId = move.userId || move.u;
+          const mSeq = move.sequence || move.seq;
+          const mAction = move.action || move.act;
+          const r = move.row !== undefined ? move.row : move.r;
+          const c = move.column !== undefined ? move.column : move.c;
+          const val = move.value !== undefined ? move.value : move.val;
+          const mName = move.userName || move.name || 'P';
+          const mColor = move.userColor || '#3b82f6';
+
+          if (mUserId === state.multiplayer.playerId) return;
+          
+          if (mSeq > state.multiplayer.lastProcessedSeq) {
+              state.multiplayer.lastProcessedSeq = mSeq;
+          }
+          
+          // Registra o cursor/avatar temporário deste jogador na casa que ele interagiu
+          state.multiplayer.peers = state.multiplayer.peers || {};
+          state.multiplayer.peers[mUserId] = { row: r, column: c, name: mName, color: mColor, lastSeen: Date.now() };
+          
+          if (mAction === 'FOCUS') {
+              // Apenas atualiza a posição do avatar
+          } else if (mAction === 'SET') {
+              state.board[r][c] = val;
+              state.notes[r][c].clear();
+              removeAutoNotesPeers(r, c, val);
+          } else if (move.act === 'NOTE') {
+              if (state.board[r][c] !== '') state.board[r][c] = '';
+              if (state.notes[r][c].has(val)) {
+                  state.notes[r][c].delete(val);
+              } else {
+                  state.notes[r][c].add(val);
+              }
+          } else if (move.act === 'ERASE') {
+              state.board[r][c] = '';
+              state.notes[r][c].clear();
+              state.revealedErrors[r][c] = false;
+          }
+          
+          // Mostra toast discreto apenas se for uma ação final
+          // if (move.act === 'SET') {
+          //    showToast(`${move.name} jogou ${val} na grade.`, 'info');
+          // }
+          
+          updateCellPencilDOM(r, c);
+          updateAllCellVisuals();
+          updateProgressUI();
+          saveCurrentGameState();
+          renderMultiplayerSidebar();
+      }
+      
+      function joinRoom(roomId, playerName) {
+          const fb = getFirebaseAPI();
+          if (!fb) { showToast('Firebase indisponível.', 'warn'); return; }
+          
+          const roomRef = fb.ref(fb.db, `rooms/${roomId}/meta`);
+          
+          // 1. Puxa os metadados para montar a sala
+          fb.onValue(roomRef, (snapshot) => {
+              const meta = snapshot.val();
+              if (!meta) {
+                  showToast('Sala não encontrada ou já encerrada.', 'warn');
+                  return;
+              }
+              
+              // Se for a primeira leitura, inicializa o jogo com os dados da sala
+              if (!state.multiplayer.active) {
+                  state.multiplayer.active = true;
+                  state.multiplayer.roomId = roomId;
+                  state.multiplayer.playerName = playerName || 'Jogador';
+                  document.getElementById('room-status-badge').classList.remove('hidden');
+                  document.getElementById('current-room-id-label').textContent = roomId;
+                  
+                  // Descodifica a instância
+                  const validMeta = validateGameState(meta);
+                  if (validMeta) {
+                      state.mode = meta.m || 'standard'; 
+                      state.difficulty = meta.d || 'medio';
+                      state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
+                      state.initial = validMeta.initial; 
+                      const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
+                      if (solved) state.solution = solved;
+                      
+                      state.board = validMeta.initial.map(r => r.slice()); 
+                      state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+                      state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false)); 
+                      state.timerSeconds = 0; state.completed = false;
+                      
+                      // Define o nome da partida local automaticamente como o nome da sala
+                      state.gameName = 'Sala: ' + roomId;
+                      document.getElementById('game-name-input').value = state.gameName;
+                      
+                      syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle();
+                      renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
+                      
+                      document.getElementById('room-status-badge').classList.remove('hidden');
+                      document.getElementById('room-status-badge').classList.add('flex');
+                      document.getElementById('btn-create-room').classList.add('hidden');
+                      renderMultiplayerSidebar();
+                      closeModal('modal-multiplayer');
+                      showToast(`Conectado à sala ${roomId}!`, 'success');
+                      
+                      // 2. Inicia o listener de movimentos
+                      const movesRef = fb.ref(fb.db, `rooms/${roomId}/moves`);
+                      fb.onValue(movesRef, (movesSnap) => {
+                          const moves = movesSnap.val();
+                          if (!moves) return;
+                          
+                          // Processa de forma sequencial
+                          const moveList = Object.values(moves).sort((a, b) => a.seq - b.seq);
+                          let needsRender = false;
+                          
+                          moveList.forEach(m => {
+                              if (m.seq > state.multiplayer.lastProcessedSeq) {
+                                  processIncomingMove(m);
+                                  needsRender = true;
+                              }
+                          });
+                      });
+                  }
+              }
+          }, { onlyOnce: true });
+      }
+      
+      function hostRoom(playerName) {
+          if (state.isManualCreating) {
+              showToast('Finalize a criação manual antes de hospedar.', 'warn'); return;
+          }
+          
+          const fb = getFirebaseAPI();
+          if (!fb) { showToast('Firebase indisponível.', 'warn'); return; }
+          
+          const customRoomName = document.getElementById('multiplayer-room-input').value.trim();
+          let roomId = customRoomName;
+          
+          if (!roomId) {
+              roomId = Math.random().toString(36).substr(2, 4).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
+          } else {
+              // Limpa caracteres que o Firebase não aceita em chaves de banco de dados (., #, $, /, [, or ])
+              roomId = roomId.replace(/[\.#\$\[\]/]/g, '_');
+          }
+          
+          const roomRef = fb.ref(fb.db, `rooms/${roomId}`);
+          
+          const metaPayload = {
+              createdAt: Date.now(),
+              ownerId: state.multiplayer.playerId,
+              m: state.mode,
+              d: state.difficulty,
+              N: state.N,
+              bR: state.blockR,
+              bC: state.blockC,
+              s: state.symbols,
+              i: state.initial,
+              sol: state.solution
+          };
+          
+          // Sobe a instância pro firebase
+          fb.set(fb.child(roomRef, 'meta'), metaPayload).then(() => {
+              
+              // Define o nome da partida local automaticamente como o nome da sala
+              state.gameName = 'Sala: ' + roomId;
+              document.getElementById('game-name-input').value = state.gameName;
+              saveCurrentGameState();
+              // Simula um join na própria sala recém criada
+              state.multiplayer.active = true;
+              state.multiplayer.roomId = roomId;
+              state.multiplayer.playerName = playerName || 'Host';
+              state.multiplayer.lastProcessedSeq = 0;
+              document.getElementById('room-status-badge').classList.remove('hidden');
+              document.getElementById('room-status-badge').classList.add('flex');
+              document.getElementById('btn-create-room').classList.add('hidden');
+              document.getElementById('current-room-id-label').textContent = roomId;
+              renderMultiplayerSidebar();
+              closeModal('modal-multiplayer');
+              showToast(`Sala ${roomId} criada! Compartilhe o ID.`, 'success');
+              
+              // Sobe todo o tabuleiro atual como um grande batch de jogadas (se já tivermos começado a jogar)
+              let initialSeq = 0;
+              for(let r=0; r<state.N; r++) {
+                  for(let c=0; c<state.N; c++) {
+                      if (state.initial[r][c] === '' && state.board[r][c] !== '') {
+                          initialSeq++;
+                          fb.push(fb.child(roomRef, 'moves'), {
+                              sequence: initialSeq, timestamp: Date.now(), userId: state.multiplayer.playerId, 
+                              userName: playerName, userColor: state.multiplayer.color,
+                              action: 'SET', row: r, column: c, value: state.board[r][c]
+                          });
+                      }
+                  }
+              }
+              state.multiplayer.lastProcessedSeq = initialSeq;
+              
+              // Inicia listener local
+              const movesRef = fb.child(roomRef, 'moves');
+              fb.onValue(movesRef, (movesSnap) => {
+                  const moves = movesSnap.val();
+                  if (!moves) return;
+                  const moveList = Object.values(moves).sort((a, b) => a.seq - b.seq);
+                  moveList.forEach(m => {
+                      if (m.seq > state.multiplayer.lastProcessedSeq) {
+                          processIncomingMove(m);
+                      }
+                  });
+              });
+              
+          }).catch(err => {
+              showToast('Erro ao criar sala. Verifique sua conexão.', 'warn');
+          });
+      }
+      
       function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -1750,6 +2187,28 @@
           if (pencilEl) pencilEl.querySelectorAll('.pencil-note').forEach(span => {
             span.classList.toggle('is-note-highlighted', state.notes[r][c].has(span.dataset.sym) && highlightedSymbol === span.dataset.sym);
           });
+          
+          // Renderiza Avatares Multiplayer (se algum peer clicou recentemente nesta casa)
+          const oldAvatar = cellDiv.querySelector('.mp-avatar');
+          if (oldAvatar) oldAvatar.remove();
+          cellDiv.classList.remove('has-mp-cursor');
+          
+          if (state.multiplayer && state.multiplayer.peers) {
+              const now = Date.now();
+              Object.values(state.multiplayer.peers).forEach(peer => {
+                  if (peer.row === r && peer.column === c && (now - peer.lastSeen < 60000)) { // Limpa visualmente se ocluso por mais de 1 min
+                      const av = document.createElement('div');
+                      av.className = 'mp-avatar';
+                      av.style.backgroundColor = peer.color;
+                      av.textContent = peer.name.charAt(0).toUpperCase();
+                      cellDiv.appendChild(av);
+                      
+                      cellDiv.classList.add('has-mp-cursor');
+                      cellDiv.style.setProperty('--avatar-color', peer.color);
+                  }
+              });
+          }
+
         });
         document.querySelectorAll('#virtual-numpad .numpad-btn').forEach(btn => btn.classList.toggle('active-number-highlight', highlightedSymbol === btn.dataset.sym));
       }
@@ -1757,6 +2216,10 @@
       function handleCellFocus(r, c) {
         if (state.focusedCell.r !== r || state.focusedCell.c !== c) clearTypingBuffer();
         state.focusedCell = { r, c }; state.highlightedSymbol = state.board[r][c] !== '' ? state.board[r][c] : null; updateAllCellVisuals();
+        // Emite evento leve de foco para os avatares multiplayer
+        if (state.multiplayer.active && state.multiplayer.roomId) {
+            pushMoveToFirebase('FOCUS', r, c, '');
+        }
       }
 
       function clearTypingBuffer() { state.typingBuffer = ''; if (state.typingTimeout) { clearTimeout(state.typingTimeout); state.typingTimeout = null; } }
@@ -1814,11 +2277,17 @@
         state.revealedErrors[r][c] = false;
         if (state.pencilMode) {
           if (state.board[r][c] !== '') state.board[r][c] = '';
-          if (state.notes[r][c].has(symbol)) state.notes[r][c].delete(symbol); else state.notes[r][c].add(symbol);
+          if (state.notes[r][c].has(symbol)) { state.notes[r][c].delete(symbol); pushMoveToFirebase('NOTE', r, c, symbol); } else { state.notes[r][c].add(symbol); pushMoveToFirebase('NOTE', r, c, symbol); }
           state.highlightedSymbol = symbol; updateCellPencilDOM(r, c);
         } else {
-          if (state.board[r][c] === symbol) { state.board[r][c] = ''; state.highlightedSymbol = null; }
-          else { state.board[r][c] = symbol; state.notes[r][c].clear(); state.highlightedSymbol = symbol; removeAutoNotesPeers(r, c, symbol); }
+          if (state.board[r][c] === symbol) { 
+            state.board[r][c] = ''; state.highlightedSymbol = null; 
+            pushMoveToFirebase('ERASE', r, c, '');
+          }
+          else { 
+            state.board[r][c] = symbol; state.notes[r][c].clear(); state.highlightedSymbol = symbol; removeAutoNotesPeers(r, c, symbol); 
+            pushMoveToFirebase('SET', r, c, symbol);
+          }
           updateCellPencilDOM(r, c);
         }
         updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();
@@ -1836,6 +2305,7 @@
       function eraseCell(r, c) {
         if (state.completed || state.initial[r][c] !== '') return;
         state.board[r][c] = ''; state.notes[r][c].clear(); state.revealedErrors[r][c] = false; state.highlightedSymbol = null;
+        pushMoveToFirebase('ERASE', r, c, '');
         updateCellPencilDOM(r, c); updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();
       }
 
@@ -2282,6 +2752,52 @@
         document.getElementById('btn-share-url').addEventListener('click', shareCurrentPuzzleURL);
         document.getElementById('btn-share-state-url').addEventListener('click', shareCurrentPuzzleStateURL);
         document.getElementById('btn-export-png').addEventListener('click', exportBoardAsPNG);
+        
+        
+        document.getElementById('btn-create-room').addEventListener('click', () => {
+            const fb = getFirebaseAPI();
+            if (!fb || !fb.db) { showToast('Carregando conexão de rede... Tente novamente em 2 segundos.', 'warn'); return; }
+            const savedName = localStorage.getItem('sudoku_anerothico_mp_name') || '';
+            document.getElementById('multiplayer-name-input').value = savedName;
+            openModal('modal-multiplayer');
+        });
+        
+        document.getElementById('btn-close-multiplayer').addEventListener('click', () => closeModal('modal-multiplayer'));
+        document.getElementById('btn-disconnect-room').addEventListener('click', () => {
+            if (!state.multiplayer.active) return;
+            state.multiplayer.active = false;
+            state.multiplayer.roomId = null;
+            state.multiplayer.peers = {};
+            
+            document.getElementById('room-status-badge').classList.add('hidden');
+            document.getElementById('room-status-badge').classList.remove('flex');
+            document.getElementById('btn-create-room').classList.remove('hidden');
+            
+            // Força a remoção de todos os cursores multiplayer da tela atualizando visuais
+            updateAllCellVisuals();
+            
+            // Opcional: Se houver implementação real do onDisconnect ou remoção de listeners do firebase, seria aqui, 
+            // mas desativar localmente e limpar os cursores já transforma a partida num save offline normal.
+            showToast('Desconectado da sala. Você pode continuar jogando offline.', 'info');
+        });
+
+        
+        document.getElementById('btn-host-room').addEventListener('click', () => {
+            let name = document.getElementById('multiplayer-name-input').value.trim();
+            if (!name) name = 'Anônimo';
+            localStorage.setItem('sudoku_anerothico_mp_name', name);
+            hostRoom(name);
+        });
+        
+        document.getElementById('btn-join-room').addEventListener('click', () => {
+            let name = document.getElementById('multiplayer-name-input').value.trim();
+            if (!name) name = 'Anônimo';
+            let room = document.getElementById('multiplayer-room-input').value.trim();
+            if (!room) { showToast('Digite o nome/ID da sala para entrar.', 'warn'); return; }
+            room = room.replace(/[\.#\$\[\]/]/g, '_');
+            localStorage.setItem('sudoku_anerothico_mp_name', name);
+            joinRoom(room, name);
+        });
         
         document.getElementById('btn-open-load-code').addEventListener('click', () => { document.getElementById('load-code-input').value = ''; openModal('modal-load-code'); });
         document.getElementById('btn-close-load-code').addEventListener('click', () => closeModal('modal-load-code'));
