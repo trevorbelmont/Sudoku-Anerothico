@@ -14,7 +14,7 @@
           listContainer.innerHTML = '';
           const now = Date.now();
           ensureMultiplayerColor();
-          const appendPlayer = (name, color, suffix = '') => {
+          const appendPlayer = (name, color, suffix = '', metric = '') => {
               const row = document.createElement('div');
               row.className = 'flex items-center gap-2 px-2 py-1';
               const avatar = document.createElement('div');
@@ -23,14 +23,27 @@
               avatar.title = name;
               avatar.textContent = String(name || '?').charAt(0).toUpperCase();
               const label = document.createElement('span');
-              label.className = `text-[11px] ${suffix ? 'font-bold opacity-90' : 'font-semibold opacity-75'} truncate`;
+              label.className = `min-w-0 flex-1 text-[11px] ${suffix ? 'font-bold opacity-90' : 'font-semibold opacity-75'} truncate`;
               label.title = name;
               label.textContent = `${name}${suffix}`;
               row.appendChild(avatar);
               row.appendChild(label);
+              if (metric) {
+                  const metricLabel = document.createElement('span');
+                  metricLabel.className = 'shrink-0 whitespace-nowrap text-[10px] font-mono font-extrabold opacity-90';
+                  metricLabel.textContent = metric.trim();
+                  metricLabel.title = 'Casas atribuídas | porcentagem da contribuição atual';
+                  row.appendChild(metricLabel);
+              }
               listContainer.appendChild(row);
           };
-          appendPlayer(state.multiplayer.playerName || 'Você', state.multiplayer.color, ' (Você)');
+          const metricFor = (playerId) => {
+              if (state.multiplayer.roomMode !== 'versus' || !state.multiplayer.realtimeMetrics) return '';
+              const stats = computeContributionStats();
+              const person = stats.find(item => item.playerId === playerId);
+              return person ? ` ${person.count} | ${person.percent}%` : ' 0 | 0%';
+          };
+          appendPlayer(state.multiplayer.playerName || 'Você', state.multiplayer.color, ' (Você)', metricFor(state.multiplayer.playerId));
           const onlinePlayers = state.multiplayer.players && Object.keys(state.multiplayer.players).length
               ? state.multiplayer.players
               : state.multiplayer.peers || {};
@@ -41,7 +54,7 @@
               const color = player.playerColor || peer.color || player.color || '#64748b';
               const lastSeen = peer.lastSeen || now;
               if (state.multiplayer.players && Object.keys(state.multiplayer.players).length || now - lastSeen < 120000) {
-                  appendPlayer(name, color);
+                  appendPlayer(name, color, '', metricFor(playerId));
               }
           });
       }

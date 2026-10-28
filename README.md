@@ -1,4 +1,4 @@
-# Sudoku Aneróthico PRÓ v5.7
+# Sudoku Aneróthico PRÓ v6.0
 
 ## Execução local no Windows
 
@@ -30,7 +30,7 @@ Em outros sistemas, use um servidor HTTP estático ou hospede a pasta em um serv
 - `js/ocr-import.js` — leitura de imagens por OCR e geração de imagem de exemplo.
 - `js/multiplayer-ui.js` — lista de jogadores, avatares e componentes visuais de votação.
 - `js/multiplayer-service.js` — criação/entrada em salas, presença, sincronização do tabuleiro e movimentos.
-- `js/multiplayer-voting.js` — propostas de novo tabuleiro, votação e monitoramento do resultado.
+- `js/multiplayer-voting.js` — propostas de novo tabuleiro, votações de recursos, monitoramento do resultado e métricas por jogador.
 - `js/ui-helpers.js` — notificações toast e formatação de tempo.
 - `js/ui-controller.js` — modais, temas e sincronização dos controles visuais.
 - `js/app-events.js` — associação de eventos e inicialização da aplicação.
@@ -44,6 +44,13 @@ Altere os valores em `js/firebase-config.js` para apontar a aplicação a outro 
 ## Arquitetura e compatibilidade
 
 Para priorizar a continuidade de funcionamento, os arquivos de lógica ainda compartilham o escopo global clássico do navegador. A separação por arquivos já torna mais claro onde cada responsabilidade está, mas os módulos de jogo e multiplayer não são ainda componentes ES isolados com dependências injetadas. `multiplayer-service.js` e `multiplayer-voting.js` ainda dependem do estado/integração do Sudoku. Em outro projeto Firebase, a configuração de conexão pode ser reutilizada, mas reaproveitar a lógica completa de sala sem adaptações exigirá separar um serviço multiplayer genérico da camada de integração do jogo.
+
+## Recursos v6.0
+
+- O zoom fica abaixo do tabuleiro e aceita os atalhos `+`, `-` e `R` para ampliar, reduzir e restaurar 100%. O tabuleiro adapta sua largura à área visível e limita o tamanho em função da altura da janela.
+- Após concluir uma partida, `🔄Xô Tentar de novo essa Bagaça!🔄` reinicia a instância com as mesmas pistas. Em uma sala multiplayer, a ação é confirmada antes de limpar o tabuleiro compartilhado.
+- Ao hospedar uma sala, escolha `🤝 Prosa e Cafézin ☕` para cooperar ou `⚔️ Rinha de Galo 🐓` para comparar as contribuições. Na Rinha, a métrica em tempo real é opcional; o resumo final mostra casas atribuídas e porcentagem, incluindo empates.
+- Solicitações de NASA e mudanças no erro imediato em uma sala usam um cartão de votação persistente e minimizável. A decisão exige votos favoráveis de pelo menos metade dos participantes conectados; votos contra e abstenções são contabilizados separadamente.
 
 ## Verificação
 

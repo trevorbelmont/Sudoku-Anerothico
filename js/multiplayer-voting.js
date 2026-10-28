@@ -109,7 +109,8 @@ async function requestNewGameConsensus() {
               Promise.all([
                   fb.set(metaRef, metaPayload),
                   fb.set(boardStateRef, blankBoardState),
-                  fb.remove(movesRef)
+                  fb.remove(movesRef),
+                  fb.set(fb.child(roomRef, 'contributions'), {})
               ]).then(() => {
                   state.multiplayer.instanceCount = nextInstanceNumber;
                   state.multiplayer.executedProposalId = proposal.proposalId;
@@ -218,3 +219,157 @@ async function requestNewGameConsensus() {
               handleNewGameProposal(proposal);
           }
       }
+
+
+/* v6.0: non-blocking multiplayer feature-vote cards */
+function computeContributionStats() {
+    const contributions = state.multiplayer.contributions && typeof state.multiplayer.contributions === 'object' ? state.multiplayer.contributions : {};
+    const counts = new Map();
+    Object.values(contributions).forEach(entry => {
+        if (!entry || !entry.playerId) return;
+        const current = counts.get(entry.playerId) || { playerId: entry.playerId, name: entry.playerName || 'Jogador', count: 0 };
+        current.count += 1;
+        if (entry.playerName) current.name = entry.playerName;
+        counts.set(entry.playerId, current);
+    });
+    // Keep every participant visible in the final summary, even if disconnected or if they contributed zero cells.
+    Object.entries(state.multiplayer.members || {}).forEach(([playerId, player]) => {
+        if (!counts.has(playerId)) counts.set(playerId, { playerId, name: player.playerName || player.name || 'Jogador', count: 0 });
+    });
+    Object.entries(state.multiplayer.players || {}).forEach(([playerId, player]) => {
+        if (!counts.has(playerId)) counts.set(playerId, { playerId, name: player.playerName || 'Jogador', count: 0 });
+    });
+    if (state.multiplayer.playerId && !counts.has(state.multiplayer.playerId)) counts.set(state.multiplayer.playerId, { playerId: state.multiplayer.playerId, name: state.multiplayer.playerName || 'Você', count: 0 });
+    const rows = Array.from(counts.values());
+    const total = rows.reduce((sum, item) => sum + item.count, 0);
+    rows.forEach(item => { item.percent = total ? Math.round(item.count / total * 100) : 0; });
+    return rows.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+function renderFeatureVoteCard(vote) {
+    const container = document.getElementById('mp-feature-vote-toast');
+    const expanded = document.getElementById('mp-feature-vote-expanded');
+    const pill = document.getElementById('mp-feature-vote-pill');
+    if (!container || !expanded || !pill) return;
+    if (!vote || vote.status !== 'pending' || !state.multiplayer.active) {
+        container.classList.add('hidden');
+        state.multiplayer.featureVoteMinimized = false;
+        return;
+    }
+    container.classList.remove('hidden');
+    expanded.classList.toggle('hidden', !!state.multiplayer.featureVoteMinimized);
+    pill.classList.toggle('hidden', !state.multiplayer.featureVoteMinimized);
+    const title = document.getElementById('mp-feature-vote-title');
+    const message = document.getElementById('mp-feature-vote-message');
+    const status = document.getElementById('mp-feature-vote-status');
+    const actionButtons = document.getElementById('mp-feature-vote-actions');
+    const yesNames = { nasa: 'É o 🚂 tá feio!', immediateError: '😌 Suave 🤙' };
+    const noNames = { nasa: 'Cê num é doido! 😤', immediateError: '🐔 Deixe de ser frango! 🧐' };
+    const abstainNames = { nasa: 'Cês que sabe... ¯\\_(ツ)_/¯', immediateError: '🙄 Já que cê insiste... 🤷' };
+    const featureName = vote.type === 'nasa' ? 'chamar a NASA' : (vote.requestedValue ? 'ativar o erro imediato' : 'desativar o erro imediato');
+    title.textContent = vote.type === 'nasa' ? '🪐 Votação: chamar a NASA' : '🗳️ Votação: erro imediato';
+    message.textContent = `${vote.proposerName || 'Um jogador'} quer ${featureName}. Vote aqui no canto; dá para continuar jogando enquanto decide.`;
+    const votes = vote.votes && typeof vote.votes === 'object' ? vote.votes : {};
+    const count = { yes: 0, no: 0, abstain: 0 };
+    Object.values(votes).forEach(v => { if (v && count[v.choice] !== undefined) count[v.choice]++; });
+    const online = Math.max(1, Object.keys(state.multiplayer.players || {}).length);
+    status.textContent = `A favor: ${count.yes} · Contra: ${count.no} · Abstenções: ${count.abstain} · Conectados: ${online}. Aprovação exige pelo menos ${Math.ceil(online / 2)} voto(s) a favor.`;
+    const mine = votes[state.multiplayer.playerId];
+    actionButtons.classList.toggle('hidden', !!mine);
+    const [yesBtn, noBtn, abstainBtn] = actionButtons.querySelectorAll('[data-feature-vote]');
+    yesBtn.textContent = yesNames[vote.type] || 'Aprovar';
+    noBtn.textContent = noNames[vote.type] || 'Negar';
+    abstainBtn.textContent = abstainNames[vote.type] || 'Abster-se';
+    if (mine) status.textContent += ` Sua resposta: ${mine.choice === 'yes' ? 'a favor' : mine.choice === 'no' ? 'contra' : 'abstenção'}.`;
+}
+
+function onFeatureVoteChanged(vote) {
+    if (!state.multiplayer.active) return;
+    if (!vote) {
+        state.multiplayer.currentFeatureVote = null;
+        renderFeatureVoteCard(null);
+        return;
+    }
+    state.multiplayer.currentFeatureVote = vote;
+    renderFeatureVoteCard(vote);
+    if (vote.status === 'pending') evaluateFeatureVote(vote);
+    else if (vote.status === 'approved' || vote.status === 'rejected') {
+        const handled = state.multiplayer.observedFeatureVoteIds || (state.multiplayer.observedFeatureVoteIds = {});
+        if (!handled[vote.voteId]) {
+            handled[vote.voteId] = true;
+            if (vote.status === 'approved') showToast(vote.type === 'nasa' ? 'A sala aprovou chamar a NASA!' : `A sala aprovou ${vote.requestedValue ? 'ativar' : 'desativar'} o erro imediato.`, 'success');
+            else showToast(vote.type === 'nasa' ? 'A sala decidiu seguir sem chamar a NASA desta vez.' : 'A alteração do erro imediato não atingiu votos suficientes.', 'info');
+        }
+        setTimeout(() => {
+            const fb = getFirebaseAPI();
+            if (!fb || !state.multiplayer.roomId || state.multiplayer.playerId !== vote.proposerId) return;
+            const ref = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'featureVote'));
+            fb.get(ref).then(snapshot => {
+                const current = snapshot.val();
+                if (current && current.voteId === vote.voteId && current.status !== 'pending') return fb.remove(ref);
+                return null;
+            }).catch(() => {});
+        }, 1700);
+    }
+}
+
+function evaluateFeatureVote(vote) {
+    const fb = getFirebaseAPI();
+    if (!fb || !state.multiplayer.roomId || !vote || vote.status !== 'pending') return;
+    const voterIds = Object.keys(state.multiplayer.players || {});
+    if (!voterIds.includes(state.multiplayer.playerId)) voterIds.push(state.multiplayer.playerId);
+    const total = Math.max(1, voterIds.length);
+    const threshold = Math.ceil(total / 2);
+    const votes = vote.votes && typeof vote.votes === 'object' ? vote.votes : {};
+    const yes = Object.values(votes).filter(v => v && v.choice === 'yes').length;
+    const no = Object.values(votes).filter(v => v && v.choice === 'no').length;
+    const allAnswered = voterIds.every(id => !!votes[id]);
+    let nextStatus = null;
+    if (yes >= threshold) nextStatus = 'approved';
+    else if (allAnswered) nextStatus = 'rejected';
+    if (!nextStatus) return;
+    const voteRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'featureVote'));
+    const resolving = state.multiplayer.resolvingFeatureVoteIds || (state.multiplayer.resolvingFeatureVoteIds = {});
+    if (resolving[vote.voteId]) return;
+    resolving[vote.voteId] = true;
+    fb.update(voteRef, { status: nextStatus, resolvedAtTimestamp: Date.now(), yesCount: yes, noCount: no, eligibleCount: total }).then(() => {
+        if (nextStatus !== 'approved') return;
+        if (vote.type === 'immediateError') {
+            const settingsRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'settings'));
+            fb.update(settingsRef, { immediateErrorCheck: !!vote.requestedValue, immediateErrorUpdatedAt: Date.now(), immediateErrorUpdatedBy: vote.proposerId }).catch(error => console.error(error));
+        } else if (vote.type === 'nasa' && vote.proposerId === state.multiplayer.playerId) {
+            giveNasaHint();
+        }
+    }).catch(error => { delete resolving[vote.voteId]; console.error('Não foi possível concluir a votação:', error); });
+}
+
+function requestFeatureVote(type, requestedValue = null) {
+    const fb = getFirebaseAPI();
+    if (!fb || !state.multiplayer.active || !state.multiplayer.roomId) return false;
+    if (state.multiplayer.currentFeatureVote && state.multiplayer.currentFeatureVote.status === 'pending') {
+        showToast('Já existe uma votação ativa nesta sala. Responda à votação atual primeiro.', 'warn');
+        renderFeatureVoteCard(state.multiplayer.currentFeatureVote);
+        return true;
+    }
+    const voteId = `feature_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const vote = {
+        voteId, type, requestedValue, proposerId: state.multiplayer.playerId,
+        proposerName: state.multiplayer.playerName || 'Jogador', status: 'pending', votes: {}, createdAtTimestamp: Date.now()
+    };
+    const ref = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'featureVote'));
+    fb.set(ref, vote).then(() => renderFeatureVoteCard(vote)).catch(error => {
+        console.error('Falha ao abrir votação da sala:', error);
+        showToast('Não foi possível abrir a votação. Confira as regras do Firebase.', 'warn');
+    });
+    return true;
+}
+
+function castFeatureVote(choice) {
+    const fb = getFirebaseAPI();
+    const vote = state.multiplayer.currentFeatureVote;
+    if (!fb || !vote || vote.status !== 'pending' || !state.multiplayer.roomId) return;
+    const voteRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `featureVote/votes/${state.multiplayer.playerId}`));
+    fb.set(voteRef, { choice, playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() }).catch(error => {
+        console.error(error); showToast('Não foi possível registrar seu voto.', 'warn');
+    });
+}

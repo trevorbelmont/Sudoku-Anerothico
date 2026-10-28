@@ -65,6 +65,7 @@
             listeners: [],
             presenceRef: null,
             players: {},
+            members: {},
             peers: {},
             processedMoveIds: {},
             lastObservedProposalId: null,
@@ -75,6 +76,13 @@
             lastAppliedInstanceNumber: null,
             pendingBoardState: null,
             lastProcessedSeq: 0,
-            instanceCount: 0
+            instanceCount: 0,
+            roomMode: 'coop',
+            realtimeMetrics: false,
+            contributions: {},
+            currentFeatureVote: null,
+            featureVoteMinimized: false,
+            observedFeatureVoteIds: {},
+            roomSettings: { immediateErrorCheck: false }
         }
       };

@@ -23,10 +23,13 @@ function initEventListeners() {
         document.getElementById('btn-board-zoom-in').addEventListener('click', () => setBoardZoom(Number(zoomSlider.value) + 25));
         document.getElementById('btn-board-zoom-reset').addEventListener('click', () => setBoardZoom(100));
         let lastBoardViewportWidth = document.getElementById('sudoku-board-viewport').clientWidth;
+        let lastBoardViewportHeight = window.innerHeight;
         window.addEventListener('resize', () => {
           const viewportWidth = document.getElementById('sudoku-board-viewport').clientWidth;
-          if (viewportWidth > 0 && Math.abs(viewportWidth - lastBoardViewportWidth) > 2) {
+          const viewportHeight = window.innerHeight;
+          if ((viewportWidth > 0 && Math.abs(viewportWidth - lastBoardViewportWidth) > 2) || Math.abs(viewportHeight - lastBoardViewportHeight) > 80) {
             lastBoardViewportWidth = viewportWidth;
+            lastBoardViewportHeight = viewportHeight;
             if (state.board && state.board.length) renderSudokuBoard();
           }
         });
@@ -50,8 +53,8 @@ function initEventListeners() {
         document.getElementById('btn-resume-overlay').addEventListener('click', togglePauseGame);
         document.getElementById('btn-pencil-mode').addEventListener('click', () => togglePencilMode());
         document.getElementById('btn-erase-cell').addEventListener('click', () => eraseCell(state.focusedCell.r, state.focusedCell.c));
-        document.getElementById('btn-nasa-hint').addEventListener('click', giveNasaHint);
-        document.getElementById('toggle-immediate-error').addEventListener('change', (e) => { state.immediateErrorCheck = e.target.checked; updateAllCellVisuals(); });
+        document.getElementById('btn-nasa-hint').addEventListener('click', () => { if (state.multiplayer.active && state.multiplayer.roomId) requestFeatureVote('nasa'); else giveNasaHint(); });
+        document.getElementById('toggle-immediate-error').addEventListener('change', (e) => { const requested = e.target.checked; if (state.multiplayer.active && state.multiplayer.roomId) { e.target.checked = !!state.immediateErrorCheck; requestFeatureVote('immediateError', requested); } else { state.immediateErrorCheck = requested; updateAllCellVisuals(); } });
         document.getElementById('toggle-highlight-same').addEventListener('change', (e) => { state.highlightSameNumbers = e.target.checked; updateAllCellVisuals(); });
         document.getElementById('btn-check-solution').addEventListener('click', checkFullBoardSolution);
         
@@ -80,6 +83,7 @@ function initEventListeners() {
         document.getElementById('btn-reveal-errors-yes').addEventListener('click', () => { closeModal('modal-errors-prompt'); revealErrorsOnBoard(); });
         document.getElementById('btn-reveal-errors-no').addEventListener('click', () => closeModal('modal-errors-prompt'));
         document.getElementById('btn-victory-new').addEventListener('click', () => { closeModal('modal-victory'); if (state.multiplayer.active && state.multiplayer.roomId) requestNewGameConsensus(); else startNewGame(); });
+        document.getElementById('btn-victory-replay').addEventListener('click', replayCurrentGame);
         document.getElementById('btn-victory-export').addEventListener('click', () => { closeModal('modal-victory'); exportBoardAsPNG(); });
         document.getElementById('btn-victory-close').addEventListener('click', () => closeModal('modal-victory'));
         
@@ -114,6 +118,14 @@ function initEventListeners() {
         });
         
         document.getElementById('btn-close-multiplayer').addEventListener('click', () => closeModal('modal-multiplayer'));
+        const roomModeSelect = document.getElementById('multiplayer-room-mode');
+        const realtimeMetricsWrap = document.getElementById('multiplayer-realtime-metrics-wrap');
+        const syncRoomModeOptions = () => { const isVersus = roomModeSelect.value === 'versus'; realtimeMetricsWrap.classList.toggle('hidden', !isVersus); if (!isVersus) document.getElementById('multiplayer-realtime-metrics').checked = false; };
+        roomModeSelect.addEventListener('change', syncRoomModeOptions);
+        syncRoomModeOptions();
+        document.getElementById('mp-feature-vote-minimize').addEventListener('click', () => { state.multiplayer.featureVoteMinimized = true; renderFeatureVoteCard(state.multiplayer.currentFeatureVote); });
+        document.getElementById('mp-feature-vote-pill').addEventListener('click', () => { state.multiplayer.featureVoteMinimized = false; renderFeatureVoteCard(state.multiplayer.currentFeatureVote); });
+        document.querySelectorAll('[data-feature-vote]').forEach(button => button.addEventListener('click', () => castFeatureVote(button.dataset.featureVote)));
         
         
         document.getElementById('btn-vote-cancel').addEventListener('click', () => {
@@ -183,6 +195,8 @@ function initEventListeners() {
             state.multiplayer.players = {};
             state.multiplayer.peers = {};
             state.multiplayer.currentProposal = null;
+            state.multiplayer.currentFeatureVote = null;
+            renderFeatureVoteCard(null);
             state.multiplayer.lastAppliedInstanceNumber = null;
             state.multiplayer.pendingBoardState = null;
             document.getElementById('room-status-badge').classList.add('hidden');
@@ -226,9 +240,15 @@ function initEventListeners() {
         document.getElementById('btn-ocr-sample').addEventListener('click', () => processOCRImageSource(generateSamplePrintableCanvas()));
         
         window.addEventListener('keydown', (e) => {
-          const activeTag = document.activeElement ? document.activeElement.tagName : '';
-          const isConfigInput = document.activeElement && (document.activeElement.id === 'custom-min-input' || document.activeElement.id === 'custom-max-input' || document.activeElement.id === 'load-code-input' || document.activeElement.id === 'game-name-input');
-          if (!isConfigInput && activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); togglePencilMode(); }
+          const active = document.activeElement;
+          const activeTag = active ? active.tagName : '';
+          const isSudokuCell = !!(active && active.id && active.id.startsWith('cell-input-'));
+          const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || (active && active.isContentEditable);
+          const isConfigInput = active && ['custom-min-input', 'custom-max-input', 'load-code-input', 'game-name-input', 'multiplayer-name-input', 'multiplayer-room-input'].includes(active.id);
+          if ((e.key === '+' || e.key === '=' ) && !isConfigInput && (!isTyping || isSudokuCell)) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) + 25); return; }
+          if (e.key === '-' && !isConfigInput && (!isTyping || (isSudokuCell && !state.symbols.some(symbol => String(symbol).startsWith('-'))))) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) - 25); return; }
+          if ((e.key === 'r' || e.key === 'R') && !isConfigInput && (!isTyping || isSudokuCell)) { e.preventDefault(); setBoardZoom(100); return; }
+          if (!isTyping && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); togglePencilMode(); }
         });
       }
 

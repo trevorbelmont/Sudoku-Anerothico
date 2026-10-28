@@ -40,7 +40,9 @@ function getFirebaseAPI() {
               blockColumnCount: overrides.blockColumnCount ?? state.blockC,
               symbolValues: overrides.symbolValues ?? state.symbols.slice(),
               fixedInitialGrid: overrides.fixedInitialGrid ?? state.initial.map(row => row.slice()),
-              solutionGrid: overrides.solutionGrid ?? state.solution.map(row => row.slice())
+              solutionGrid: overrides.solutionGrid ?? state.solution.map(row => row.slice()),
+              roomMode: overrides.roomMode ?? state.multiplayer.roomMode ?? 'coop',
+              realtimeMetrics: overrides.realtimeMetrics ?? !!state.multiplayer.realtimeMetrics
           };
       }
 
@@ -93,6 +95,10 @@ function getFirebaseAPI() {
               return;
           }
           state.multiplayer.pendingBoardState = null;
+          const wasCompleted = !!state.completed;
+          const incomingElapsed = Number.isFinite(Number(roomState.elapsedSeconds)) ? Number(roomState.elapsedSeconds) : 0;
+          if (roomState.isCompleted || wasCompleted) state.timerSeconds = incomingElapsed;
+          state.completed = !!roomState.isCompleted;
           state.board = roomState.boardValues.map(row => row.map(value => value == null ? '' : String(value)));
           const notesData = Array.isArray(roomState.pencilNotes) ? roomState.pencilNotes : [];
           state.notes = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => {
@@ -114,6 +120,24 @@ function getFirebaseAPI() {
           }
           updateAllCellVisuals();
           updateProgressUI();
+          document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+          if (state.completed) {
+              pauseTimer();
+              document.getElementById('victory-time').textContent = formatTime(state.timerSeconds);
+              document.getElementById('victory-diff').textContent = DIFFICULTY_LABELS[state.difficulty] || state.difficulty;
+              document.getElementById('victory-dim').textContent = `${state.N}×${state.N} (${state.blockR}×${state.blockC})`;
+              document.getElementById('victory-range').textContent = `${state.symbols[0]} a ${state.symbols[state.symbols.length - 1]}`;
+              updateMultiplayerVictorySummary();
+              if (!wasCompleted) {
+                  openModal('modal-victory');
+                  if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 75, origin: { y: 0.35 }, zIndex: 9999, colors: ['#34d399', '#22d3ee', '#a78bfa', '#f472b6'] });
+              }
+          } else if (wasCompleted) {
+              state.timerSeconds = Number(roomState.elapsedSeconds) || 0;
+              document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+              closeModal('modal-victory');
+              startTimer();
+          }
           saveCurrentGameState();
       }
 
@@ -185,6 +209,8 @@ function getFirebaseAPI() {
                   console.error('Falha ao registrar presença multiplayer:', error);
                   fb.set(playerRef, presence).catch(() => {});
               });
+          const memberRef = fb.ref(fb.db, roomPath(roomId, `members/${state.multiplayer.playerId}`));
+          fb.set(memberRef, presence).catch(error => console.warn('Não foi possível registrar o participante no histórico da sala:', error));
       }
 
 
@@ -214,6 +240,10 @@ function getFirebaseAPI() {
           state.timerSeconds = 0;
           state.completed = false;
           state.multiplayer.instanceCount = validMeta.instanceCount;
+          state.multiplayer.roomMode = meta.roomMode === 'versus' ? 'versus' : 'coop';
+          state.multiplayer.realtimeMetrics = !!meta.realtimeMetrics;
+          const modeLabel = document.getElementById('mp-room-mode-label');
+          if (modeLabel) modeLabel.textContent = state.multiplayer.roomMode === 'versus' ? '⚔️ Rinha de Galo 🐓' : '🤝 Prosa e Cafézin ☕';
           state.multiplayer.lastAppliedInstanceNumber = validMeta.instanceCount;
           state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
           state.gameName = 'Sala: ' + state.multiplayer.roomId + ' #' + state.multiplayer.instanceCount;
@@ -254,6 +284,14 @@ function getFirebaseAPI() {
           const movesRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'moves'));
           fb.push(movesRef, movePayload).catch(error => console.error('Erro ao enviar jogada para o Firebase:', error));
           if (action !== 'FOCUS') publishRoomBoardCell(row, column, action === 'SET');
+          if ((action === 'SET' || action === 'ERASE') && row >= 0 && column >= 0) {
+              const attributionRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `contributions/${row}_${column}`));
+              const hasValue = action === 'SET' && String(value ?? '') !== '';
+              const operation = hasValue
+                  ? fb.set(attributionRef, { playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() })
+                  : fb.remove(attributionRef);
+              operation.catch(error => console.error('Falha ao atualizar a contribuição da célula:', error));
+          }
       }
 
       function processIncomingMove(move) {
@@ -306,6 +344,8 @@ function getFirebaseAPI() {
           });
           renderMultiplayerSidebar();
           updateAllCellVisuals();
+          const victoryModal = document.getElementById('modal-victory');
+          if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
           const proposal = state.multiplayer.currentProposal;
           if (proposal && proposal.status === 'pending' && proposal.proposerId === state.multiplayer.playerId && Array.isArray(proposal.requiredPlayerIds)) {
               const requiredNow = proposal.requiredPlayerIds.filter(id => id === state.multiplayer.playerId || onlineIds.has(id));
@@ -328,7 +368,33 @@ function getFirebaseAPI() {
           const playersRef = fb.ref(fb.db, roomPath(roomId, 'players'));
           const proposalRef = fb.ref(fb.db, roomPath(roomId, 'proposal'));
           const movesRef = fb.ref(fb.db, roomPath(roomId, 'moves'));
+          const contributionsRef = fb.ref(fb.db, roomPath(roomId, 'contributions'));
+          const membersRef = fb.ref(fb.db, roomPath(roomId, 'members'));
+          const featureVoteRef = fb.ref(fb.db, roomPath(roomId, 'featureVote'));
+          const settingsRef = fb.ref(fb.db, roomPath(roomId, 'settings'));
 
+          state.multiplayer.listeners.push(fb.onValue(contributionsRef, snapshot => {
+              state.multiplayer.contributions = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
+              renderMultiplayerSidebar();
+              const victoryModal = document.getElementById('modal-victory');
+              if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
+          }));
+          state.multiplayer.listeners.push(fb.onValue(membersRef, snapshot => {
+              state.multiplayer.members = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
+              const victoryModal = document.getElementById('modal-victory');
+              if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
+          }));
+          state.multiplayer.listeners.push(fb.onValue(featureVoteRef, snapshot => onFeatureVoteChanged(snapshot.val())));
+          state.multiplayer.listeners.push(fb.onValue(settingsRef, snapshot => {
+              const settings = snapshot.val() || {};
+              state.multiplayer.roomSettings = settings;
+              if (typeof settings.immediateErrorCheck === 'boolean') {
+                  state.immediateErrorCheck = settings.immediateErrorCheck;
+                  const errorToggle = document.getElementById('toggle-immediate-error');
+                  if (errorToggle) errorToggle.checked = settings.immediateErrorCheck;
+                  updateAllCellVisuals();
+              }
+          }));
           state.multiplayer.listeners.push(fb.onValue(metaRef, snapshot => {
               const meta = snapshot.val();
               if (!meta) {
@@ -380,6 +446,12 @@ function getFirebaseAPI() {
               state.multiplayer.color = null;
               ensureMultiplayerColor();
               state.multiplayer.instanceCount = validMeta.instanceCount;
+              state.multiplayer.roomMode = meta.roomMode === 'versus' ? 'versus' : 'coop';
+              state.multiplayer.realtimeMetrics = !!meta.realtimeMetrics;
+              const modeLabel = document.getElementById('mp-room-mode-label');
+              if (modeLabel) modeLabel.textContent = state.multiplayer.roomMode === 'versus' ? '⚔️ Rinha de Galo 🐓' : '🤝 Prosa e Cafézin ☕';
+              state.multiplayer.contributions = {};
+              state.multiplayer.members = {};
               state.multiplayer.lastAppliedInstanceNumber = null;
               state.multiplayer.processedMoveIds = {};
               state.multiplayer.peers = {};
@@ -409,6 +481,8 @@ function getFirebaseAPI() {
           }
 
           const customRoomName = document.getElementById('multiplayer-room-input').value.trim();
+          state.multiplayer.roomMode = document.getElementById('multiplayer-room-mode')?.value === 'versus' ? 'versus' : 'coop';
+          state.multiplayer.realtimeMetrics = state.multiplayer.roomMode === 'versus' && !!document.getElementById('multiplayer-realtime-metrics')?.checked;
           let roomId = customRoomName;
           if (!roomId) roomId = Math.random().toString(36).slice(2, 6).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
           else roomId = roomId.replace(/[.#$\[\]/]/g, '_');
@@ -424,6 +498,10 @@ function getFirebaseAPI() {
           state.multiplayer.processedMoveIds = {};
           state.multiplayer.peers = {};
           state.multiplayer.players = {};
+          state.multiplayer.members = {};
+          state.multiplayer.contributions = {};
+          state.multiplayer.currentFeatureVote = null;
+          state.multiplayer.gameResult = null;
           state.gameId = 'mp_' + roomId + '_0';
           state.gameName = 'Sala: ' + roomId + ' #0';
           document.getElementById('game-name-input').value = state.gameName;
@@ -435,7 +513,11 @@ function getFirebaseAPI() {
           Promise.all([
               fb.set(fb.child(roomRef, 'meta'), metaPayload),
               fb.set(fb.child(roomRef, 'boardState'), boardState),
-              fb.set(fb.child(roomRef, 'moves'), {})
+              fb.set(fb.child(roomRef, 'moves'), {}),
+              fb.set(fb.child(roomRef, 'contributions'), {}),
+              fb.set(fb.child(roomRef, 'members'), {}),
+              fb.set(fb.child(roomRef, 'settings'), { immediateErrorCheck: false }),
+              fb.remove(fb.child(roomRef, 'featureVote'))
           ]).then(() => {
               registerRoomPresence(roomId);
               setupRoomListeners(roomId);
@@ -444,6 +526,8 @@ function getFirebaseAPI() {
               document.getElementById('room-status-badge').classList.add('flex');
               document.getElementById('btn-create-room').classList.add('hidden');
               document.getElementById('current-room-id-label').textContent = roomId;
+              const modeLabel = document.getElementById('mp-room-mode-label');
+              if (modeLabel) modeLabel.textContent = state.multiplayer.roomMode === 'versus' ? '⚔️ Rinha de Galo 🐓' : '🤝 Prosa e Cafézin ☕';
               renderMultiplayerSidebar();
               closeModal('modal-multiplayer');
               showToast(`Sala ${roomId} criada! O tabuleiro e todos os preenchimentos atuais foram compartilhados.`, 'success');

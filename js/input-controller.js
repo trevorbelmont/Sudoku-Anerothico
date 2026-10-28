@@ -54,7 +54,11 @@
         if (state.completed || state.initial[r][c] !== '' || !state.symbols.includes(symbol)) return;
         state.revealedErrors[r][c] = false;
         if (state.pencilMode) {
-          if (state.board[r][c] !== '') state.board[r][c] = '';
+          if (state.board[r][c] !== '') {
+            state.board[r][c] = '';
+            // Clear this cell's competitive attribution when switching a filled cell to pencil notes.
+            pushMoveToFirebase('ERASE', r, c, '');
+          }
           if (state.notes[r][c].has(symbol)) { state.notes[r][c].delete(symbol); pushMoveToFirebase('NOTE', r, c, symbol); } else { state.notes[r][c].add(symbol); pushMoveToFirebase('NOTE', r, c, symbol); }
           state.highlightedSymbol = symbol; updateCellPencilDOM(r, c);
         } else {
@@ -102,6 +106,10 @@
         state.board[chosen.r][chosen.c] = correctSymbol; state.notes[chosen.r][chosen.c].clear(); state.revealedErrors[chosen.r][chosen.c] = false;
         state.focusedCell = { r: chosen.r, c: chosen.c }; state.highlightedSymbol = correctSymbol;
         removeAutoNotesPeers(chosen.r, chosen.c, correctSymbol); updateCellPencilDOM(chosen.r, chosen.c); updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();
+        if (state.multiplayer.active && state.multiplayer.roomId) {
+          pushMoveToFirebase('SET', chosen.r, chosen.c, correctSymbol);
+          publishRoomBoardState();
+        }
         const inputEl = document.getElementById(`cell-input-${chosen.r}-${chosen.c}`);
         if (inputEl && inputEl.parentElement) { inputEl.parentElement.classList.remove('nasa-hint-flash'); void inputEl.parentElement.offsetWidth; inputEl.parentElement.classList.add('nasa-hint-flash'); inputEl.focus(); }
         showToast(`🪐 A NASA ${chosen.type === 'wrong' ? 'corrigiu' : 'revelou'} a casa (Linha ${chosen.r + 1}, Coluna ${chosen.c + 1}) para ${correctSymbol}!`, 'info');

@@ -5,7 +5,9 @@
         const { N, blockR, blockC } = state;
         const viewportEl = document.getElementById('sudoku-board-viewport');
         const availableWidth = (viewportEl && viewportEl.clientWidth) || (gridEl.parentElement && gridEl.parentElement.clientWidth) || 560;
-        const baseWidth = Math.max(1, Math.min(availableWidth, 560));
+        const viewportHeight = Math.max(320, window.innerHeight || 800);
+        const heightBudget = Math.max(220, viewportHeight * 0.68);
+        const baseWidth = Math.max(1, Math.min(availableWidth, heightBudget, 780));
         const zoomFactor = Math.max(0.5, Math.min(5, Number(state.boardZoom) || 1));
         const gridWidth = baseWidth * zoomFactor;
         gridEl.style.width = `${gridWidth}px`;
