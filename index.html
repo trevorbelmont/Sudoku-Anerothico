@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sudoku Aneróthico PRÓ v6.0 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v6.1 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -37,7 +37,7 @@
         </div>
         <div class="header-title-block min-w-0">
           <h1 class="header-brand-title text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v6.0 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v6.1 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="header-subtitle text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -288,7 +288,7 @@
     </section>
 
     <!-- COLUNA CENTRAL / DIREITA -->
-    <section class="lg:col-span-8 flex flex-col gap-3.5 order-1 lg:order-2">
+    <section class="lg:col-span-8 flex flex-col gap-3.5 order-1 lg:order-2 board-focus-section">
 
       <div class="theme-panel rounded-2xl p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3">
         <!-- Timer -->
@@ -326,9 +326,9 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start board-focus-grid">
 
-        <div class="xl:col-span-9 flex flex-col items-center justify-center w-full">
+        <div class="xl:col-span-9 flex flex-col items-center justify-center w-full board-focus-board-column">
           <div id="sudoku-board-wrapper" class="w-full max-w-[560px] mx-auto relative">
             <div id="pause-overlay" class="hidden absolute inset-0 z-20 rounded-lg backdrop-blur-md bg-slate-900/75 flex flex-col items-center justify-center text-white p-6 text-center">
               <i class="fa-solid fa-pause-circle text-5xl mb-3 opacity-90"></i>
@@ -351,12 +351,24 @@
             <div id="sudoku-board-viewport" class="sudoku-board-viewport">
               <div id="sudoku-grid" role="grid" aria-label="Tabuleiro de Sudoku"></div>
             </div>
+            <button id="btn-exit-board-focus" type="button" class="hidden" aria-label="Restaurar interface normal" title="Restaurar interface normal (Esc)"><i class="fa-solid fa-compress mr-2"></i>Restaurar interface</button>
             
-            <!-- Zoom controls below the board; shortcut keys are also available. -->
+            <!-- Game title field -->
+            <div class="mt-4 flex items-center justify-center w-full">
+              <div class="theme-panel-alt px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm border border-slate-200 dark:border-slate-700/50">
+                <i class="fa-solid fa-tag text-xs opacity-60"></i>
+                <input type="text" id="game-name-input" placeholder="Nome da partida (opcional)" class="bg-transparent border-none focus:outline-none text-sm font-bold w-48 text-center" maxlength="25" />
+              </div>
+            </div>
+
+             <!-- Zoom controls below the board; shortcut keys are also available. -->
             <div id="board-zoom-controls" class="board-zoom-controls w-full max-w-[560px] mx-auto theme-panel-alt rounded-xl p-2.5 mb-2 flex flex-col gap-1.5 border" style="border-color: var(--board-border-cell);">
               <div class="flex items-center justify-between gap-2">
                 <label for="board-zoom" class="text-[11px] font-extrabold flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass-plus opacity-75"></i> Zoom do tabuleiro</label>
-                <output id="board-zoom-value" for="board-zoom" class="font-mono font-extrabold text-xs px-2 py-0.5 rounded-md theme-panel">100%</output>
+                <div class="flex items-center gap-2">
+                  <button id="btn-board-focus" type="button" class="theme-panel rounded-md px-2 py-1 text-[10px] font-extrabold border" title="Maximizar o tabuleiro (F11)" aria-label="Maximizar tabuleiro"><i class="fa-solid fa-expand mr-1"></i> Maximizar</button>
+                  <output id="board-zoom-value" for="board-zoom" class="font-mono font-extrabold text-xs px-2 py-0.5 rounded-md theme-panel">100%</output>
+                </div>
               </div>
               <div class="flex items-center gap-2">
                 <button id="btn-board-zoom-out" type="button" class="theme-panel rounded-md w-8 h-8 font-black text-base shrink-0" aria-label="Diminuir zoom" title="Diminuir zoom">−</button>
@@ -365,13 +377,6 @@
                 <button id="btn-board-zoom-reset" type="button" class="theme-panel rounded-md px-2 h-8 text-[10px] font-extrabold shrink-0" title="Voltar ao zoom de 100%">100%</button>
               </div>
               <p class="text-[10px] opacity-70 leading-tight">Em grades grandes, aumente o zoom para ler as notas do Modo Lápis. O tabuleiro pode ser rolado horizontalmente.</p>
-            </div>
-            <!-- Game title field -->
-            <div class="mt-4 flex items-center justify-center w-full">
-              <div class="theme-panel-alt px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm border border-slate-200 dark:border-slate-700/50">
-                <i class="fa-solid fa-tag text-xs opacity-60"></i>
-                <input type="text" id="game-name-input" placeholder="Nome da partida (opcional)" class="bg-transparent border-none focus:outline-none text-sm font-bold w-48 text-center" maxlength="25" />
-              </div>
             </div>
 
           </div>
@@ -428,7 +433,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.0</div>
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.1</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -450,6 +455,7 @@
         <div><span class="opacity-70 block">Dimensão do Grid:</span><strong id="victory-dim" class="text-sm font-mono">9×9 (3×3)</strong></div>
         <div><span class="opacity-70 block">Intervalo Usado:</span><strong id="victory-range" class="text-sm font-mono">1 a 9</strong></div>
       </div>
+      <div id="nasa-contribution-summary" class="w-full rounded-xl border border-cyan-400/50 p-3 text-left theme-panel-alt text-xs font-bold" aria-live="polite">🪐 Número de contribuições da NASA <span id="nasa-contribution-count">0</span> | <span id="nasa-contribution-percent">0%</span></div>
       <div id="multiplayer-victory-banner" class="hidden w-full rounded-2xl border border-fuchsia-400/50 p-3 text-left theme-panel-alt">
         <div id="multiplayer-victory-title" class="font-black text-sm">🏆 Resultado da sala</div>
         <p id="multiplayer-victory-message" class="text-xs opacity-85 mt-1"></p>
@@ -508,6 +514,7 @@
             <li><strong>Modo Padrão vs. Customizado:</strong> No modo padrão, a grade é 9×9 (blocos 3×3) com números de 1 a 9. No modo customizado, você pode definir qualquer intervalo (incluindo números negativos e dezenas, com ou sem o zero), e o sistema dimensiona matematicamente a grade e seus sub-blocos.</li>
             <li><strong>Modo Lápis (Tecla N):</strong> Use para anotar pequenos candidatos em uma casa. Ao confirmar um valor definitivo em uma célula, o sistema remove automaticamente esse candidato das notas na mesma linha, coluna e sub-bloco.</li>
             <li><strong>Zoom do tabuleiro:</strong> Use os botões ou a barra que ficam abaixo do tabuleiro. Atalhos: <kbd>+</kbd> aumenta o zoom, <kbd>-</kbd> diminui e <kbd>R</kbd> restaura 100%. Ao editar símbolos negativos em uma casa, a tecla <kbd>-</kbd> continua disponível para digitar o sinal negativo.</li>
+            <li><strong>Atalhos rápidos:</strong> <kbd>H</kbd> chama a NASA (em multiplayer, abre uma votação); <kbd>E</kbd> solicita ligar/desligar o erro imediato (com votação na sala); e <kbd>I</kbd> alterna o destaque de números iguais. <kbd>F11</kbd> ou o botão Foco maximiza o tabuleiro; use o botão de restaurar ou <kbd>Esc</kbd> para voltar à interface normal. <kbd>N</kbd> continua alternando o Modo Lápis.</li>
             <li><strong>Rejogar a mesma instância:</strong> Após vencer, escolha <em>🔄Xô Tentar de novo essa Bagaça!🔄</em> para limpar os preenchimentos e as anotações e começar novamente com as mesmas pistas.</li>
             <li><strong>Modos de sala:</strong> <em>🤝 Prosa e Cafézin ☕</em> é cooperativo; <em>⚔️ Rinha de Galo 🐓</em> compara a contribuição de cada jogador. As métricas detalhadas aparecem ao concluir; na Rinha, a exibição em tempo real é opcional.</li>
             <li><strong>Votações da sala:</strong> Pedidos para chamar a NASA e ativar/desativar o erro imediato são votados pelos jogadores conectados. Use aprovar, negar ou abster-se no aviso discreto sem precisar interromper a partida.</li>
@@ -632,7 +639,20 @@
       <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
         <div class="relative pl-4 border-l-2 border-fuchsia-500">
           <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.0 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.1 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1 mb-3">
+            <li><strong>Correção:</strong> Recupera e reforça o Modo Lápis em todas as dimensões, com renderização responsiva das notas e roteamento multiplayer compatível com cada modo de sala.</li>
+            <li><strong>Multiplayer:</strong> No modo ⚔️ Rinha de Galo 🐓, as anotações são privadas e não são enviadas aos adversários; no modo 🤝 Prosa e Cafézin ☕, as notas continuam compartilhadas, inclusive ao limpar candidatos relacionados a uma jogada.</li>
+            <li><strong>Métricas:</strong> Ações <code>NASA</code> são contadas separadamente no histórico de movimentos do Firebase e excluídas da pontuação de jogadores.</li>
+            <li><strong>Visual:</strong> Casas preenchidas pela NASA recebem um preenchimento colorido e padronizado entre temas, sem alterar a cor do símbolo ou os demais indicadores de erro e foco.</li>
+            <li><strong>Novo:</strong> Modo de foco em tela cheia, com botão para restaurar a interface e suporte ao atalho <kbd>F11</kbd> quando permitido pelo navegador.</li>
+            <li><strong>Atalhos:</strong> <kbd>H</kbd> chama a NASA (com votação em multiplayer), <kbd>E</kbd> solicita a alteração do erro imediato (com votação em salas) e <kbd>I</kbd> alterna o destaque de números iguais.</li>
+            <li><strong>Compatibilidade:</strong> Jogos salvos anteriores continuam sendo carregados; partidas antigas sem dados de atribuição da NASA recebem valores padrão seguros.</li>
+          </ul>
+        </div>
+        <div class="relative pl-4 border-l-2 border-blue-500">
+          <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v6.0 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
           <ul class="list-disc pl-5 opacity-90 space-y-1">
             <li><strong>Melhoria:</strong> Controle de zoom reposicionado abaixo do tabuleiro, com atalhos de teclado <kbd>+</kbd>, <kbd>-</kbd> e <kbd>R</kbd>; o enquadramento em 100% adapta a largura à tela e à altura disponível.</li>
             <li><strong>Novo:</strong> Rejogar a instância atual após a vitória, limpando respostas e notas sem gerar novas pistas; em salas, a reinicialização é sincronizada para todos.</li>

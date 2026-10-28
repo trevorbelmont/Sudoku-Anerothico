@@ -29,7 +29,7 @@ async function processOCRImageSource(imageSource) {
             state.mode = 'standard'; state.difficulty = 'medio'; state.minVal = 1; state.maxVal = 9; state.includeZero = false; state.symbols = symbols; state.N = 9; state.blockR = 3; state.blockC = 3;
             state.initial = Array.from({ length: 9 }, () => Array(9).fill('')); 
             state.board = recognizedInitial.map(row => row.slice());
-            state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set())); 
+            state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set())); state.nasaContributions = Array.from({ length: 9 }, () => Array(9).fill(false)); state.nasaCalls = 0;
             state.revealedErrors = Array.from({ length: 9 }, () => Array(9).fill(false)); 
             state.gameId = 'ocr_manual_' + Date.now(); state.gameName = 'OCR ' + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); document.getElementById('game-name-input').value = state.gameName; state.timerSeconds = 0; state.completed = false;
             state.isManualCreating = true;
@@ -42,7 +42,7 @@ async function processOCRImageSource(imageSource) {
 
           state.mode = 'standard'; state.difficulty = 'medio'; state.minVal = 1; state.maxVal = 9; state.includeZero = false; state.symbols = symbols; state.N = 9; state.blockR = 3; state.blockC = 3;
           state.initial = recognizedInitial; state.solution = solved; state.board = recognizedInitial.map(row => row.slice());
-          state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set())); state.revealedErrors = Array.from({ length: 9 }, () => Array(9).fill(false)); state.gameId = 'ocr_' + Date.now(); state.gameName = 'OCR ' + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); document.getElementById('game-name-input').value = state.gameName; state.timerSeconds = 0; state.completed = false;
+          state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set())); state.nasaContributions = Array.from({ length: 9 }, () => Array(9).fill(false)); state.revealedErrors = Array.from({ length: 9 }, () => Array(9).fill(false)); state.gameId = 'ocr_' + Date.now(); state.gameName = 'OCR ' + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); document.getElementById('game-name-input').value = state.gameName; state.timerSeconds = 0; state.completed = false;
           syncModeTabsUI(); updateHeaderSubtitle(); renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
           closeModal('modal-ocr'); showToast('Grade 9×9 importada via OCR com sucesso!', 'success');
         } catch (e) { statusText.textContent = 'Erro ao processar OCR.'; }

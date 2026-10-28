@@ -10,6 +10,8 @@ function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEY
             minVal: state.minVal, maxVal: state.maxVal, includeZero: state.includeZero, symbols: state.symbols,
             N: state.N, blockR: state.blockR, blockC: state.blockC, solution: state.solution, initial: state.initial,
             board: state.board, notes: state.notes.map(row => row.map(set => Array.from(set))), revealedErrors: state.revealedErrors,
+            nasaContributions: (ensureNasaContributionGrid(), state.nasaContributions.map(row => row.slice())),
+            nasaCalls: Math.max(0, Number(state.nasaCalls) || 0),
             timerSeconds: state.timerSeconds, completed: state.completed, gameName: state.gameName
           };
           const existingIdx = games.findIndex(g => g.gameId === state.gameId);
@@ -28,12 +30,15 @@ function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEY
         state.symbols = record.symbols || buildSymbolsFromRange(1, 9, false); state.N = record.N || state.symbols.length;
         const dims = computeBlockDimensions(state.N); state.blockR = record.blockR || dims.blockR; state.blockC = record.blockC || dims.blockC;
         state.solution = record.solution; state.initial = record.initial; state.board = record.board;
-        state.notes = record.notes.map(row => row.map(arr => new Set(arr))); state.revealedErrors = record.revealedErrors || Array.from({ length: state.N }, () => Array(state.N).fill(false));
+        state.notes = (record.notes || Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => []))).map(row => row.map(arr => new Set(arr || []))); state.revealedErrors = record.revealedErrors || Array.from({ length: state.N }, () => Array(state.N).fill(false));
+        state.nasaContributions = Array.from({ length: state.N }, (_, r) => Array.from({ length: state.N }, (_, c) => !!(record.nasaContributions && record.nasaContributions[r] && record.nasaContributions[r][c])));
+        const savedNasaCells = state.nasaContributions.flat().filter(Boolean).length;
+        state.nasaCalls = Math.max(0, Number.isFinite(Number(record.nasaCalls)) ? Number(record.nasaCalls) : savedNasaCells);
         state.timerSeconds = record.timerSeconds || 0; state.completed = !!record.completed; state.isManualCreating = false;
         const mcBarLoad = document.getElementById('manual-create-bar'); if (mcBarLoad) { mcBarLoad.classList.remove('flex'); mcBarLoad.classList.add('hidden'); }
         state.focusedCell = { r: 0, c: 0 }; state.highlightedSymbol = null;
         syncModeTabsUI(); updateHeaderSubtitle(); document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
-        renderVirtualNumpad(); renderSudokuBoard();
+        renderVirtualNumpad(); renderSudokuBoard(); updateNasaContributionSummary();
         if (state.completed) pauseTimer(); else startTimer();
       }
       function updateSavedBadgeCount(gamesList) { document.getElementById('saved-count-badge').textContent = (gamesList || getAllSavedGames()).length; }

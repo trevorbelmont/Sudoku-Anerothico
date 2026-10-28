@@ -226,7 +226,8 @@ function computeContributionStats() {
     const contributions = state.multiplayer.contributions && typeof state.multiplayer.contributions === 'object' ? state.multiplayer.contributions : {};
     const counts = new Map();
     Object.values(contributions).forEach(entry => {
-        if (!entry || !entry.playerId) return;
+        // NASA is a separate contribution category, never a player's completion credit.
+        if (!entry || !entry.playerId || isNASAContributionEntry(entry)) return;
         const current = counts.get(entry.playerId) || { playerId: entry.playerId, name: entry.playerName || 'Jogador', count: 0 };
         current.count += 1;
         if (entry.playerName) current.name = entry.playerName;
@@ -241,7 +242,8 @@ function computeContributionStats() {
     });
     if (state.multiplayer.playerId && !counts.has(state.multiplayer.playerId)) counts.set(state.multiplayer.playerId, { playerId: state.multiplayer.playerId, name: state.multiplayer.playerName || 'Você', count: 0 });
     const rows = Array.from(counts.values());
-    const total = rows.reduce((sum, item) => sum + item.count, 0);
+    const nasaCount = getNasaContributionStats().count;
+    const total = rows.reduce((sum, item) => sum + item.count, 0) + nasaCount;
     rows.forEach(item => { item.percent = total ? Math.round(item.count / total * 100) : 0; });
     return rows.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'pt-BR'));
 }

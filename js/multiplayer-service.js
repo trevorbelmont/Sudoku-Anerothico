@@ -69,11 +69,37 @@ function getFirebaseAPI() {
           return valid;
       }
 
+      function createNasaMoveHistory(count) {
+          // When an already-played local game becomes a room, preserve its NASA-call count in the existing moves log.
+          // Invalid coordinates make these history-only entries inert for the board and cursor logic.
+          const history = {};
+          const total = Math.max(0, Math.min(10000, Math.floor(Number(count) || 0)));
+          const now = Date.now();
+          for (let index = 1; index <= total; index++) {
+              history[`nasa_history_${String(index).padStart(5, '0')}`] = {
+                  action: 'NASA', row: -1, column: -1, value: '', userId: `nasa-history-${index}`,
+                  userName: 'NASA (histórico)', timestamp: now - (total - index)
+              };
+          }
+          return history;
+      }
+
+      function serializeExistingNasaContributions() {
+          ensureNasaContributionGrid();
+          const result = {};
+          const timestamp = Date.now();
+          for (let r = 0; r < state.N; r++) for (let c = 0; c < state.N; c++) {
+              if (!state.nasaContributions[r][c] || state.board[r][c] === '' || state.initial[r][c] !== '') continue;
+              result[`${r}_${c}`] = { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp };
+          }
+          return result;
+      }
+
       function serializeCurrentRoomBoard(instanceNumber = state.multiplayer.instanceCount) {
           return {
               boardInstanceNumber: instanceNumber,
               boardValues: state.board.map(row => row.map(value => value == null ? '' : String(value))),
-              pencilNotes: state.notes.map(row => row.map(notes => Array.from(notes || []))),
+              pencilNotes: state.multiplayer.roomMode === 'versus' ? null : state.notes.map(row => row.map(notes => Array.from(notes || []))),
               elapsedSeconds: state.timerSeconds,
               isCompleted: !!state.completed,
               gameName: state.gameName || '',
@@ -96,15 +122,33 @@ function getFirebaseAPI() {
           }
           state.multiplayer.pendingBoardState = null;
           const wasCompleted = !!state.completed;
+          const previousBoard = state.board.map(row => row.slice());
           const incomingElapsed = Number.isFinite(Number(roomState.elapsedSeconds)) ? Number(roomState.elapsedSeconds) : 0;
           if (roomState.isCompleted || wasCompleted) state.timerSeconds = incomingElapsed;
           state.completed = !!roomState.isCompleted;
           state.board = roomState.boardValues.map(row => row.map(value => value == null ? '' : String(value)));
-          const notesData = Array.isArray(roomState.pencilNotes) ? roomState.pencilNotes : [];
-          state.notes = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => {
-              const cellNotes = notesData[r] && Array.isArray(notesData[r][c]) ? notesData[r][c] : [];
-              return new Set(cellNotes.map(String).filter(symbol => state.symbols.includes(symbol)));
-          }));
+          if (state.multiplayer.roomMode === 'versus') {
+              // Keep private annotations local, but still apply normal Sudoku candidate cleanup
+              // when an opponent fills a cell with a new value.
+              for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+                  const incoming = state.board[r][c];
+                  const previous = previousBoard[r] ? previousBoard[r][c] : '';
+                  if (incoming !== '' && incoming !== previous) {
+                      if (state.notes[r] && state.notes[r][c]) state.notes[r][c].clear();
+                      removeAutoNotesPeers(r, c, incoming);
+                  }
+              }
+          }
+          if (state.multiplayer.roomMode !== 'versus') {
+              const notesData = Array.isArray(roomState.pencilNotes) ? roomState.pencilNotes : [];
+              state.notes = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => {
+                  const cellNotes = notesData[r] && Array.isArray(notesData[r][c]) ? notesData[r][c] : [];
+                  return new Set(cellNotes.map(String).filter(symbol => state.symbols.includes(symbol)));
+              }));
+          } else {
+              // Versus: never apply notes received from Firebase; keep this client's candidate marks private.
+              ensureNasaContributionGrid();
+          }
           if (roomState.gameName) {
               state.gameName = String(roomState.gameName);
               const nameInput = document.getElementById('game-name-input');
@@ -148,7 +192,7 @@ function getFirebaseAPI() {
           const boardStateRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState'));
           fb.update(boardStateRef, {
               boardValues: state.board.map(row => row.map(value => value == null ? '' : String(value))),
-              pencilNotes: state.notes.map(row => row.map(notes => Array.from(notes || []))),
+              pencilNotes: state.multiplayer.roomMode === 'versus' ? null : state.notes.map(row => row.map(notes => Array.from(notes || []))),
               elapsedSeconds: state.timerSeconds,
               isCompleted: !!state.completed,
               gameName: state.gameName || '',
@@ -165,14 +209,19 @@ function getFirebaseAPI() {
           // Atualização por célula, para que jogadas simultâneas em casas diferentes não se sobrescrevam.
           const patch = {
               [`boardValues/${row}/${column}`]: state.board[row][column] == null ? '' : String(state.board[row][column]),
-              [`pencilNotes/${row}/${column}`]: Array.from(state.notes[row][column] || []),
               lastUpdatedByPlayerId: state.multiplayer.playerId,
               updatedAtTimestamp: Date.now(),
               isCompleted: !!state.completed,
               elapsedSeconds: state.timerSeconds,
               gameName: state.gameName || ''
           };
-          if (includePeerNotes) {
+          if (state.multiplayer.roomMode === 'versus') {
+              // Remove any legacy note data from the shared room node and do not stream new notes.
+              patch.pencilNotes = null;
+          } else {
+              patch[`pencilNotes/${row}/${column}`] = Array.from(state.notes[row][column] || []);
+          }
+          if (includePeerNotes && state.multiplayer.roomMode !== 'versus') {
               const affected = new Set();
               for (let index = 0; index < state.N; index++) {
                   affected.add(`${row},${index}`);
@@ -236,6 +285,9 @@ function getFirebaseAPI() {
           if (solved) state.solution = solved.map(row => row.slice());
           state.board = state.initial.map(row => row.slice());
           state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+          state.nasaContributions = Array.from({ length: state.N }, () => Array(state.N).fill(false));
+          state.nasaCalls = 0;
+          state.multiplayer.contributions = {};
           state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false));
           state.timerSeconds = 0;
           state.completed = false;
@@ -266,6 +318,8 @@ function getFirebaseAPI() {
 
       function pushMoveToFirebase(action, row, column, value) {
           if (!state.multiplayer.active || !state.multiplayer.roomId) return;
+          // Pencil edits in competitive rooms stay local: do not even publish their symbol in the move log.
+          if (action === 'NOTE' && state.multiplayer.roomMode === 'versus') return;
           const fb = getFirebaseAPI();
           if (!fb) return;
           ensureMultiplayerColor();
@@ -283,13 +337,29 @@ function getFirebaseAPI() {
           };
           const movesRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'moves'));
           fb.push(movesRef, movePayload).catch(error => console.error('Erro ao enviar jogada para o Firebase:', error));
-          if (action !== 'FOCUS') publishRoomBoardCell(row, column, action === 'SET');
-          if ((action === 'SET' || action === 'ERASE') && row >= 0 && column >= 0) {
+          if (action !== 'FOCUS') publishRoomBoardCell(row, column, action === 'SET' || action === 'NASA');
+          if (['SET', 'ERASE', 'NASA'].includes(action) && row >= 0 && column >= 0) {
+              state.multiplayer.contributions = state.multiplayer.contributions || {};
+              const localKey = `${row}_${column}`;
+              if (action === 'NASA' && String(value ?? '') !== '') {
+                  state.multiplayer.contributions[localKey] = { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() };
+              } else if (action === 'SET' && String(value ?? '') !== '') {
+                  state.multiplayer.contributions[localKey] = { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() };
+              } else {
+                  delete state.multiplayer.contributions[localKey];
+              }
+              updateAllCellVisuals();
+              renderMultiplayerSidebar();
+              updateNasaContributionSummary();
               const attributionRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `contributions/${row}_${column}`));
-              const hasValue = action === 'SET' && String(value ?? '') !== '';
-              const operation = hasValue
-                  ? fb.set(attributionRef, { playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() })
-                  : fb.remove(attributionRef);
+              let operation;
+              if (action === 'NASA' && String(value ?? '') !== '') {
+                  operation = fb.set(attributionRef, { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() });
+              } else if (action === 'SET' && String(value ?? '') !== '') {
+                  operation = fb.set(attributionRef, { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() });
+              } else {
+                  operation = fb.remove(attributionRef);
+              }
               operation.catch(error => console.error('Falha ao atualizar a contribuição da célula:', error));
           }
       }
@@ -375,6 +445,8 @@ function getFirebaseAPI() {
 
           state.multiplayer.listeners.push(fb.onValue(contributionsRef, snapshot => {
               state.multiplayer.contributions = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
+              updateAllCellVisuals();
+              updateNasaContributionSummary();
               renderMultiplayerSidebar();
               const victoryModal = document.getElementById('modal-victory');
               if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
@@ -411,8 +483,20 @@ function getFirebaseAPI() {
           state.multiplayer.listeners.push(fb.onValue(proposalRef, snapshot => onRoomProposalChanged(snapshot.val())));
           state.multiplayer.listeners.push(fb.onValue(movesRef, snapshot => {
               const moves = snapshot.val();
-              if (!moves) return;
+              if (!moves || typeof moves !== 'object') {
+                  if (state.nasaCalls !== 0) { state.nasaCalls = 0; updateNasaContributionSummary(); saveCurrentGameState(); }
+                  return;
+              }
               const entries = Object.entries(moves).sort((a, b) => Number((a[1] || {}).timestamp || 0) - Number((b[1] || {}).timestamp || 0));
+              const nasaMoveCount = entries.filter(([, move]) => move && (move.action || move.act) === 'NASA').length;
+              if (nasaMoveCount !== Number(state.nasaCalls || 0)) {
+                  state.nasaCalls = nasaMoveCount;
+                  updateNasaContributionSummary();
+                  renderMultiplayerSidebar();
+                  saveCurrentGameState();
+                  const victoryModal = document.getElementById('modal-victory');
+                  if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
+              }
               entries.forEach(([moveId, move]) => {
                   if (state.multiplayer.processedMoveIds[moveId]) return;
                   state.multiplayer.processedMoveIds[moveId] = true;
@@ -499,7 +583,7 @@ function getFirebaseAPI() {
           state.multiplayer.peers = {};
           state.multiplayer.players = {};
           state.multiplayer.members = {};
-          state.multiplayer.contributions = {};
+          state.multiplayer.contributions = serializeExistingNasaContributions();
           state.multiplayer.currentFeatureVote = null;
           state.multiplayer.gameResult = null;
           state.gameId = 'mp_' + roomId + '_0';
@@ -513,8 +597,8 @@ function getFirebaseAPI() {
           Promise.all([
               fb.set(fb.child(roomRef, 'meta'), metaPayload),
               fb.set(fb.child(roomRef, 'boardState'), boardState),
-              fb.set(fb.child(roomRef, 'moves'), {}),
-              fb.set(fb.child(roomRef, 'contributions'), {}),
+              fb.set(fb.child(roomRef, 'moves'), createNasaMoveHistory(state.nasaCalls)),
+              fb.set(fb.child(roomRef, 'contributions'), state.multiplayer.contributions),
               fb.set(fb.child(roomRef, 'members'), {}),
               fb.set(fb.child(roomRef, 'settings'), { immediateErrorCheck: false }),
               fb.remove(fb.child(roomRef, 'featureVote'))

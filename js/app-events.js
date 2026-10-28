@@ -22,6 +22,8 @@ function initEventListeners() {
         document.getElementById('btn-board-zoom-out').addEventListener('click', () => setBoardZoom(Number(zoomSlider.value) - 25));
         document.getElementById('btn-board-zoom-in').addEventListener('click', () => setBoardZoom(Number(zoomSlider.value) + 25));
         document.getElementById('btn-board-zoom-reset').addEventListener('click', () => setBoardZoom(100));
+        document.getElementById('btn-board-focus').addEventListener('click', () => toggleBoardFocusMode(true));
+        document.getElementById('btn-exit-board-focus').addEventListener('click', () => toggleBoardFocusMode(false));
         let lastBoardViewportWidth = document.getElementById('sudoku-board-viewport').clientWidth;
         let lastBoardViewportHeight = window.innerHeight;
         window.addEventListener('resize', () => {
@@ -61,7 +63,7 @@ function initEventListeners() {
         document.getElementById('btn-manual-create').addEventListener('click', () => {
           const { N } = state; state.isManualCreating = true;
           state.initial = Array.from({ length: N }, () => Array(N).fill('')); state.board = Array.from({ length: N }, () => Array(N).fill(''));
-          state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set())); state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false)); state.solution = Array.from({ length: N }, () => Array(N).fill(''));
+          state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set())); state.nasaContributions = Array.from({ length: N }, () => Array(N).fill(false)); state.nasaCalls = 0; state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false)); state.solution = Array.from({ length: N }, () => Array(N).fill(''));
           state.completed = false; state.timerSeconds = 0; pauseTimer(); document.getElementById('timer-display').textContent = '00:00';
           document.getElementById('manual-create-bar').classList.remove('hidden'); document.getElementById('manual-create-bar').classList.add('flex');
           renderVirtualNumpad(); renderSudokuBoard(); showToast('Modo Criação: Preencha as pistas e clique em Iniciar Partida.', 'info');
@@ -187,6 +189,11 @@ function initEventListeners() {
             const fb = getFirebaseAPI();
             const oldRoomId = state.multiplayer.roomId;
             const presenceRef = state.multiplayer.presenceRef;
+            // Keep received NASA attribution markers when continuing the current board offline.
+            Object.entries(state.multiplayer.contributions || {}).forEach(([key, entry]) => {
+              const parts = key.split('_').map(Number);
+              if (parts.length === 2 && parts.every(Number.isInteger)) setNasaContributionCell(parts[0], parts[1], isNASAContributionEntry(entry));
+            });
             stopRoomListeners();
             if (fb && presenceRef) fb.remove(presenceRef).catch(() => {});
             state.multiplayer.active = false;
@@ -245,10 +252,55 @@ function initEventListeners() {
           const isSudokuCell = !!(active && active.id && active.id.startsWith('cell-input-'));
           const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || (active && active.isContentEditable);
           const isConfigInput = active && ['custom-min-input', 'custom-max-input', 'load-code-input', 'game-name-input', 'multiplayer-name-input', 'multiplayer-room-input'].includes(active.id);
-          if ((e.key === '+' || e.key === '=' ) && !isConfigInput && (!isTyping || isSudokuCell)) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) + 25); return; }
-          if (e.key === '-' && !isConfigInput && (!isTyping || (isSudokuCell && !state.symbols.some(symbol => String(symbol).startsWith('-'))))) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) - 25); return; }
-          if ((e.key === 'r' || e.key === 'R') && !isConfigInput && (!isTyping || isSudokuCell)) { e.preventDefault(); setBoardZoom(100); return; }
-          if (!isTyping && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); togglePencilMode(); }
+          const key = String(e.key || '');
+          const lower = key.toLowerCase();
+          const canUseGlobalShortcut = !e.ctrlKey && !e.metaKey && !e.altKey && !isConfigInput && (!isTyping || isSudokuCell || state.boardFocusMode);
+
+          if (key === 'F11') {
+            e.preventDefault();
+            toggleBoardFocusMode(!state.boardFocusMode);
+            return;
+          }
+          if (key === 'Escape' && state.boardFocusMode) {
+            e.preventDefault();
+            toggleBoardFocusMode(false);
+            return;
+          }
+          if ((key === '+' || key === '=') && canUseGlobalShortcut) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) + 25); return; }
+          if (key === '-' && canUseGlobalShortcut && (!isTyping || (isSudokuCell && !state.symbols.some(symbol => String(symbol).startsWith('-'))) || state.boardFocusMode)) { e.preventDefault(); setBoardZoom(Number(document.getElementById('board-zoom').value) - 25); return; }
+          if ((lower === 'r') && canUseGlobalShortcut) { e.preventDefault(); setBoardZoom(100); return; }
+          if (canUseGlobalShortcut && lower === 'n') { e.preventDefault(); togglePencilMode(); return; }
+          if (canUseGlobalShortcut && lower === 'h' && !state.symbols.includes(key.toUpperCase())) {
+            e.preventDefault();
+            if (state.multiplayer.active && state.multiplayer.roomId) requestFeatureVote('nasa'); else giveNasaHint();
+            return;
+          }
+          if (canUseGlobalShortcut && lower === 'e') {
+            e.preventDefault();
+            const requested = !state.immediateErrorCheck;
+            if (state.multiplayer.active && state.multiplayer.roomId) requestFeatureVote('immediateError', requested);
+            else {
+              state.immediateErrorCheck = requested;
+              const toggle = document.getElementById('toggle-immediate-error'); if (toggle) toggle.checked = requested;
+              updateAllCellVisuals();
+              showToast(`Erro imediato ${requested ? 'ativado' : 'desativado'}.`, 'info');
+            }
+            return;
+          }
+          if (canUseGlobalShortcut && lower === 'i') {
+            e.preventDefault();
+            state.highlightSameNumbers = !state.highlightSameNumbers;
+            const toggle = document.getElementById('toggle-highlight-same'); if (toggle) toggle.checked = state.highlightSameNumbers;
+            updateAllCellVisuals();
+            showToast(`Destacar iguais ${state.highlightSameNumbers ? 'ativado' : 'desativado'}.`, 'info');
+          }
+        });
+        // F11 may be handled by the browser before it reaches the page. Keep the application focus
+        // state aligned with standard fullscreen changes whenever the Fullscreen API is available.
+        document.addEventListener('fullscreenchange', () => {
+          if (!document.fullscreenElement && state.boardFocusMode) toggleBoardFocusMode(false);
+          else if (document.fullscreenElement && !state.boardFocusMode) toggleBoardFocusMode(true);
+          else if (state.boardFocusMode && state.board) renderSudokuBoard();
         });
       }
 

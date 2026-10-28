@@ -1,4 +1,4 @@
-# Sudoku Aneróthico PRÓ v6.0
+# Sudoku Aneróthico PRÓ v6.1
 
 ## Execução local no Windows
 
@@ -45,7 +45,7 @@ Altere os valores em `js/firebase-config.js` para apontar a aplicação a outro 
 
 Para priorizar a continuidade de funcionamento, os arquivos de lógica ainda compartilham o escopo global clássico do navegador. A separação por arquivos já torna mais claro onde cada responsabilidade está, mas os módulos de jogo e multiplayer não são ainda componentes ES isolados com dependências injetadas. `multiplayer-service.js` e `multiplayer-voting.js` ainda dependem do estado/integração do Sudoku. Em outro projeto Firebase, a configuração de conexão pode ser reutilizada, mas reaproveitar a lógica completa de sala sem adaptações exigirá separar um serviço multiplayer genérico da camada de integração do jogo.
 
-## Recursos v6.0
+## Recursos da versão v6.0 (mantidos)
 
 - O zoom fica abaixo do tabuleiro e aceita os atalhos `+`, `-` e `R` para ampliar, reduzir e restaurar 100%. O tabuleiro adapta sua largura à área visível e limita o tamanho em função da altura da janela.
 - Após concluir uma partida, `🔄Xô Tentar de novo essa Bagaça!🔄` reinicia a instância com as mesmas pistas. Em uma sala multiplayer, a ação é confirmada antes de limpar o tabuleiro compartilhado.
@@ -55,3 +55,10 @@ Para priorizar a continuidade de funcionamento, os arquivos de lógica ainda com
 ## Verificação
 
 Todos os arquivos `.js` passaram na verificação sintática do Node.js. A validação de sintaxe não substitui testes funcionais em navegador, nem testes de concorrência com duas sessões Firebase reais.
+
+## Versão 6.1 — correções e recursos adicionais
+
+- O Modo Lápis usa slots responsivos em todas as dimensões suportadas. As notas são compartilhadas em salas cooperativas e permanecem locais no modo competitivo.
+- Cada uso da NASA é registrado como uma ação `NASA` no histórico de movimentos do Firebase. A contagem é cumulativa por instância e a porcentagem é calculada separadamente das casas atribuídas aos jogadores; o preenchimento especial identifica apenas as casas ainda atribuídas à NASA.
+- O modo de foco maximiza o tabuleiro e mantém um botão para restaurar a interface. Atalhos adicionais: `H` (NASA), `E` (votação/alternância do erro imediato), `I` (destacar iguais) e `F11` (modo de foco, conforme suporte do navegador).
+

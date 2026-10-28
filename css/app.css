@@ -794,7 +794,7 @@
 }
 
 
-/* v6.0: board-fit sizing, below-board zoom controls, persistent multiplayer vote card */
+/* v6.1: resilient pencil overlay, NASA cell attribution, and board focus mode */
 #sudoku-board-wrapper { max-width: none !important; }
 #sudoku-board-viewport { width: 100%; }
 #sudoku-grid { margin-left: auto; margin-right: auto; }
@@ -816,3 +816,99 @@
   .mp-feature-vote-toast #mp-feature-vote-expanded { max-height: 45vh; }
   .board-zoom-controls { width: 100%; }
 }
+
+
+/* v6.1: Pencil notes remain legible and visible across every supported grid size. */
+.sudoku-cell .pencil-grid {
+  z-index: 3;
+  grid-auto-flow: row;
+  align-content: stretch;
+  justify-content: stretch;
+  pointer-events: none;
+}
+.sudoku-cell .pencil-note {
+  font-size: inherit;
+  line-height: 1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: clip;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* v6.2: NASA attribution animates only the digit, never the cell or its outline.
+   The filter acts on the transparent text input's painted glyph, preserving the
+   static cell fills, focused/error/same-number indicators, and every theme. */
+@keyframes nasaGlyphShimmer {
+  0%, 100% {
+    filter: brightness(1) saturate(1) hue-rotate(0deg) drop-shadow(0 0 0 rgba(34, 211, 238, 0));
+  }
+  50% {
+    filter: brightness(1.38) saturate(1.35) hue-rotate(20deg) drop-shadow(0 0 4px rgba(34, 211, 238, 0.92));
+  }
+}
+.sudoku-cell.is-nasa-contribution .sudoku-input {
+  animation: nasaGlyphShimmer 2.4s ease-in-out infinite;
+  will-change: filter;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sudoku-cell.is-nasa-contribution .sudoku-input {
+    animation: none;
+    filter: brightness(1.2) saturate(1.15) drop-shadow(0 0 3px rgba(34, 211, 238, 0.8));
+    will-change: auto;
+  }
+}
+#btn-exit-board-focus {
+  position: fixed;
+  z-index: 100000;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  padding: .7rem .9rem;
+  border: 1px solid rgba(6,182,212,.75);
+  border-radius: .8rem;
+  background: rgba(15,23,42,.92);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+body.board-focus-mode { overflow: hidden !important; background: var(--bg-app); }
+body.board-focus-mode > #main-app-header,
+body.board-focus-mode > footer,
+body.board-focus-mode > main > section:first-child { display: none !important; }
+body.board-focus-mode > main {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  overflow: hidden !important;
+  z-index: 99990 !important;
+}
+body.board-focus-mode > main > section:not(.board-focus-section) { display: none !important; }
+body.board-focus-mode .board-focus-section {
+  display: block !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important;
+}
+body.board-focus-mode .board-focus-section > * { display: none !important; }
+body.board-focus-mode .board-focus-section > .board-focus-grid { display: block !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; }
+body.board-focus-mode .board-focus-grid > * { display: none !important; }
+body.board-focus-mode .board-focus-grid > .board-focus-board-column { display: flex !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; align-items: center !important; justify-content: center !important; }
+body.board-focus-mode #sudoku-board-wrapper {
+  display: flex !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important;
+  max-width: none !important; margin: 0 !important; padding: 0 !important; align-items: center !important; justify-content: center !important;
+  overflow: auto !important; z-index: 99995 !important; border-radius: 0 !important;
+}
+body.board-focus-mode #sudoku-board-wrapper > * { display: none !important; }
+body.board-focus-mode #sudoku-board-wrapper > #sudoku-board-viewport { display: block !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; max-width: none !important; overflow: auto !important; border-radius: 0 !important; }
+body.board-focus-mode #sudoku-board-viewport #sudoku-grid { margin: auto !important; }
+body.board-focus-mode #sudoku-board-wrapper > #btn-exit-board-focus { display: block !important; }
+body.board-focus-mode #sudoku-board-viewport { scrollbar-width: thin; }
+@media (max-width: 640px) {
+  #btn-exit-board-focus { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+}
+
+.sudoku-cell .pencil-note-empty { visibility: hidden; }
