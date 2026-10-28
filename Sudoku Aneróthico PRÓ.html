@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Sudoku Aneróthico PRÓ v5.0 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v5.1 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -50,21 +50,43 @@
     /* Avatares Multiplayer */
     .mp-avatar {
         position: absolute;
-        top: 2px;
-        right: 2px;
-        width: 14px;
-        height: 14px;
+        bottom: 0px;
+        left: 50%;
+        transform: translate(-50%, 50%);
+        width: 16px;
+        height: 16px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 9px;
+        font-size: 10px;
         font-weight: 800;
         color: #ffffff;
         z-index: 10;
         box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-        opacity: 0.9;
+        opacity: 0.95;
         pointer-events: none;
+    }
+    
+    .mp-avatars-container {
+        position: absolute;
+        bottom: 0px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 2px;
+        pointer-events: none;
+        z-index: 10;
+        transform: translateY(35%);
+    }
+    
+    .mp-avatars-container .mp-avatar {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        transform: none;
     }
     
     @keyframes avatarPulse {
@@ -740,7 +762,7 @@
         </div>
         <div>
           <h1 class="text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v5.0 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v5.1 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -1111,7 +1133,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v5.0</div>
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v5.1</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -1304,7 +1326,18 @@
         
         <div class="relative pl-4 border-l-2 border-blue-500">
           <div class="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.0 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-blue-600 dark:text-blue-400 mb-1">v5.1 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="list-disc pl-5 opacity-90 space-y-1">
+            <li><strong>Novo:</strong> Avatares Flexíveis. Os indicadores visuais coloridos agora suportam múltiplos cursores sobre a mesma célula sem tampar as notas do Modo Lápis (ancorados lado a lado na aresta inferior da casa).</li>
+            <li><strong>Novo:</strong> Consenso de Instância. Gerar um novo tabuleiro no meio de uma sala ativa exige o voto de Aceitar/Negar dos conectados, prevenindo interrupções abruptas.</li>
+            <li><strong>Novo:</strong> Versionamento de Séries. Múltiplos tabuleiros gerados seguidos na mesma sala são salvos e identificados sequencialmente (ex: `Sala Namorados #0`, `#1`, etc).</li>
+            <li><strong>Correção:</strong> As anotações de lápis (candidates) agora são processadas corretamente no streaming de rede.</li>
+          </ul>
+        </div>
+
+        <div class="relative pl-4 border-l-2 border-green-500">
+          <div class="absolute w-3 h-3 bg-green-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-green-600 dark:text-green-400 mb-1">v5.0</h3>
           <ul class="list-disc pl-5 opacity-90 space-y-1">
             <li><strong>Novo:</strong> Sistema de Desconexão. Botão para encerrar a sincronização multiplayer e continuar a partida offline de onde parou.</li>
             <li><strong>Novo:</strong> Visualização de Jogadores Ativos. Os avatares de todos conectados na sala aparecem agora em uma lista fixa ao lado, com nome completo por tooltip no hover.</li>
@@ -1437,6 +1470,29 @@
     </div>
   </div>
   
+  <!-- MODAL 10: VOTAÇÃO NOVO JOGO -->
+  <div id="modal-vote-newgame" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/70 backdrop-blur-md p-4">
+    <div class="theme-panel rounded-3xl max-w-sm w-full p-6 text-center flex flex-col gap-4 animate-bounce-once border-2 border-amber-500 shadow-2xl">
+      <div class="flex justify-center mb-1">
+         <div class="w-16 h-16 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-3xl shadow-lg">
+           <i class="fa-solid fa-wand-magic-sparkles"></i>
+         </div>
+      </div>
+      <div>
+        <h2 class="text-xl font-black tracking-tight">Nova Partida Solicitada</h2>
+        <p class="text-sm opacity-85 mt-2 leading-relaxed">
+          <strong id="vote-proposer-name" class="text-amber-600 dark:text-amber-400">Alguém</strong> quer sortear um novo tabuleiro 
+          <strong id="vote-dim">9x9</strong> (<span id="vote-diff">Fácil</span>).
+        </p>
+      </div>
+      <div class="flex gap-3 mt-3">
+        <button id="btn-vote-reject" type="button" class="flex-1 py-2.5 rounded-xl theme-panel-alt font-bold text-sm shadow-sm transition hover:opacity-90 border">Negar</button>
+        <button id="btn-vote-accept" type="button" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md transition">Aceitar</button>
+      </div>
+      <div id="vote-wait-msg" class="hidden text-xs font-bold text-amber-600 animate-pulse mt-2">Aguardando outros jogadores...</div>
+    </div>
+  </div>
+
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <script>
@@ -1505,7 +1561,8 @@
             playerName: 'Jogador',
             playerId: 'player_' + Math.random().toString(36).substr(2, 9),
             listener: null,
-            lastProcessedSeq: 0
+            lastProcessedSeq: 0,
+            instanceCount: 0
         }
       };
 
@@ -1554,6 +1611,138 @@
                       listContainer.appendChild(peerItem);
                   }
               });
+          }
+      }
+
+      
+      function requestNewGameConsensus() {
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          
+          let N = 9, difficulty = state.difficulty;
+          if (state.mode === 'custom') {
+              const cfg = updateCustomRangePreview();
+              if (!cfg) { showToast('Ajuste o intervalo.', 'warn'); return; }
+              N = cfg.N;
+          }
+          
+          const proposalId = 'prop_' + Date.now();
+          const propRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal`);
+          fb.set(propRef, {
+              id: proposalId,
+              proposerId: state.multiplayer.playerId,
+              proposerName: state.multiplayer.playerName,
+              mode: state.mode,
+              difficulty: difficulty,
+              minVal: state.mode === 'custom' ? document.getElementById('custom-min-input').value : 1,
+              maxVal: state.mode === 'custom' ? document.getElementById('custom-max-input').value : 9,
+              includeZero: state.mode === 'custom' ? document.getElementById('custom-include-zero').checked : false
+          });
+          
+          // Abre o modal de espera para o próprio criador
+          document.getElementById('vote-proposer-name').textContent = "Você";
+          document.getElementById('vote-dim').textContent = `${N}x${N}`;
+          document.getElementById('vote-diff').textContent = DIFFICULTY_LABELS[difficulty] || difficulty;
+          document.getElementById('btn-vote-reject').classList.add('hidden');
+          document.getElementById('btn-vote-accept').classList.add('hidden');
+          document.getElementById('vote-wait-msg').classList.remove('hidden');
+          openModal('modal-vote-newgame');
+      }
+
+      function handleNewGameProposal(prop) {
+          if (!prop || !state.multiplayer.active) return;
+          state.multiplayer.currentProposal = prop;
+          
+          // Se fui eu que propus, apenas espero.
+          if (prop.proposerId === state.multiplayer.playerId) return;
+          
+          let N = 9;
+          if (prop.mode === 'custom') {
+              const syms = buildSymbolsFromRange(parseInt(prop.minVal), parseInt(prop.maxVal), prop.includeZero);
+              N = syms.length;
+          }
+          
+          document.getElementById('vote-proposer-name').textContent = prop.proposerName;
+          document.getElementById('vote-dim').textContent = `${N}x${N}`;
+          document.getElementById('vote-diff').textContent = DIFFICULTY_LABELS[prop.difficulty] || prop.difficulty;
+          
+          document.getElementById('btn-vote-reject').classList.remove('hidden');
+          document.getElementById('btn-vote-accept').classList.remove('hidden');
+          document.getElementById('vote-wait-msg').classList.add('hidden');
+          openModal('modal-vote-newgame');
+      }
+      
+      function executeMultiplayerNewGame(prop) {
+          // O host (ou quem quer que tenha os poderes, vamos deixar o host atual gerar a matrix para sincronizar)
+          // Na verdade, para garantir q todos fiquem sincronizados, quem propôs deve gerar a matrix e subir no Meta!
+          if (prop.proposerId === state.multiplayer.playerId) {
+              
+              // Incrementa contagem da instancia global
+              state.multiplayer.instanceCount++;
+              
+              // Gera o puzzle
+              let N = 9, blockR = 3, blockC = 3, minVal = parseInt(prop.minVal), maxVal = parseInt(prop.maxVal), includeZero = prop.includeZero, symbols = buildSymbolsFromRange(1, 9, false);
+              if (prop.mode === 'custom') {
+                  symbols = buildSymbolsFromRange(minVal, maxVal, includeZero);
+                  N = symbols.length;
+                  const dims = computeBlockDimensions(N);
+                  blockR = dims.blockR; blockC = dims.blockC;
+              }
+              const { solution, initial } = createUniqueSudokuPuzzle(N, blockR, blockC, symbols, prop.difficulty);
+              
+              const fb = getFirebaseAPI();
+              const roomRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}`);
+              
+              const metaPayload = {
+                  createdAt: Date.now(),
+                  ownerId: prop.proposerId,
+                  instanceCount: state.multiplayer.instanceCount,
+                  m: prop.mode,
+                  d: prop.difficulty,
+                  N: N,
+                  bR: blockR,
+                  bC: blockC,
+                  s: symbols,
+                  i: initial,
+                  sol: solution
+              };
+              
+              // Limpa o histórico de movimentos antigo
+              fb.remove(fb.child(roomRef, 'moves'));
+              
+              // Grava o novo Meta
+              fb.set(fb.child(roomRef, 'meta'), metaPayload).then(() => {
+                  fb.remove(fb.child(roomRef, 'proposal'));
+              });
+          }
+      }
+      
+      function forceApplyNewMetaState(meta) {
+          closeModal('modal-vote-newgame');
+          const validMeta = validateGameState(meta);
+          if (validMeta) {
+              state.mode = meta.m || 'standard'; 
+              state.difficulty = meta.d || 'medio';
+              state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
+              state.initial = validMeta.initial; 
+              const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
+              if (solved) state.solution = solved;
+              
+              state.board = validMeta.initial.map(r => r.slice()); 
+              state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
+              state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false)); 
+              state.timerSeconds = 0; state.completed = false;
+              
+              state.multiplayer.instanceCount = meta.instanceCount || 0;
+              state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
+              state.gameName = 'Sala: ' + state.multiplayer.roomId + ' #' + state.multiplayer.instanceCount;
+              document.getElementById('game-name-input').value = state.gameName;
+              
+              state.multiplayer.lastProcessedSeq = 0; // Zera para a nova rodada
+              
+              syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle();
+              renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
+              showToast(`Novo tabuleiro gerado!`, 'success');
           }
       }
 
@@ -1621,7 +1810,7 @@
               state.board[r][c] = val;
               state.notes[r][c].clear();
               removeAutoNotesPeers(r, c, val);
-          } else if (move.act === 'NOTE') {
+          } else if (mAction === 'NOTE') {
               if (state.board[r][c] !== '') state.board[r][c] = '';
               if (state.notes[r][c].has(val)) {
                   state.notes[r][c].delete(val);
@@ -1660,6 +1849,15 @@
                   return;
               }
               
+              // Se a sala mudar (nova instância votada e gerada), força a atualização
+              if (state.multiplayer.active && state.multiplayer.roomId === roomId) {
+                  const currentInstance = meta.instanceCount || 0;
+                  if (currentInstance > state.multiplayer.instanceCount) {
+                      forceApplyNewMetaState(meta);
+                  }
+                  return;
+              }
+              
               // Se for a primeira leitura, inicializa o jogo com os dados da sala
               if (!state.multiplayer.active) {
                   state.multiplayer.active = true;
@@ -1684,7 +1882,9 @@
                       state.timerSeconds = 0; state.completed = false;
                       
                       // Define o nome da partida local automaticamente como o nome da sala
-                      state.gameName = 'Sala: ' + roomId;
+                      state.multiplayer.instanceCount = meta.instanceCount || 0;
+                      state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
+                      state.gameName = 'Sala: ' + roomId + ' #' + state.multiplayer.instanceCount;
                       document.getElementById('game-name-input').value = state.gameName;
                       
                       syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle();
@@ -1698,6 +1898,32 @@
                       showToast(`Conectado à sala ${roomId}!`, 'success');
                       
                       // 2. Inicia o listener de movimentos
+                      
+                      // 3. Listener para votações de novo jogo
+                      const propRef = fb.ref(fb.db, `rooms/${roomId}/proposal`);
+                      fb.onValue(propRef, (propSnap) => {
+                          const prop = propSnap.val();
+                          if (!prop) {
+                              // Se a proposta foi removida (negada ou concluída), fecha o modal se estiver aberto
+                              if (document.getElementById('modal-vote-newgame').classList.contains('flex')) {
+                                  closeModal('modal-vote-newgame');
+                                  if (state.multiplayer.currentProposal && state.multiplayer.currentProposal.proposerId === state.multiplayer.playerId) {
+                                      // Fui eu que propus e sumiu sem gerar o board, logo foi negado
+                                      showToast('Sua proposta foi negada pelo parceiro.', 'warn');
+                                  }
+                              }
+                              state.multiplayer.currentProposal = null;
+                          } else {
+                              if (prop.acceptedBy) {
+                                  // Alguém aceitou, gera o jogo se eu for o proposer!
+                                  executeMultiplayerNewGame(prop);
+                              } else {
+                                  // Nova proposta na mesa
+                                  handleNewGameProposal(prop);
+                              }
+                          }
+                      });
+
                       const movesRef = fb.ref(fb.db, `rooms/${roomId}/moves`);
                       fb.onValue(movesRef, (movesSnap) => {
                           const moves = movesSnap.val();
@@ -1743,6 +1969,7 @@
           const metaPayload = {
               createdAt: Date.now(),
               ownerId: state.multiplayer.playerId,
+              instanceCount: state.multiplayer.instanceCount,
               m: state.mode,
               d: state.difficulty,
               N: state.N,
@@ -1757,7 +1984,9 @@
           fb.set(fb.child(roomRef, 'meta'), metaPayload).then(() => {
               
               // Define o nome da partida local automaticamente como o nome da sala
-              state.gameName = 'Sala: ' + roomId;
+              state.multiplayer.instanceCount = 0;
+              state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
+                      state.gameName = 'Sala: ' + roomId + ' #' + state.multiplayer.instanceCount;
               document.getElementById('game-name-input').value = state.gameName;
               saveCurrentGameState();
               // Simula um join na própria sala recém criada
@@ -1790,6 +2019,32 @@
               state.multiplayer.lastProcessedSeq = initialSeq;
               
               // Inicia listener local
+              
+                      // 3. Listener para votações de novo jogo
+                      const propRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal`);
+                      fb.onValue(propRef, (propSnap) => {
+                          const prop = propSnap.val();
+                          if (!prop) {
+                              // Se a proposta foi removida (negada ou concluída), fecha o modal se estiver aberto
+                              if (document.getElementById('modal-vote-newgame').classList.contains('flex')) {
+                                  closeModal('modal-vote-newgame');
+                                  if (state.multiplayer.currentProposal && state.multiplayer.currentProposal.proposerId === state.multiplayer.playerId) {
+                                      // Fui eu que propus e sumiu sem gerar o board, logo foi negado
+                                      showToast('Sua proposta foi negada pelo parceiro.', 'warn');
+                                  }
+                              }
+                              state.multiplayer.currentProposal = null;
+                          } else {
+                              if (prop.acceptedBy) {
+                                  // Alguém aceitou, gera o jogo se eu for o proposer!
+                                  executeMultiplayerNewGame(prop);
+                              } else {
+                                  // Nova proposta na mesa
+                                  handleNewGameProposal(prop);
+                              }
+                          }
+                      });
+
               const movesRef = fb.child(roomRef, 'moves');
               fb.onValue(movesRef, (movesSnap) => {
                   const moves = movesSnap.val();
@@ -2191,24 +2446,30 @@
           });
           
           // Renderiza Avatares Multiplayer (se algum peer clicou recentemente nesta casa)
-          const oldAvatar = cellDiv.querySelector('.mp-avatar');
-          if (oldAvatar) oldAvatar.remove();
+          const oldContainer = cellDiv.querySelector('.mp-avatars-container');
+          if (oldContainer) oldContainer.remove();
           cellDiv.classList.remove('has-mp-cursor');
           
           if (state.multiplayer && state.multiplayer.peers) {
               const now = Date.now();
-              Object.values(state.multiplayer.peers).forEach(peer => {
-                  if (peer.row === r && peer.column === c && (now - peer.lastSeen < 60000)) { // Limpa visualmente se ocluso por mais de 1 min
+              const activePeers = Object.values(state.multiplayer.peers).filter(p => p.row === r && p.column === c && (now - p.lastSeen < 60000));
+              
+              if (activePeers.length > 0) {
+                  const avContainer = document.createElement('div');
+                  avContainer.className = 'mp-avatars-container';
+                  
+                  activePeers.forEach(peer => {
                       const av = document.createElement('div');
                       av.className = 'mp-avatar';
                       av.style.backgroundColor = peer.color;
                       av.textContent = peer.name.charAt(0).toUpperCase();
-                      cellDiv.appendChild(av);
+                      avContainer.appendChild(av);
                       
                       cellDiv.classList.add('has-mp-cursor');
-                      cellDiv.style.setProperty('--avatar-color', peer.color);
-                  }
-              });
+                      cellDiv.style.setProperty('--avatar-color', peer.color); // Se houver vários, a borda pega a cor do último, mas as bolinhas ficam emparelhadas.
+                  });
+                  cellDiv.appendChild(avContainer);
+              }
           }
 
         });
@@ -2695,7 +2956,15 @@
         ['custom-min-input', 'custom-max-input', 'custom-include-zero'].forEach(id => { document.getElementById(id).addEventListener('input', updateCustomRangePreview); document.getElementById(id).addEventListener('change', updateCustomRangePreview); });
         document.querySelectorAll('.preset-range-btn').forEach(btn => btn.addEventListener('click', () => { const [minS, maxS, zeroS] = btn.dataset.preset.split(','); document.getElementById('custom-min-input').value = minS; document.getElementById('custom-max-input').value = maxS; document.getElementById('custom-include-zero').checked = (zeroS === '1'); updateCustomRangePreview(); }));
         document.querySelectorAll('.diff-btn').forEach(btn => btn.addEventListener('click', () => { state.difficulty = btn.dataset.diff; syncDifficultyButtonsUI(); }));
-        document.getElementById('btn-new-game').addEventListener('click', () => { startNewGame(); showToast(`Novo Sudoku (${DIFFICULTY_LABELS[state.difficulty]}) gerado!`, 'info'); });
+        document.getElementById('btn-new-game').addEventListener('click', () => { 
+            if (state.multiplayer.active && state.multiplayer.roomId) {
+                // Modo Multiplayer: Pede permissão para a sala
+                requestNewGameConsensus();
+            } else {
+                startNewGame(); 
+                showToast(`Novo Sudoku (${DIFFICULTY_LABELS[state.difficulty]}) gerado!`, 'info'); 
+            }
+        });
         
         document.getElementById('btn-pause-timer').addEventListener('click', togglePauseGame);
         document.getElementById('btn-resume-overlay').addEventListener('click', togglePauseGame);
@@ -2765,6 +3034,27 @@
         });
         
         document.getElementById('btn-close-multiplayer').addEventListener('click', () => closeModal('modal-multiplayer'));
+        
+        document.getElementById('btn-vote-reject').addEventListener('click', () => {
+            const fb = getFirebaseAPI();
+            fb.remove(fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal`));
+            closeModal('modal-vote-newgame');
+            showToast('Proposta negada.', 'info');
+        });
+        
+        document.getElementById('btn-vote-accept').addEventListener('click', () => {
+            document.getElementById('btn-vote-reject').classList.add('hidden');
+            document.getElementById('btn-vote-accept').classList.add('hidden');
+            document.getElementById('vote-wait-msg').textContent = 'Processando...';
+            document.getElementById('vote-wait-msg').classList.remove('hidden');
+            
+            const fb = getFirebaseAPI();
+            // Avisa o host/proposer que ele já pode gerar o novo board.
+            // Para simplificar: apenas disparamos um sinal verde no campo "acceptedBy"
+            const propRef = fb.ref(fb.db, `rooms/${state.multiplayer.roomId}/proposal/acceptedBy`);
+            fb.set(propRef, state.multiplayer.playerId);
+        });
+
         document.getElementById('btn-disconnect-room').addEventListener('click', () => {
             if (!state.multiplayer.active) return;
             state.multiplayer.active = false;
