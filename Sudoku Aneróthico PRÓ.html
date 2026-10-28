@@ -1704,11 +1704,12 @@
                           if (!moves) return;
                           
                           // Processa de forma sequencial
-                          const moveList = Object.values(moves).sort((a, b) => a.seq - b.seq);
+                          const getSeq = (obj) => obj.sequence !== undefined ? obj.sequence : obj.seq;
+                          const moveList = Object.values(moves).sort((a, b) => getSeq(a) - getSeq(b));
                           let needsRender = false;
                           
                           moveList.forEach(m => {
-                              if (m.seq > state.multiplayer.lastProcessedSeq) {
+                              if (getSeq(m) > state.multiplayer.lastProcessedSeq) {
                                   processIncomingMove(m);
                                   needsRender = true;
                               }
@@ -1793,9 +1794,10 @@
               fb.onValue(movesRef, (movesSnap) => {
                   const moves = movesSnap.val();
                   if (!moves) return;
-                  const moveList = Object.values(moves).sort((a, b) => a.seq - b.seq);
+                  const getSeq = (obj) => obj.sequence !== undefined ? obj.sequence : obj.seq;
+                  const moveList = Object.values(moves).sort((a, b) => getSeq(a) - getSeq(b));
                   moveList.forEach(m => {
-                      if (m.seq > state.multiplayer.lastProcessedSeq) {
+                      if (getSeq(m) > state.multiplayer.lastProcessedSeq) {
                           processIncomingMove(m);
                       }
                   });
