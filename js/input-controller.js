@@ -52,26 +52,19 @@
 
       function applySymbolToCell(r, c, symbol) {
         if (state.completed || state.initial[r][c] !== '' || !state.symbols.includes(symbol)) return;
-        if (isCellProtectedByAnotherPlayer(r, c)) { showToast('Essa resposta correta está protegida: só quem a colocou pode alterá-la.', 'warn'); return; }
         state.revealedErrors[r][c] = false;
         if (state.pencilMode) {
-          let eraseSync = Promise.resolve({ committed: true });
           if (state.board[r][c] !== '') {
             state.board[r][c] = '';
             setNasaContributionCell(r, c, false);
             // Removing a filled cell is a real board move and remains shared in both room modes.
-            // Keep the erase promise so the following pencil-note update cannot race it.
-            eraseSync = pushMoveToFirebase('ERASE', r, c, '');
+            pushMoveToFirebase('ERASE', r, c, '');
           }
           if (state.notes[r][c].has(symbol)) state.notes[r][c].delete(symbol);
           else state.notes[r][c].add(symbol);
-          const notePresent = state.notes[r][c].has(symbol);
           // Pencil marks are collaborative in Prosa e Cafézin, but private in Rinha de Galo.
           if (!state.multiplayer.active || !state.multiplayer.roomId || state.multiplayer.roomMode !== 'versus') {
-            Promise.resolve(eraseSync).catch(() => null).then(() => {
-              // Capture the user's intent before the ERASE transaction refreshes local notes.
-              return pushMoveToFirebase('NOTE', r, c, symbol, notePresent);
-            });
+            pushMoveToFirebase('NOTE', r, c, symbol);
           }
           state.highlightedSymbol = symbol; updateCellPencilDOM(r, c);
         } else {
@@ -99,7 +92,6 @@
 
       function eraseCell(r, c) {
         if (state.completed || state.initial[r][c] !== '') return;
-        if (isCellProtectedByAnotherPlayer(r, c)) { showToast('Essa resposta correta está protegida: só quem a colocou pode apagá-la.', 'warn'); return; }
         state.board[r][c] = ''; state.notes[r][c].clear(); state.revealedErrors[r][c] = false; state.highlightedSymbol = null; setNasaContributionCell(r, c, false);
         pushMoveToFirebase('ERASE', r, c, '');
         updateCellPencilDOM(r, c); updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();
@@ -123,6 +115,7 @@
         removeAutoNotesPeers(chosen.r, chosen.c, correctSymbol); updateCellPencilDOM(chosen.r, chosen.c); updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();
         if (state.multiplayer.active && state.multiplayer.roomId) {
           pushMoveToFirebase('NASA', chosen.r, chosen.c, correctSymbol);
+          publishRoomBoardState();
         }
         const inputEl = document.getElementById(`cell-input-${chosen.r}-${chosen.c}`);
         if (inputEl && inputEl.parentElement) { inputEl.parentElement.classList.remove('nasa-hint-flash'); void inputEl.parentElement.offsetWidth; inputEl.parentElement.classList.add('nasa-hint-flash'); inputEl.focus(); }

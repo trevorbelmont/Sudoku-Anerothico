@@ -1,121 +1,40 @@
 'use strict';
 
-      function normalizeSymbolMatrix(matrix, N, symbols) {
-        if (!Array.isArray(matrix) || matrix.length !== N) return null;
-        const normalized = [];
-        for (let r = 0; r < N; r++) {
-          if (!Array.isArray(matrix[r]) || matrix[r].length !== N) return null;
-          const row = [];
-          for (let c = 0; c < N; c++) {
-            const raw = matrix[r][c];
-            const value = raw == null || raw === '' ? '' : String(raw);
-            if (value !== '' && !symbols.includes(value)) return null;
-            row.push(value);
-          }
-          normalized.push(row);
-        }
-        return normalized;
-      }
-
       function isValidMatrix(matrix, N, symbols) {
-        return normalizeSymbolMatrix(matrix, N, symbols) !== null;
-      }
-
-      function isGridRuleValid(matrix, N, blockR, blockC, symbols, requireComplete = false) {
-        if (!Number.isInteger(N) || N < 4 || N > 25 || !Number.isInteger(blockR) || !Number.isInteger(blockC) ||
-            blockR < 1 || blockC < 1 || blockR * blockC !== N || N % blockR !== 0 || N % blockC !== 0 ||
-            !Array.isArray(symbols) || symbols.length !== N || new Set(symbols).size !== N) return false;
-        const normalized = normalizeSymbolMatrix(matrix, N, symbols);
-        if (!normalized) return false;
+        if (!Array.isArray(matrix) || matrix.length !== N) return false;
         for (let r = 0; r < N; r++) {
-          const rowSeen = new Set();
-          const colSeen = new Set();
+          if (!Array.isArray(matrix[r]) || matrix[r].length !== N) return false;
           for (let c = 0; c < N; c++) {
-            const rv = normalized[r][c];
-            const cv = normalized[c][r];
-            if (requireComplete && (rv === '' || cv === '')) return false;
-            if (rv !== '') { if (rowSeen.has(rv)) return false; rowSeen.add(rv); }
-            if (cv !== '') { if (colSeen.has(cv)) return false; colSeen.add(cv); }
-          }
-        }
-        for (let br = 0; br < N; br += blockR) {
-          for (let bc = 0; bc < N; bc += blockC) {
-            const seen = new Set();
-            for (let r = br; r < br + blockR; r++) {
-              for (let c = bc; c < bc + blockC; c++) {
-                const value = normalized[r][c];
-                if (value === '') { if (requireComplete) return false; continue; }
-                if (seen.has(value)) return false;
-                seen.add(value);
-              }
-            }
+            const val = matrix[r][c];
+            if (val !== '' && !symbols.includes(val)) return false;
           }
         }
         return true;
-      }
-
-      function boardPreservesInitial(board, initial, N) {
-        if (!Array.isArray(board) || !Array.isArray(initial) || board.length !== N || initial.length !== N) return false;
-        for (let r = 0; r < N; r++) {
-          if (!Array.isArray(board[r]) || !Array.isArray(initial[r]) || board[r].length !== N || initial[r].length !== N) return false;
-          for (let c = 0; c < N; c++) {
-            if (initial[r][c] !== '' && board[r][c] !== initial[r][c]) return false;
-          }
-        }
-        return true;
-      }
-
-      function solutionMatchesInitial(solution, initial, N, blockR, blockC, symbols) {
-        const normalizedSolution = normalizeSymbolMatrix(solution, N, symbols);
-        if (!normalizedSolution || normalizedSolution.some(row => row.some(value => value === ''))) return false;
-        if (!isGridRuleValid(normalizedSolution, N, blockR, blockC, symbols, true)) return false;
-        return boardPreservesInitial(normalizedSolution, initial, N);
       }
 
       function validateGameState(data) {
-        if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-        const rawN = data.dimension ?? data.N;
-        const N = Number(rawN);
-        if (!Number.isInteger(N) || N < 4 || N > 25) return null;
-        const bR = Number(data.blockRow ?? data.bR ?? data.blockR);
-        const bC = Number(data.blockCol ?? data.bC ?? data.blockC);
-        if (!Number.isInteger(bR) || !Number.isInteger(bC) || bR < 1 || bC < 1 || bR * bC !== N || N % bR !== 0 || N % bC !== 0) return null;
-        const symList = data.symbols ?? data.s;
+        if (!data || typeof data !== 'object') return null;
+        const N = parseInt(data.dimension || data.N, 10);
+        if (isNaN(N) || N < 4 || N > 25) return null;
+        const bR = parseInt(data.blockRow || data.bR || data.blockR, 10);
+        const bC = parseInt(data.blockCol || data.bC || data.blockC, 10);
+        if (isNaN(bR) || isNaN(bC) || bR * bC !== N) return null;
+        const symList = data.symbols || data.s;
         if (!Array.isArray(symList) || symList.length !== N) return null;
-        const symbols = symList.map(value => value == null ? '' : String(value));
-        if (symbols.some(symbol => !symbol || symbol.length > 32) || new Set(symbols).size !== N) return null;
-
-        const rawInitial = data.initialGrid ?? data.initial ?? data.i;
-        const initial = normalizeSymbolMatrix(rawInitial, N, symbols);
-        if (!initial || !isGridRuleValid(initial, N, bR, bC, symbols, false)) return null;
-
-        const rawSol = data.solutionGrid ?? data.solution ?? data.sol;
-        const isManualCreating = data.isManualCreating === true;
-        let sol = null;
-        if (rawSol !== undefined && rawSol !== null) {
-          sol = normalizeSymbolMatrix(rawSol, N, symbols);
-          if (!sol) return null;
-          if (!isManualCreating && (sol.some(row => row.some(value => value === '')) || !isGridRuleValid(sol, N, bR, bC, symbols, true) || !boardPreservesInitial(sol, initial, N))) return null;
-        } else if (!isManualCreating) {
-          sol = null;
-        }
-        const modeValue = data.mode ?? data.m ?? 'standard';
-        const difficultyValue = data.difficulty ?? data.d ?? 'medio';
-        const mode = typeof modeValue === 'string' && modeValue.length <= 32 ? modeValue : 'standard';
-        const difficulty = typeof difficultyValue === 'string' && difficultyValue.length <= 32 ? difficultyValue : 'medio';
-        return {
-          N, bR, bC, symbols, initial, sol, mode, difficulty,
-          instanceCount: Number.isSafeInteger(Number(data.instanceCount)) && Number(data.instanceCount) >= 0 ? Number(data.instanceCount) : 0,
-          isManualCreating
-        };
+        const symbols = symList.map(String);
+        
+        const initial = data.initialGrid || data.initial || data.i;
+        if (!isValidMatrix(initial, N, symbols)) return null;
+        
+        const sol = data.solutionGrid || data.solution || data.sol;
+        if (sol && !isValidMatrix(sol, N, symbols)) return null;
+        
+        return { N, bR, bC, symbols, initial, sol, mode: data.mode || data.m || 'standard', difficulty: data.difficulty || data.d || 'medio', instanceCount: data.instanceCount || 0 };
       }
 
       function buildSymbolsFromRange(minVal, maxVal, includeZero) {
-        const rawMin = Number(minVal), rawMax = Number(maxVal);
-        if (!Number.isSafeInteger(rawMin) || !Number.isSafeInteger(rawMax) ||
-            Math.abs(rawMin) > 1000000 || Math.abs(rawMax) > 1000000 || Math.abs(rawMax - rawMin) > 25) return [];
-        const lo = Math.min(rawMin, rawMax);
-        const hi = Math.max(rawMin, rawMax);
+        const lo = Math.min(minVal, maxVal);
+        const hi = Math.max(minVal, maxVal);
         const arr = [];
         for (let v = lo; v <= hi; v++) {
           if (v === 0 && !includeZero) continue;
@@ -150,10 +69,6 @@
         const incZero = document.getElementById('custom-include-zero').checked;
         const previewEl = document.getElementById('custom-calc-preview');
         if (isNaN(minIn) || isNaN(maxIn)) { previewEl.innerHTML = `<span class="text-red-500 font-bold">Digite valores inteiros válidos.</span>`; return null; }
-        if (!Number.isSafeInteger(minIn) || !Number.isSafeInteger(maxIn) || Math.abs(minIn) > 1000000 || Math.abs(maxIn) > 1000000 || Math.abs(maxIn - minIn) > 25) {
-          previewEl.textContent = 'Intervalo inválido. Use inteiros com diferença máxima de 25 e valores entre -1.000.000 e 1.000.000.';
-          return null;
-        }
         const symbols = buildSymbolsFromRange(minIn, maxIn, incZero);
         const N = symbols.length;
         if (N < 4 || N > 25) { previewEl.innerHTML = `<span class="text-amber-500 font-bold">Total atual: ${N} números.</span> Escolha entre 4 e 25.`; return null; }

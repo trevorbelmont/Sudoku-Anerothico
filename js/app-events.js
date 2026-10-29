@@ -10,10 +10,10 @@ function initEventListeners() {
           headerToggle.setAttribute('aria-label', collapsed ? 'Expandir cabeçalho' : 'Recolher cabeçalho');
           document.getElementById('header-toggle-label').textContent = collapsed ? 'Expandir cabeçalho' : 'Recolher cabeçalho';
           document.getElementById('header-toggle-icon').className = `fa-solid ${collapsed ? 'fa-chevron-down' : 'fa-chevron-up'} text-xs`;
-          safeStorageSet('sudoku_anerothico_header_collapsed_v1', collapsed ? 'true' : 'false');
+          try { localStorage.setItem('sudoku_anerothico_header_collapsed_v1', collapsed ? 'true' : 'false'); } catch (_) {}
         };
         let savedHeaderState = false;
-        savedHeaderState = safeStorageGet('sudoku_anerothico_header_collapsed_v1') === 'true';
+        try { savedHeaderState = localStorage.getItem('sudoku_anerothico_header_collapsed_v1') === 'true'; } catch (_) {}
         setHeaderCollapsed(savedHeaderState);
         headerToggle.addEventListener('click', () => setHeaderCollapsed(header.dataset.headerCollapsed !== 'true'));
 
@@ -61,10 +61,6 @@ function initEventListeners() {
         document.getElementById('btn-check-solution').addEventListener('click', checkFullBoardSolution);
         
         document.getElementById('btn-manual-create').addEventListener('click', () => {
-          if (state.multiplayer.active && state.multiplayer.roomId) {
-            showToast('Saia da sala multiplayer antes de iniciar a criação manual.', 'warn');
-            return;
-          }
           const { N } = state; state.isManualCreating = true;
           state.initial = Array.from({ length: N }, () => Array(N).fill('')); state.board = Array.from({ length: N }, () => Array(N).fill(''));
           state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set())); state.nasaContributions = Array.from({ length: N }, () => Array(N).fill(false)); state.nasaCalls = 0; state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false)); state.solution = Array.from({ length: N }, () => Array(N).fill(''));
@@ -73,7 +69,6 @@ function initEventListeners() {
           renderVirtualNumpad(); renderSudokuBoard(); showToast('Modo Criação: Preencha as pistas e clique em Iniciar Partida.', 'info');
         });
         document.getElementById('btn-finish-manual').addEventListener('click', () => {
-          if (state.multiplayer.active && state.multiplayer.roomId) { showToast('A criação manual não pode alterar uma sala multiplayer ativa.', 'warn'); return; }
           let hasClues = false; for(let r=0; r<state.N; r++) for(let c=0; c<state.N; c++) if (state.board[r][c] !== '') hasClues = true;
           if (!hasClues) { showToast('Preencha ao menos uma pista!', 'warn'); return; }
           const newInitial = state.board.map(row => row.slice());
@@ -108,10 +103,6 @@ function initEventListeners() {
         
         document.getElementById('btn-open-history').addEventListener('click', () => { renderHistoryModalList(); openModal('modal-history'); });
         document.getElementById('btn-close-history').addEventListener('click', () => closeModal('modal-history'));
-        document.getElementById('btn-clear-history').addEventListener('click', () => {
-          if (!getAllSavedGames().length) { showToast('O histórico local já está vazio.', 'info'); return; }
-          if (window.confirm('Apagar todas as partidas salvas neste navegador? A partida aberta continuará na tela, mas deixará de ser salva automaticamente.')) clearSavedGameHistory();
-        });
         document.getElementById('tab-hist-ongoing').addEventListener('click', () => { state.historyTab = 'ongoing'; document.getElementById('tab-hist-ongoing').className = 'pb-2.5 border-b-2 border-current text-blue-500'; document.getElementById('tab-hist-completed').className = 'pb-2.5 border-b-2 border-transparent opacity-60 hover:opacity-100'; renderHistoryModalList(); });
         document.getElementById('tab-hist-completed').addEventListener('click', () => { state.historyTab = 'completed'; document.getElementById('tab-hist-completed').className = 'pb-2.5 border-b-2 border-current text-blue-500'; document.getElementById('tab-hist-ongoing').className = 'pb-2.5 border-b-2 border-transparent opacity-60 hover:opacity-100'; renderHistoryModalList(); });
         
@@ -123,7 +114,7 @@ function initEventListeners() {
         document.getElementById('btn-create-room').addEventListener('click', () => {
             const fb = getFirebaseAPI();
             if (!fb || !fb.db) { showToast('Carregando conexão de rede... Tente novamente em 2 segundos.', 'warn'); return; }
-            const savedName = safeStorageGet('sudoku_anerothico_mp_name') || '';
+            const savedName = localStorage.getItem('sudoku_anerothico_mp_name') || '';
             document.getElementById('multiplayer-name-input').value = savedName;
             openModal('modal-multiplayer');
         });
@@ -139,92 +130,58 @@ function initEventListeners() {
         document.querySelectorAll('[data-feature-vote]').forEach(button => button.addEventListener('click', () => castFeatureVote(button.dataset.featureVote)));
         
         
-        document.getElementById('btn-vote-cancel').addEventListener('click', async () => {
+        document.getElementById('btn-vote-cancel').addEventListener('click', () => {
             const fb = getFirebaseAPI();
             const proposal = state.multiplayer.currentProposal;
-            if (!fb || typeof fb.runTransaction !== 'function' || !state.multiplayer.roomId || !proposal || proposal.proposerId !== state.multiplayer.playerId || proposal.status !== 'pending') {
-                showToast('Somente quem propôs pode cancelar uma votação ainda pendente.', 'warn');
+            if (!fb || !state.multiplayer.roomId || !proposal || proposal.proposerId !== state.multiplayer.playerId) {
+                showToast('Somente quem propôs pode cancelar esta votação.', 'warn');
                 return;
             }
             const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
-            try {
-                const result = await fb.runTransaction(propRef, current => {
-                    if (!current || typeof current !== 'object' || Array.isArray(current) || current.proposalId !== proposal.proposalId || current.status !== 'pending' || current.proposerId !== state.multiplayer.playerId) return;
-                    return null;
-                }, false);
-                if (!result || !result.committed) {
-                    showToast('A votação já mudou ou foi concluída; atualizei o estado sem cancelar outra proposta.', 'warn');
-                    return;
-                }
-                closeModal('modal-vote-newgame');
+            state.multiplayer.currentProposal = { ...proposal, status: 'cancelled' };
+            closeModal('modal-vote-newgame');
+            fb.remove(propRef).then(() => {
+                state.multiplayer.currentProposal = null;
                 showToast('Você cancelou a proposta de novo tabuleiro.', 'info');
-            } catch (error) {
+            }).catch(error => {
                 console.error(error);
                 showToast('Não foi possível cancelar a proposta.', 'warn');
-            }
+            });
         });
 
-        document.getElementById('btn-vote-reject').addEventListener('click', async () => {
+        document.getElementById('btn-vote-reject').addEventListener('click', () => {
             const fb = getFirebaseAPI();
             const proposal = state.multiplayer.currentProposal;
-            if (!fb || typeof fb.runTransaction !== 'function' || !state.multiplayer.roomId || !proposal || proposal.status !== 'pending' || proposal.proposerId === state.multiplayer.playerId) return;
+            if (!fb || !state.multiplayer.roomId || !proposal || proposal.proposerId === state.multiplayer.playerId) return;
             const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
-            try {
-                const result = await fb.runTransaction(propRef, current => {
-                    if (!current || typeof current !== 'object' || Array.isArray(current) || current.proposalId !== proposal.proposalId || current.status !== 'pending') return;
-                    const required = Array.isArray(current.requiredPlayerIds) ? current.requiredPlayerIds : [];
-                    if (!required.includes(state.multiplayer.playerId) || current.proposerId === state.multiplayer.playerId) return;
-                    return {
-                        ...current,
-                        status: 'rejected',
-                        rejectedByPlayerId: state.multiplayer.playerId,
-                        rejectedByName: String(state.multiplayer.playerName || 'Jogador').slice(0, 40),
-                        rejectedAtTimestamp: Date.now()
-                    };
-                }, false);
-                if (!result || !result.committed) {
-                    showToast('A votação já mudou ou você não faz parte dela.', 'warn');
-                    return;
-                }
-                closeModal('modal-vote-newgame');
-            } catch (error) {
-                console.error(error);
-                showToast('Não foi possível registrar sua recusa.', 'warn');
-            }
+            fb.update(propRef, {
+                status: 'rejected',
+                rejectedByPlayerId: state.multiplayer.playerId,
+                rejectedByName: state.multiplayer.playerName,
+                rejectedAtTimestamp: Date.now()
+            }).then(() => closeModal('modal-vote-newgame'))
+              .catch(error => { console.error(error); showToast('Não foi possível registrar sua recusa.', 'warn'); });
         });
         
-        document.getElementById('btn-vote-accept').addEventListener('click', async () => {
+        document.getElementById('btn-vote-accept').addEventListener('click', () => {
             const fb = getFirebaseAPI();
             const proposal = state.multiplayer.currentProposal;
-            if (!fb || typeof fb.runTransaction !== 'function' || !state.multiplayer.roomId || !proposal || proposal.proposerId === state.multiplayer.playerId || proposal.status !== 'pending') return;
-            const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
-            try {
-                const result = await fb.runTransaction(propRef, current => {
-                    if (!current || typeof current !== 'object' || Array.isArray(current) || current.proposalId !== proposal.proposalId || current.status !== 'pending') return;
-                    const required = Array.isArray(current.requiredPlayerIds) ? current.requiredPlayerIds : [];
-                    if (!required.includes(state.multiplayer.playerId) || current.proposerId === state.multiplayer.playerId) return;
-                    const voters = current.voters && typeof current.voters === 'object' && !Array.isArray(current.voters) ? { ...current.voters } : {};
-                    if (voters[state.multiplayer.playerId]) return;
-                    voters[state.multiplayer.playerId] = {
-                        playerId: state.multiplayer.playerId,
-                        playerName: String(state.multiplayer.playerName || 'Jogador').slice(0, 40),
-                        playerColor: ensureMultiplayerColor(),
-                        acceptedAtTimestamp: Date.now()
-                    };
-                    return { ...current, voters };
-                }, false);
-                if (!result || !result.committed) {
-                    showToast('Seu aceite não foi registrado: a votação mudou ou você já votou.', 'warn');
-                    return;
-                }
-                document.getElementById('vote-action-buttons').classList.add('hidden');
-                document.getElementById('vote-wait-container').classList.remove('hidden');
-                document.getElementById('btn-vote-cancel').classList.add('hidden');
+            if (!fb || !state.multiplayer.roomId || !proposal || proposal.proposerId === state.multiplayer.playerId || proposal.status !== 'pending') return;
+            document.getElementById('vote-action-buttons').classList.add('hidden');
+            document.getElementById('vote-wait-container').classList.remove('hidden');
+            document.getElementById('btn-vote-cancel').classList.add('hidden');
+            const voteRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `proposal/voters/${state.multiplayer.playerId}`));
+            fb.set(voteRef, {
+                playerId: state.multiplayer.playerId,
+                playerName: state.multiplayer.playerName,
+                playerColor: ensureMultiplayerColor(),
+                acceptedAtTimestamp: Date.now()
+            }).then(() => {
                 showProposalWaitingState(proposal, false);
-            } catch (error) {
+            }).catch(error => {
                 console.error(error);
                 showToast('Não foi possível registrar seu aceite.', 'warn');
-            }
+            });
         });
 
         document.getElementById('btn-disconnect-room').addEventListener('click', () => {
@@ -239,18 +196,11 @@ function initEventListeners() {
             });
             stopRoomListeners();
             if (fb && presenceRef) fb.remove(presenceRef).catch(() => {});
-            if (fb && oldRoomId) {
-              fb.remove(fb.ref(fb.db, roomPath(oldRoomId, `members/${state.multiplayer.playerId}`))).catch(() => {});
-              fb.remove(fb.ref(fb.db, roomPath(oldRoomId, `cursors/${state.multiplayer.playerId}`))).catch(() => {});
-            }
             state.multiplayer.active = false;
             state.multiplayer.roomId = null;
             state.multiplayer.presenceRef = null;
             state.multiplayer.players = {};
-            state.multiplayer.members = {};
             state.multiplayer.peers = {};
-            state.multiplayer.cellContributions = {};
-            state.multiplayer.hasSharedNasaCounter = false;
             state.multiplayer.currentProposal = null;
             state.multiplayer.currentFeatureVote = null;
             renderFeatureVoteCard(null);
@@ -268,16 +218,17 @@ function initEventListeners() {
         document.getElementById('btn-host-room').addEventListener('click', () => {
             let name = document.getElementById('multiplayer-name-input').value.trim();
             if (!name) name = 'Anônimo';
-            safeStorageSet('sudoku_anerothico_mp_name', name);
+            localStorage.setItem('sudoku_anerothico_mp_name', name);
             hostRoom(name);
         });
         
         document.getElementById('btn-join-room').addEventListener('click', () => {
             let name = document.getElementById('multiplayer-name-input').value.trim();
             if (!name) name = 'Anônimo';
-            const room = document.getElementById('multiplayer-room-input').value.trim();
+            let room = document.getElementById('multiplayer-room-input').value.trim();
             if (!room) { showToast('Digite o nome/ID da sala para entrar.', 'warn'); return; }
-            safeStorageSet('sudoku_anerothico_mp_name', name);
+            room = room.replace(/[\.#\$\[\]/]/g, '_');
+            localStorage.setItem('sudoku_anerothico_mp_name', name);
             joinRoom(room, name);
         });
         
@@ -292,29 +243,7 @@ function initEventListeners() {
         
         document.getElementById('btn-open-ocr').addEventListener('click', () => openModal('modal-ocr'));
         document.getElementById('btn-close-ocr').addEventListener('click', () => closeModal('modal-ocr'));
-        document.getElementById('ocr-file-input').addEventListener('change', (e) => {
-          const file = e.target.files && e.target.files[0];
-          if (!file) return;
-          if (state.multiplayer.active && state.multiplayer.roomId) { showToast('Saia da sala multiplayer antes de importar uma imagem.', 'warn'); e.target.value = ''; return; }
-          const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/bmp', 'image/gif']);
-          if (!allowedTypes.has(String(file.type || '').toLowerCase()) || file.size <= 0 || file.size > 10 * 1024 * 1024) {
-            showToast('Selecione uma imagem PNG, JPEG, WEBP, BMP ou GIF de até 10 MB.', 'warn'); e.target.value = ''; return;
-          }
-          const img = new Image();
-          let objectUrl = '';
-          const cleanup = () => { if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = ''; } };
-          img.onload = async () => {
-            cleanup();
-            if (!img.naturalWidth || !img.naturalHeight || img.naturalWidth > 6000 || img.naturalHeight > 6000) {
-              showToast('A imagem precisa ter dimensões válidas de até 6000×6000 pixels.', 'warn'); e.target.value = ''; return;
-            }
-            await processOCRImageSource(img);
-            e.target.value = '';
-          };
-          img.onerror = () => { cleanup(); showToast('Não foi possível abrir essa imagem.', 'warn'); e.target.value = ''; };
-          try { objectUrl = URL.createObjectURL(file); img.src = objectUrl; }
-          catch (error) { cleanup(); showToast('Não foi possível carregar o arquivo de imagem.', 'warn'); e.target.value = ''; }
-        });
+        document.getElementById('ocr-file-input').addEventListener('change', (e) => { const file = e.target.files && e.target.files[0]; if (!file) return; const img = new Image(); img.onload = () => processOCRImageSource(img); img.src = URL.createObjectURL(file); });
         document.getElementById('btn-ocr-sample').addEventListener('click', () => processOCRImageSource(generateSamplePrintableCanvas()));
         
         window.addEventListener('keydown', (e) => {
@@ -377,13 +306,13 @@ function initEventListeners() {
       }
 
       function initApp() {
-        const savedTheme = safeStorageGet(STORAGE_KEYS.THEME) || 'rainbow';
+        const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'rainbow';
         applyTheme(savedTheme);
         initEventListeners();
         updateSavedBadgeCount();
         if (tryLoadSharedPuzzleFromURL()) return;
         const savedGames = getAllSavedGames();
-        const lastId = safeStorageGet(STORAGE_KEYS.CURRENT_GAME_ID);
+        const lastId = localStorage.getItem(STORAGE_KEYS.CURRENT_GAME_ID);
         const lastGame = savedGames.find(g => g.gameId === lastId && !g.completed) || savedGames.find(g => !g.completed);
         if (lastGame) loadSavedGameRecord(lastGame); else startNewGame();
       }

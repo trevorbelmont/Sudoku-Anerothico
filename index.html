@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
   <!-- Tesseract.js (OCR) & html2canvas (PNG Export) & Canvas Confetti -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
@@ -582,10 +582,7 @@
     <div class="theme-panel rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between px-6 py-4 border-b" style="border-color: var(--board-border-cell);">
         <h2 class="text-lg font-extrabold flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i><span>Partidas Salvas (Auto-Save)</span></h2>
-        <div class="flex items-center gap-2">
-          <button id="btn-clear-history" type="button" class="px-3 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white text-xs font-bold transition">Limpar histórico</button>
-          <button id="btn-close-history" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
-        </div>
+        <button id="btn-close-history" type="button" class="w-8 h-8 rounded-lg theme-panel-alt flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="flex border-b px-6 pt-3 gap-4 text-xs sm:text-sm font-bold" style="border-color: var(--board-border-cell);">
         <button id="tab-hist-ongoing" type="button" class="pb-2.5 border-b-2 border-current text-blue-500">Jogos em Andamento (<span id="count-ongoing">0</span>)</button>
@@ -854,7 +851,7 @@
         </label>
       </div>
       <p class="text-[10px] opacity-65 text-left leading-relaxed border-t pt-2" style="border-color: var(--board-border-cell);">
-        Privacidade: no multiplayer, o Firebase armazena o tabuleiro, as pistas, a solução necessária ao cliente, o estado de sincronização, a presença, as contribuições e até 500 eventos recentes de jogada. Para métricas, registramos navegador/versão, sistema operacional estimado, plataforma, idiomas, fuso horário, estado online e tipo de conexão; dimensões da tela/viewport e dados de profundidade/densidade de pixels não são coletados. Até 35 partidas locais, incluindo solução e anotações, podem permanecer no armazenamento deste navegador. Salas e métricas remotas não têm expiração automática implementada neste cliente. A privacidade e a integridade multiplayer também dependem das regras efetivamente configuradas no Firebase; esta versão cliente não impede que um participante tecnicamente modificado inspecione dados entregues ao navegador.
+        Privacidade: ao criar ou entrar em uma sala, o histórico do Firebase registra navegador/versão, sistema operacional estimado, idioma e fuso horário para métricas de diagnóstico. Resultados de partidas terminadas também são guardadas assim como suas métricas. As partidas em si não são guardadas.
       </p>
       <div class="flex gap-2 mt-2">
           <button id="btn-join-room" type="button" class="flex-1 py-3 rounded-xl theme-panel-alt border font-bold text-sm shadow-sm transition hover:opacity-90">
