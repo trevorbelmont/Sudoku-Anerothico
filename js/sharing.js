@@ -26,41 +26,83 @@ function copyTextToClipboard(text, successMessage) {
       }
 
       function processLoadedCode(encoded) {
+        if (state.multiplayer.active && state.multiplayer.roomId) {
+          showToast('Saia da sala multiplayer antes de importar um código.', 'warn');
+          return false;
+        }
         try {
-          const rawData = JSON.parse(decodeURIComponent(atob(encoded)));
-          const validMeta = validateGameState({ N: rawData.N || (rawData.s ? rawData.s.length : 0), bR: rawData.bR, bC: rawData.bC, s: rawData.s, i: rawData.i, sol: rawData.sol });
+          if (typeof encoded !== 'string' || encoded.length < 4 || encoded.length > 1000000) return false;
+          const decoded = decodeURIComponent(atob(encoded));
+          if (decoded.length > 750000) return false;
+          const rawData = JSON.parse(decoded);
+          if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) return false;
+          const validMeta = validateGameState({
+            N: rawData.N || (Array.isArray(rawData.s) ? rawData.s.length : 0),
+            bR: rawData.bR, bC: rawData.bC, s: rawData.s, i: rawData.i, sol: rawData.sol
+          });
           if (!validMeta) return false;
-          if (rawData.st === 1 && !isValidMatrix(rawData.b, validMeta.N, validMeta.symbols)) return false;
-          
-          state.gameId = 'shared_' + Date.now(); state.gameName = ''; document.getElementById('game-name-input').value = ''; state.mode = rawData.m || 'standard'; state.difficulty = rawData.d || 'medio';
-          state.minVal = rawData.minV ?? 1; state.maxVal = rawData.maxV ?? 9; state.includeZero = !!rawData.incZ;
-          state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
-          state.initial = validMeta.initial;
-          state.nasaContributions = Array.from({ length: state.N }, () => Array(state.N).fill(false));
-          
           const solved = validMeta.sol || solvePartialGrid(validMeta.initial, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols);
-          if (!solved) return false;
-          state.solution = solved;
+          if (!solved || !isGridRuleValid(solved, validMeta.N, validMeta.bR, validMeta.bC, validMeta.symbols, true) || !boardPreservesInitial(solved, validMeta.initial, validMeta.N)) return false;
 
-          if (rawData.st === 1 && Array.isArray(rawData.b)) {
-            state.board = rawData.b.map(r => r.slice());
-            state.notes = Array.isArray(rawData.n) ? rawData.n.map(row => row.map(arr => new Set(arr || []))) : Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set()));
-            state.nasaContributions = Array.from({ length: state.N }, (_, r) => Array.from({ length: state.N }, (_, c) => !!(rawData.nc && rawData.nc[r] && rawData.nc[r][c])));
-            state.nasaCalls = Math.max(0, Number.isFinite(Number(rawData.nca)) ? Number(rawData.nca) : state.nasaContributions.flat().filter(Boolean).length);
-            state.revealedErrors = Array.isArray(rawData.re) ? rawData.re : Array.from({ length: state.N }, () => Array(state.N).fill(false));
-            state.timerSeconds = typeof rawData.t === 'number' ? rawData.t : 0; state.completed = !!rawData.c;
-          } else {
-            state.isManualCreating = false; const mcBarShare = document.getElementById('manual-create-bar'); if (mcBarShare) { mcBarShare.classList.remove('flex'); mcBarShare.classList.add('hidden'); }
-            state.board = validMeta.initial.map(r => r.slice()); state.notes = Array.from({ length: state.N }, () => Array.from({ length: state.N }, () => new Set())); state.nasaCalls = 0;
-            state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false)); state.timerSeconds = 0; state.completed = false;
+          const N = validMeta.N;
+          let board = validMeta.initial.map(row => row.slice());
+          let notes = Array.from({ length: N }, () => Array.from({ length: N }, () => []));
+          let nasaContributions = Array.from({ length: N }, () => Array(N).fill(false));
+          let revealedErrors = Array.from({ length: N }, () => Array(N).fill(false));
+          let nasaCalls = 0, timerSeconds = 0, completed = false;
+          if (rawData.st === 1) {
+            board = normalizeSymbolMatrix(rawData.b, N, validMeta.symbols);
+            if (!board || !boardPreservesInitial(board, validMeta.initial, N)) return false;
+            notes = normalizeNotesGrid(rawData.n, N, validMeta.symbols);
+            revealedErrors = normalizeBooleanGrid(rawData.re, N);
+            nasaContributions = normalizeBooleanGrid(rawData.nc, N);
+            if (!notes || !revealedErrors || !nasaContributions) return false;
+            const rawNasaCalls = Number(rawData.nca ?? nasaContributions.flat().filter(Boolean).length);
+            const rawTimerSeconds = Number(rawData.t ?? 0);
+            if (!Number.isSafeInteger(rawNasaCalls) || rawNasaCalls < 0 || rawNasaCalls > 1000000 ||
+                !Number.isSafeInteger(rawTimerSeconds) || rawTimerSeconds < 0 || rawTimerSeconds > 100000000 ||
+                (rawData.c != null && typeof rawData.c !== 'boolean')) return false;
+            nasaCalls = rawNasaCalls;
+            timerSeconds = rawTimerSeconds;
+            completed = rawData.c === true;
+            if (completed && !isGridRuleValid(board, N, validMeta.bR, validMeta.bC, validMeta.symbols, true)) return false;
           }
-          syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle(); document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
-          renderVirtualNumpad(); renderSudokuBoard();
+
+          const allowedModes = new Set(['standard', 'custom']);
+          const mode = allowedModes.has(rawData.m) ? rawData.m : 'standard';
+          const difficulty = Object.prototype.hasOwnProperty.call(DIFFICULTY_LABELS, rawData.d) ? rawData.d : 'medio';
+          const minVal = Number.isFinite(Number(rawData.minV)) ? Number(rawData.minV) : Number(validMeta.symbols[0]);
+          const maxVal = Number.isFinite(Number(rawData.maxV)) ? Number(rawData.maxV) : Number(validMeta.symbols[validMeta.symbols.length - 1]);
+          if (Math.abs(minVal) > 1000000 || Math.abs(maxVal) > 1000000) return false;
+
+          // All payload data has been parsed and validated into temporary values. Commit to state only now.
+          state.gameId = createClientIdentifier('shared_');
+          state.gameName = '';
+          const nameInput = document.getElementById('game-name-input'); if (nameInput) nameInput.value = '';
+          state.mode = mode; state.difficulty = difficulty;
+          state.minVal = minVal; state.maxVal = maxVal; state.includeZero = rawData.incZ === true;
+          state.symbols = validMeta.symbols.slice(); state.N = N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
+          state.initial = validMeta.initial.map(row => row.slice());
+          state.solution = solved.map(row => row.slice());
+          state.board = board.map(row => row.slice());
+          state.notes = notes.map(row => row.map(arr => new Set(arr)));
+          state.nasaContributions = nasaContributions.map(row => row.slice());
+          state.nasaCalls = nasaCalls;
+          state.revealedErrors = revealedErrors.map(row => row.slice());
+          state.timerSeconds = timerSeconds; state.completed = completed; state.isManualCreating = false;
+          const mcBarShare = document.getElementById('manual-create-bar');
+          if (mcBarShare) { mcBarShare.classList.remove('flex'); mcBarShare.classList.add('hidden'); }
+          state.focusedCell = { r: 0, c: 0 }; state.highlightedSymbol = null;
+          syncModeTabsUI(); syncDifficultyButtonsUI(); updateHeaderSubtitle();
+          document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
+          renderVirtualNumpad(); renderSudokuBoard(); updateProgressUI(); updateNasaContributionSummary();
           if (state.completed) pauseTimer(); else startTimer();
           saveCurrentGameState();
           showToast(rawData.st === 1 ? 'Estado completo carregado com sucesso!' : 'Grade carregada com sucesso!', 'success');
           return true;
-        } catch (e) { return false; }
+        } catch (error) {
+          return false;
+        }
       }
 
       function tryLoadSharedPuzzleFromURL() {
@@ -68,7 +110,8 @@ function copyTextToClipboard(text, successMessage) {
           const params = new URLSearchParams(window.location.search);
           const encoded = params.get('puzzle');
           if (!encoded) return false;
-          window.history.replaceState({}, '', window.location.pathname);
-          return processLoadedCode(encoded);
+          const loaded = processLoadedCode(encoded);
+          if (loaded) window.history.replaceState({}, '', window.location.pathname);
+          return loaded;
         } catch (e) { return false; }
       }

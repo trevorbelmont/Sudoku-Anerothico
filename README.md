@@ -1,4 +1,4 @@
-# Sudoku Aneróthico PRÓ v6.2
+# Sudoku Aneróthico PRÓ v6.4
 
 ## Execução local no Windows
 
@@ -71,3 +71,15 @@ Todos os arquivos `.js` passaram na verificação sintática do Node.js. A valid
 - Votações de recursos multiplayer exigem maioria estrita: mais de 50% dos jogadores conectados. Em uma sala com dois jogadores, ambos precisam aprovar.
 - A exportação PNG converte os campos numéricos em elementos de texto apenas na cópia temporária do tabuleiro usada para captura. Os números aparecem na imagem sem alterar as células reais nem o estado da partida.
 - Ao entrar em uma sala já criada, o modo efetivo e a opção de métricas em tempo real são carregados dos metadados da própria sala; a seleção local de modo é usada para criar salas, não para substituir as configurações da sala de destino.
+
+
+## Versão 6.4 — seleção inteligente de cores multiplayer
+
+- Ao entrar em uma sala, a seleção compara uma paleta ampliada com as cores atribuídas a participantes online, registros históricos e reservas existentes, usando distância perceptual OKLab para maximizar a distância até a cor já utilizada mais próxima.
+- A cor escolhida é registrada em `rooms/{roomId}/colorAssignments/{playerId}` por uma transação Firebase, evitando colisões de atribuição em entradas simultâneas quando as regras do banco permitem a gravação. A cor válida já associada ao mesmo identificador é preservada, inclusive em reconexões.
+- A lógica mantém compatibilidade com registros de salas anteriores sem reservas, preserva cores válidas já existentes e continua alimentando avatares, contribuições e contornos da v6.3. Nenhuma regra ou mecânica do Sudoku foi alterada.
+
+## Versão 6.3 — atribuição visual multiplayer
+
+- Na ⚔️ Rinha de Galo 🐓, quando **Métricas em tempo real** está ligada, o contorno dos números atribuídos a jogadores usa a cor do avatar responsável. O preenchimento do caractere e os demais indicadores de tema permanecem intactos; pistas, casas vazias e contribuições da NASA ficam fora dessa regra.
+- IP e cidade aproximada **não são gravados no banco** pela versão cliente. Para isso, é necessária uma Firebase Cloud Function ou backend equivalente, com gravação em um caminho privado e regras de acesso específicas. Não armazene IP em `members` sem verificar as regras de leitura existentes: esse nó é consumido pelos clientes da sala.

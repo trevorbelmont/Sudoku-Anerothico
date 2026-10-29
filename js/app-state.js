@@ -23,6 +23,27 @@
       };
 
       
+
+      function safeStorageGet(key) {
+        try { return window.localStorage.getItem(key); } catch (error) { return null; }
+      }
+      function safeStorageSet(key, value) {
+        try { window.localStorage.setItem(key, String(value)); return true; } catch (error) { return false; }
+      }
+      function safeStorageRemove(key) {
+        try { window.localStorage.removeItem(key); return true; } catch (error) { return false; }
+      }
+      function createClientIdentifier(prefix = 'player_') {
+        try {
+          if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return prefix + crypto.randomUUID();
+          if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+            const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+            return prefix + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+          }
+        } catch (error) { /* fallback below; this identifier is not a trusted identity */ }
+        return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      }
+
       const state = {
         gameId: null,
         gameName: '',
@@ -53,6 +74,7 @@
         timerSeconds: 0,
         timerRunning: false,
         timerInterval: null,
+        timerLastTick: null,
         completed: false,
         historyTab: 'ongoing',
         typingBuffer: '',
@@ -64,13 +86,16 @@
             active: false,
             roomId: null,
             playerName: 'Jogador',
-            playerId: 'player_' + Math.random().toString(36).substr(2, 9),
+            playerId: createClientIdentifier(),
             listener: null,
             listeners: [],
             presenceRef: null,
             players: {},
             members: {},
             peers: {},
+            cursorRef: null,
+            cellContributions: {},
+            hasSharedNasaCounter: false,
             processedMoveIds: {},
             lastObservedProposalId: null,
             observedProposalVoteIds: {},

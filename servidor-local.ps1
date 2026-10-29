@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 $script:root = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $script:port = 8765
-$script:version = 'v6.2'
+$script:version = 'v6.4'
 $script:listener = $null
 $script:running = $true
 $script:commandBuffer = [System.Text.StringBuilder]::new()
@@ -87,7 +87,7 @@ function Confirm-Shutdown {
 
 function Send-HttpResponse($client, [string]$status, [string]$contentType, [byte[]]$body, [bool]$isHead) {
     $stream = $client.GetStream()
-    $headerText = "HTTP/1.1 $status`r`nContent-Type: $contentType`r`nContent-Length: $($body.Length)`r`nCache-Control: no-cache`r`nX-Content-Type-Options: nosniff`r`nConnection: close`r`n`r`n"
+    $headerText = "HTTP/1.1 $status`r`nContent-Type: $contentType`r`nContent-Length: $($body.Length)`r`nCache-Control: no-cache`r`nX-Content-Type-Options: nosniff`r`nX-Frame-Options: DENY`r`nReferrer-Policy: no-referrer`r`nPermissions-Policy: geolocation=(), microphone=()`r`nContent-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'`r`nConnection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headerText)
     $stream.Write($headerBytes, 0, $headerBytes.Length)
     if (-not $isHead -and $body.Length -gt 0) { $stream.Write($body, 0, $body.Length) }
@@ -102,10 +102,24 @@ function Handle-HttpClient($client) {
         $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 1024, $true)
         $requestLine = $reader.ReadLine()
         if ([string]::IsNullOrWhiteSpace($requestLine)) { return }
+        if ($requestLine.Length -gt 8192) {
+            Send-HttpResponse $client '414 URI Too Long' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('URI Too Long')) $false
+            return
+        }
         $parts = $requestLine.Split(' ')
         $method = $parts[0]
         $rawPath = if ($parts.Length -gt 1) { $parts[1] } else { '/' }
-        while (($header = $reader.ReadLine()) -ne $null -and $header -ne '') { }
+        $headerBytesRead = 0
+        $headerCount = 0
+        while (($header = $reader.ReadLine()) -ne $null -and $header -ne '') {
+            $headerCount++
+            $headerBytesRead += $header.Length
+            if ($headerCount -gt 40 -or $headerBytesRead -gt 8192) {
+                Send-HttpResponse $client '431 Request Header Fields Too Large' 'text/plain; charset=utf-8' ([System.Text.Encoding]::UTF8.GetBytes('Request Header Fields Too Large')) $false
+                return
+            }
+        }
+        if ($null -eq $header) { return }
 
         $isHead = $method -eq 'HEAD'
         if ($method -ne 'GET' -and -not $isHead) {
@@ -123,6 +137,21 @@ function Handle-HttpClient($client) {
         if (-not ($candidate.Equals($script:root, [System.StringComparison]::OrdinalIgnoreCase) -or $candidate.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase))) {
             $body = [System.Text.Encoding]::UTF8.GetBytes('Forbidden')
             Send-HttpResponse $client '403 Forbidden' 'text/plain; charset=utf-8' $body $isHead
+            return
+        }
+        $allowedFiles = @(
+            'index.html',
+            'css/app.css',
+            'js/app-events.js', 'js/app-state.js', 'js/board-view.js', 'js/firebase-client.js',
+            'js/firebase-config.js', 'js/game-storage.js', 'js/gameplay.js', 'js/input-controller.js',
+            'js/multiplayer-service.js', 'js/multiplayer-ui.js', 'js/multiplayer-voting.js',
+            'js/ocr-import.js', 'js/png-export.js', 'js/sharing.js', 'js/sudoku-engine.js',
+            'js/ui-controller.js', 'js/ui-helpers.js'
+        )
+        $normalizedRelative = $relative.Replace('\', '/')
+        if ($normalizedRelative -notin $allowedFiles) {
+            $body = [System.Text.Encoding]::UTF8.GetBytes('Not Found')
+            Send-HttpResponse $client '404 Not Found' 'text/plain; charset=utf-8' $body $isHead
             return
         }
         if (-not [System.IO.File]::Exists($candidate)) {

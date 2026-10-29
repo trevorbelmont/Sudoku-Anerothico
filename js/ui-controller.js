@@ -6,7 +6,7 @@ function openModal(id) { const el = document.getElementById(id); if (el) { el.cl
       function applyTheme(themeKey) {
         document.documentElement.setAttribute('data-theme', themeKey);
         const selector = document.getElementById('theme-selector'); if (selector && selector.value !== themeKey) selector.value = themeKey;
-        try { localStorage.setItem(STORAGE_KEYS.THEME, themeKey); } catch (e) {}
+        safeStorageSet(STORAGE_KEYS.THEME, themeKey);
         if (state.board && state.board.length > 0) renderSudokuBoard();
       }
 
