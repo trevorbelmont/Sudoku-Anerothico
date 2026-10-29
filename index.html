@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sudoku Aneróthico PRÓ v6.2 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v6.4 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -37,7 +37,7 @@
         </div>
         <div class="header-title-block min-w-0">
           <h1 class="header-brand-title text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v6.2 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v6.4 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="header-subtitle text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -433,7 +433,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.2</div>
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.4</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -639,7 +639,24 @@
       <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
         <div class="relative pl-4 border-l-2 border-fuchsia-500">
           <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.2 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.4 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
+            <li><strong>Cores multiplayer perceptualmente distintas:</strong> ao entrar em uma sala, o sistema compara cores candidatas com as cores dos participantes online, dos registros históricos e das reservas da sala, escolhendo a candidata com maior distância mínima perceptual em OKLab.</li>
+            <li><strong>Reserva de cor:</strong> a escolha é persistida por participante usando transação do Firebase, quando as regras do banco permitem essa gravação, para evitar que entradas simultâneas recebam a mesma cor. Se a reserva não puder ser feita, o jogo mantém um fallback compatível. Cores anteriores válidas são preservadas, inclusive em reconexões com o mesmo identificador; registros antigos sem reserva continuam compatíveis.</li>
+            <li><strong>Compatibilidade visual:</strong> a paleta foi ampliada e a seleção de cor continua servindo aos avatares, às contribuições do modo Versus e aos contornos de números da v6.3, sem alterar as regras do Sudoku ou os demais indicadores.</li>
+          </ul>
+        </div>
+        <div class="relative pl-4 border-l-2 border-fuchsia-500">
+          <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.3 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
+          <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
+            <li><strong>Mapa de calor da Rinha:</strong> quando a sala está no modo ⚔️ Versus e a opção Métricas em tempo real está ligada, os números das casas editáveis atribuídas a jogadores recebem apenas um contorno na cor do avatar. Pistas e contribuições da NASA mantêm suas identidades visuais; com métricas desligadas ou em modo cooperativo, o contorno não é aplicado.</li>
+            <li><strong>Privacidade:</strong> IP e cidade aproximada não são gravados no banco por esta versão cliente. Isso requer uma função de servidor e regras que mantenham esses dados em um nó privado, separado dos dados compartilhados da sala.</li>
+          </ul>
+        </div>
+        <div class="relative pl-4 border-l-2 border-fuchsia-500">
+          <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.2 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
           <ul class="list-disc pl-5 opacity-90 space-y-1 mb-3">
             <li><strong>Visual NASA:</strong> remove o preenchimento tracejado da célula e anima somente o brilho/cor do caractere numérico, em todos os temas, incluindo Rainbow e os temas épicos. As cores estáticas do tabuleiro continuam preservadas.</li>
             <li><strong>Atalho corrigido:</strong> <kbd>N</kbd> alterna o Modo Lápis uma única vez mesmo com uma célula focada; foi removido o duplo processamento que fazia o modo ligar e desligar imediatamente.</li>
@@ -833,6 +850,9 @@
           <span><strong class="block text-xs">Métricas em tempo real</strong><span class="block text-[11px] opacity-75 mt-0.5">Mostra casas atribuídas e porcentagem de contribuição ao lado dos nomes conectados. O resumo final continua disponível mesmo com esta opção desligada.</span></span>
         </label>
       </div>
+      <p class="text-[10px] opacity-65 text-left leading-relaxed border-t pt-2" style="border-color: var(--board-border-cell);">
+        Privacidade: ao criar ou entrar em uma sala, o histórico do Firebase registra navegador/versão, sistema operacional estimado, idioma, fuso horário e dimensões de tela para métricas e diagnóstico. Esses dados podem ser vistos por clientes com permissão de leitura em “members”, conforme as regras do Firebase. Esta versão não grava IP nem cidade; isso exige uma função de servidor e armazenamento privado.
+      </p>
       <div class="flex gap-2 mt-2">
           <button id="btn-join-room" type="button" class="flex-1 py-3 rounded-xl theme-panel-alt border font-bold text-sm shadow-sm transition hover:opacity-90">
             Entrar na Sala

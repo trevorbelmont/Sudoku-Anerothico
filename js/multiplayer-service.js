@@ -4,14 +4,251 @@ function getFirebaseAPI() {
           return window.firebaseDB;
       }
 
+      // Paleta expandida de cores saturadas, adequada para identificar contornos no tabuleiro.
+      // Cores históricas continuam válidas e são preservadas para participantes já conhecidos.
+      const MULTIPLAYER_PLAYER_COLOR_PALETTE = [
+          '#e53935', '#ef6c00', '#7cb342', '#16a34a', '#00897b', '#00acc1', '#0284c7', '#1e88e5',
+          '#3949ab', '#5e35b1', '#8e24aa', '#d81b60', '#f4511e', '#4d7c0f', '#15803d', '#0f766e',
+          '#0e7490', '#0369a1', '#1d4ed8', '#4338ca', '#6d28d9', '#86198f', '#9d174d', '#9f1239',
+          '#b91c1c', '#7c3aed', '#db2777', '#ec4899', '#a855f7', '#0891b2', '#059669', '#ca8a04',
+          '#ef4444', '#f97316', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'
+      ];
+
+      function normalizePlayerColor(color) {
+          return typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : '';
+      }
+
+      function stablePlayerColorHash(value) {
+          const text = String(value || 'player');
+          let hash = 2166136261;
+          for (let i = 0; i < text.length; i++) {
+              hash ^= text.charCodeAt(i);
+              hash = Math.imul(hash, 16777619);
+          }
+          return hash >>> 0;
+      }
+
+      // RGB -> OKLab: uma distância euclidiana nesse espaço aproxima melhor a diferença percebida
+      // pelo olho humano do que comparar diretamente os canais RGB.
+      function playerColorToOKLab(hex) {
+          const value = normalizePlayerColor(hex);
+          if (!value) return null;
+          const channel = offset => {
+              const c = parseInt(value.slice(offset, offset + 2), 16) / 255;
+              return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+          };
+          const r = channel(1), g = channel(3), b = channel(5);
+          const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+          const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+          const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+          return [
+              0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+              1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+              0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+          ];
+      }
+
+      function playerColorPerceptualDistance(colorA, colorB) {
+          const a = playerColorToOKLab(colorA), b = playerColorToOKLab(colorB);
+          if (!a || !b) return 0;
+          const dL = a[0] - b[0], da = a[1] - b[1], db = a[2] - b[2];
+          return Math.sqrt(dL * dL + da * da + db * db);
+      }
+
+      function chooseMostDistinctPlayerColor(usedColors, playerId) {
+          const candidates = MULTIPLAYER_PLAYER_COLOR_PALETTE;
+          const validUsedColors = (Array.isArray(usedColors) ? usedColors : [])
+              .map(normalizePlayerColor).filter(Boolean);
+          const qualityCandidates = candidates.filter(candidate => {
+              const lab = playerColorToOKLab(candidate);
+              const chroma = lab ? Math.sqrt(lab[1] * lab[1] + lab[2] * lab[2]) : 0;
+              // Evita tons quase neutros ou extremos de luminosidade, que funcionam pior como contornos.
+              return !!lab && chroma >= 0.13 && lab[0] >= 0.36 && lab[0] <= 0.82;
+          });
+          const palette = qualityCandidates.length ? qualityCandidates : candidates;
+          const offset = stablePlayerColorHash(playerId) % palette.length;
+
+          // Para a primeira pessoa da sala, o identificador dá variedade entre salas sem aleatoriedade instável.
+          if (!validUsedColors.length) return palette[offset];
+
+          let bestColor = palette[offset];
+          let bestDistance = -1;
+          // Maximin: escolher a candidata cuja distância para sua cor ocupada mais próxima seja máxima.
+          for (let step = 0; step < palette.length; step++) {
+              const candidate = palette[(offset + step) % palette.length];
+              let nearestDistance = Infinity;
+              for (const usedColor of validUsedColors) {
+                  nearestDistance = Math.min(nearestDistance, playerColorPerceptualDistance(candidate, usedColor));
+                  if (nearestDistance === 0) break;
+              }
+              if (nearestDistance > bestDistance + 1e-9) {
+                  bestDistance = nearestDistance;
+                  bestColor = candidate;
+              }
+          }
+          return bestColor;
+      }
+
       function ensureMultiplayerColor() {
-          if (state.multiplayer.color) return state.multiplayer.color;
-          const colors = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
-          let hash = 0;
-          const name = state.multiplayer.playerName || 'Jogador';
-          for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-          state.multiplayer.color = colors[Math.abs(hash) % colors.length];
+          if (normalizePlayerColor(state.multiplayer.color)) return state.multiplayer.color;
+          // Cor provisória para interfaces/fluxos usados antes de a sala estar conectada.
+          // A entrada em uma sala substitui-a pela escolha perceptual e persistida abaixo.
+          state.multiplayer.color = chooseMostDistinctPlayerColor([], state.multiplayer.playerId || state.multiplayer.playerName || 'Jogador');
           return state.multiplayer.color;
+      }
+
+      function getStoredPlayerColor(record) {
+          if (!record || typeof record !== 'object') return '';
+          return normalizePlayerColor(record.playerColor) || normalizePlayerColor(record.userColor) || normalizePlayerColor(record.color);
+      }
+
+      function collectUsedRoomPlayerColors(assignments, players, members, playerId) {
+          const colors = [];
+          const addRecords = records => {
+              if (!records || typeof records !== 'object') return;
+              Object.entries(records).forEach(([id, record]) => {
+                  if (id === playerId) return;
+                  const color = typeof record === 'string' ? normalizePlayerColor(record) : getStoredPlayerColor(record);
+                  if (color) colors.push(color);
+              });
+          };
+          addRecords(assignments);
+          addRecords(players);
+          addRecords(members);
+          // Inclui também snapshots em memória como proteção caso uma leitura pontual do Firebase falhe.
+          addRecords(state.multiplayer.players || {});
+          addRecords(state.multiplayer.members || {});
+          addRecords(state.multiplayer.peers || {});
+          return colors;
+      }
+
+      async function readRoomObject(fb, roomId, childName) {
+          try {
+              const snapshot = await fb.get(fb.ref(fb.db, roomPath(roomId, childName)));
+              const value = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : null;
+              return value && typeof value === 'object' ? value : {};
+          } catch (error) {
+              console.warn(`Não foi possível ler ${childName} para a escolha de cor multiplayer.`, error);
+              return {};
+          }
+      }
+
+      async function assignRoomPlayerColor(roomId) {
+          const fb = getFirebaseAPI();
+          const playerId = String(state.multiplayer.playerId || '');
+          if (!roomId || !playerId) {
+              state.multiplayer.color = chooseMostDistinctPlayerColor([], playerId || state.multiplayer.playerName || 'Jogador');
+              return state.multiplayer.color;
+          }
+
+          const [players, members] = await Promise.all([
+              readRoomObject(fb, roomId, 'players'),
+              readRoomObject(fb, roomId, 'members')
+          ]);
+          let assignedColor = '';
+          const canReserveAtomically = fb && typeof fb.ref === 'function' && typeof fb.runTransaction === 'function';
+
+          if (canReserveAtomically) {
+              const assignmentsRef = fb.ref(fb.db, roomPath(roomId, 'colorAssignments'));
+              try {
+                  const result = await fb.runTransaction(assignmentsRef, currentValue => {
+                      const assignments = currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)
+                          ? { ...currentValue } : {};
+                      const reservedColor = normalizePlayerColor(assignments[playerId]);
+                      if (reservedColor) return assignments;
+
+                      // Para salas existentes, preserva a cor já associada a este mesmo participante.
+                      const previousColor = getStoredPlayerColor(players[playerId]) || getStoredPlayerColor(members[playerId]);
+                      if (previousColor) {
+                          assignments[playerId] = previousColor;
+                          return assignments;
+                      }
+
+                      // A transação serializa novos participantes: cada repetição do callback já vê reservas recentes.
+                      const usedColors = collectUsedRoomPlayerColors(assignments, players, members, playerId);
+                      assignments[playerId] = chooseMostDistinctPlayerColor(usedColors, playerId);
+                      return assignments;
+                  });
+                  const assignmentData = result && result.snapshot && typeof result.snapshot.val === 'function'
+                      ? result.snapshot.val() : null;
+                  if (result && assignmentData && typeof assignmentData === 'object') {
+                      assignedColor = normalizePlayerColor(assignmentData[playerId]);
+                  }
+              } catch (error) {
+                  // Não bloqueia o jogo se as regras de um Firebase legado não permitirem colorAssignments.
+                  console.warn('Reserva transacional de cor não disponível; usando seleção compatível.', error);
+              }
+          }
+
+          if (!assignedColor) {
+              const fallbackUsedColors = collectUsedRoomPlayerColors({}, players, members, playerId);
+              assignedColor = getStoredPlayerColor(players[playerId]) || getStoredPlayerColor(members[playerId]) ||
+                  chooseMostDistinctPlayerColor(fallbackUsedColors, playerId);
+          }
+          state.multiplayer.color = assignedColor;
+          return assignedColor;
+      }
+
+      function detectClientBrowser(userAgent) {
+          const rules = [
+              { name: 'Microsoft Edge', pattern: /(?:EdgA?|EdgiOS)\/([\d.]+)/i },
+              { name: 'Opera', pattern: /(?:OPR|Opera)\/([\d.]+)/i },
+              { name: 'Samsung Internet', pattern: /SamsungBrowser\/([\d.]+)/i },
+              { name: 'Firefox', pattern: /(?:Firefox|FxiOS)\/([\d.]+)/i },
+              { name: 'Chrome', pattern: /(?:Chrome|CriOS)\/([\d.]+)/i },
+              { name: 'Safari', pattern: /Version\/([\d.]+).*Safari/i }
+          ];
+          for (const rule of rules) {
+              const match = userAgent.match(rule.pattern);
+              if (match) return { name: rule.name, version: match[1] || '' };
+          }
+          return { name: 'Unknown', version: '' };
+      }
+
+      function detectClientOperatingSystem(userAgent) {
+          let match;
+          if ((match = userAgent.match(/Windows NT ([\d.]+)/i))) {
+              const version = match[1] === '10.0' ? 'NT 10.0 (Windows 10/11; UA não distingue)' : `NT ${match[1]}`;
+              return { name: 'Windows', version };
+          }
+          if ((match = userAgent.match(/(?:iPhone OS|CPU OS) ([\d_]+)/i))) return { name: 'iOS', version: match[1].replace(/_/g, '.') };
+          if ((match = userAgent.match(/Android[\s-]([\d.]+)/i))) return { name: 'Android', version: match[1] };
+          if ((match = userAgent.match(/Mac OS X ([\d_]+)/i))) return { name: 'macOS', version: match[1].replace(/_/g, '.') };
+          if ((match = userAgent.match(/CrOS [^ ]+ ([\d.]+)/i))) return { name: 'ChromeOS', version: match[1] };
+          if (/Linux/i.test(userAgent)) return { name: 'Linux', version: '' };
+          return { name: 'Unknown', version: '' };
+      }
+
+      function collectClientMetadata() {
+          const nav = typeof navigator !== 'undefined' ? navigator : {};
+          const userAgent = String(nav.userAgent || '');
+          const screenObject = typeof screen !== 'undefined' ? screen : {};
+          const connection = nav.connection || nav.mozConnection || nav.webkitConnection || null;
+          let timeZone = '';
+          try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (error) { /* optional browser metadata */ }
+          const languages = Array.isArray(nav.languages) ? nav.languages.slice(0, 5).map(value => String(value).slice(0, 32)) : [];
+          return {
+              schemaVersion: 1,
+              capturedAtTimestamp: Date.now(),
+              browser: detectClientBrowser(userAgent),
+              operatingSystem: detectClientOperatingSystem(userAgent),
+              platform: String((nav.userAgentData && nav.userAgentData.platform) || nav.platform || '').slice(0, 80),
+              language: String(nav.language || '').slice(0, 32),
+              languages,
+              timeZone,
+              screen: {
+                  width: Number(screenObject.width) || null,
+                  height: Number(screenObject.height) || null,
+                  colorDepth: Number(screenObject.colorDepth) || null,
+                  devicePixelRatio: typeof devicePixelRatio === 'number' ? devicePixelRatio : 1
+              },
+              viewport: {
+                  width: typeof window !== 'undefined' ? Number(window.innerWidth) || null : null,
+                  height: typeof window !== 'undefined' ? Number(window.innerHeight) || null : null
+              },
+              online: typeof nav.onLine === 'boolean' ? nav.onLine : null,
+              connectionType: connection && connection.effectiveType ? String(connection.effectiveType).slice(0, 16) : ''
+          };
       }
 
       function stopRoomListeners() {
@@ -259,7 +496,8 @@ function getFirebaseAPI() {
                   fb.set(playerRef, presence).catch(() => {});
               });
           const memberRef = fb.ref(fb.db, roomPath(roomId, `members/${state.multiplayer.playerId}`));
-          fb.set(memberRef, presence).catch(error => console.warn('Não foi possível registrar o participante no histórico da sala:', error));
+          const memberRecord = { ...presence, clientMetadata: collectClientMetadata() };
+          fb.set(memberRef, memberRecord).catch(error => console.warn('Não foi possível registrar o participante no histórico da sala:', error));
       }
 
 
@@ -344,7 +582,7 @@ function getFirebaseAPI() {
               if (action === 'NASA' && String(value ?? '') !== '') {
                   state.multiplayer.contributions[localKey] = { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() };
               } else if (action === 'SET' && String(value ?? '') !== '') {
-                  state.multiplayer.contributions[localKey] = { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() };
+                  state.multiplayer.contributions[localKey] = { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, playerColor: state.multiplayer.color, timestamp: Date.now() };
               } else {
                   delete state.multiplayer.contributions[localKey];
               }
@@ -356,7 +594,7 @@ function getFirebaseAPI() {
               if (action === 'NASA' && String(value ?? '') !== '') {
                   operation = fb.set(attributionRef, { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() });
               } else if (action === 'SET' && String(value ?? '') !== '') {
-                  operation = fb.set(attributionRef, { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, timestamp: Date.now() });
+                  operation = fb.set(attributionRef, { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, playerColor: state.multiplayer.color, timestamp: Date.now() });
               } else {
                   operation = fb.remove(attributionRef);
               }
@@ -453,6 +691,7 @@ function getFirebaseAPI() {
           }));
           state.multiplayer.listeners.push(fb.onValue(membersRef, snapshot => {
               state.multiplayer.members = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
+              updateAllCellVisuals();
               const victoryModal = document.getElementById('modal-victory');
               if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
           }));
@@ -517,29 +756,32 @@ function getFirebaseAPI() {
               return;
           }
           const metaRef = fb.ref(fb.db, roomPath(roomId, 'meta'));
-          fb.onValue(metaRef, snapshot => {
+          let joinStarted = false;
+          fb.onValue(metaRef, async snapshot => {
+              if (joinStarted || state.multiplayer.active) return;
               const meta = snapshot.val();
               const validMeta = validateRoomMeta(meta);
               if (!validMeta) {
                   showToast('Sala não encontrada ou com metadados inválidos.', 'warn');
                   return;
               }
+              joinStarted = true;
               state.multiplayer.active = true;
               state.multiplayer.roomId = roomId;
               state.multiplayer.playerName = playerName || 'Jogador';
               state.multiplayer.color = null;
-              ensureMultiplayerColor();
+              state.multiplayer.players = {};
+              state.multiplayer.members = {};
+              state.multiplayer.peers = {};
+              await assignRoomPlayerColor(roomId);
               state.multiplayer.instanceCount = validMeta.instanceCount;
               state.multiplayer.roomMode = meta.roomMode === 'versus' ? 'versus' : 'coop';
               state.multiplayer.realtimeMetrics = !!meta.realtimeMetrics;
               const modeLabel = document.getElementById('mp-room-mode-label');
               if (modeLabel) modeLabel.textContent = state.multiplayer.roomMode === 'versus' ? '⚔️ Rinha de Galo 🐓' : '🤝 Prosa e Cafézin ☕';
               state.multiplayer.contributions = {};
-              state.multiplayer.members = {};
               state.multiplayer.lastAppliedInstanceNumber = null;
               state.multiplayer.processedMoveIds = {};
-              state.multiplayer.peers = {};
-              state.multiplayer.players = {};
               state.multiplayer.lastProcessedSeq = 0;
               registerRoomPresence(roomId);
               setupRoomListeners(roomId);
@@ -602,7 +844,8 @@ function getFirebaseAPI() {
               fb.set(fb.child(roomRef, 'members'), {}),
               fb.set(fb.child(roomRef, 'settings'), { immediateErrorCheck: false }),
               fb.remove(fb.child(roomRef, 'featureVote'))
-          ]).then(() => {
+          ]).then(async () => {
+              await assignRoomPlayerColor(roomId);
               registerRoomPresence(roomId);
               setupRoomListeners(roomId);
               saveCurrentGameState();

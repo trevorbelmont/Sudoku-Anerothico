@@ -99,6 +99,31 @@
         return false;
       }
 
+      function getRealtimePlayerContributionColor(row, column, value, isNasaCell = false) {
+        const mp = state.multiplayer;
+        if (!mp || !mp.active || mp.roomMode !== 'versus' || mp.realtimeMetrics !== true) return '';
+        if (value === '' || value === null || value === undefined) return '';
+        if (state.initial && state.initial[row] && state.initial[row][column] !== '') return '';
+        if (isNasaCell) return '';
+
+        const entry = (mp.contributions || {})[`${row}_${column}`];
+        if (!entry || typeof entry !== 'object' || isNASAContributionEntry(entry)) return '';
+        const playerId = entry.playerId || entry.userId || '';
+        if (!playerId || playerId === 'NASA') return '';
+        if (entry.kind && entry.kind !== 'PLAYER') return '';
+        if (entry.action && entry.action !== 'SET') return '';
+
+        const members = mp.members || {};
+        const onlinePlayers = mp.players || {};
+        const member = members[playerId] || {};
+        const onlinePlayer = onlinePlayers[playerId] || {};
+        let color = '';
+        if (playerId === mp.playerId) color = mp.color || '';
+        color = color || entry.playerColor || entry.userColor || member.playerColor || onlinePlayer.playerColor || '';
+        // Contributions loaded from Firebase are data, so accept only the hex colors used by avatars.
+        return typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) ? color : '';
+      }
+
       function updateAllCellVisuals() {
         const { N, blockR, blockC, focusedCell, highlightedSymbol, immediateErrorCheck, highlightSameNumbers } = state;
         const focusR = focusedCell ? focusedCell.r : -1, focusC = focusedCell ? focusedCell.c : -1;
@@ -119,7 +144,15 @@
           const symbolIndex = val === '' ? -1 : state.symbols.indexOf(String(val));
           const symbolHue = symbolIndex >= 0 ? Math.round((symbolIndex / Math.max(1, state.symbols.length - 1)) * 330) : 190;
           cellDiv.style.setProperty('--nasa-symbol-hue', `${symbolHue}deg`);
-          cellDiv.classList.toggle('is-nasa-contribution', isNasaContributionCell(r, c));
+          const isNasaCell = isNasaContributionCell(r, c);
+          cellDiv.classList.toggle('is-nasa-contribution', isNasaCell);
+
+          // v6.3: color only the glyph stroke when live contribution metrics are enabled in Versus.
+          // Given clues and NASA-attributed cells retain their existing theme-specific identities.
+          const playerStrokeColor = getRealtimePlayerContributionColor(r, c, val, isNasaCell);
+          cellDiv.classList.toggle('is-player-contribution', !!playerStrokeColor);
+          if (playerStrokeColor) cellDiv.style.setProperty('--player-stroke-color', playerStrokeColor);
+          else cellDiv.style.removeProperty('--player-stroke-color');
           
           const pencilEl = document.getElementById(`pencil-${r}-${c}`);
           if (pencilEl) pencilEl.querySelectorAll('.pencil-note').forEach(span => {

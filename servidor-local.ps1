@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 $script:root = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $script:port = 8765
-$script:version = 'v6.2'
+$script:version = 'v6.4'
 $script:listener = $null
 $script:running = $true
 $script:commandBuffer = [System.Text.StringBuilder]::new()
