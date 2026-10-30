@@ -20,6 +20,7 @@ Em outros sistemas, use um servidor HTTP estático ou hospede a pasta em um serv
 Enquanto o servidor estiver ativo, digite um comando no terminal e pressione Enter. Os comandos de teste exigem o Node.js/npm instalado.
 
 - `help` — mostra os endereços do jogo e os comandos disponíveis.
+- `install` — abre uma nova janela do Prompt de Comando e executa `npm install` na pasta `tests/`, instalando o Jest e as dependências de desenvolvimento.
 - `test` — abre uma nova janela e roda todos os testes (`npm run test:all`) na pasta `tests/`.
 - `test unit` — roda apenas os testes unitários (`npm run test:unit`).
 - `test integration` — roda apenas os testes de integração (`npm run test:integration`).
@@ -27,7 +28,7 @@ Enquanto o servidor estiver ativo, digite um comando no terminal e pressione Ent
 - `reset storage` — pede confirmação [Y/N] e, se confirmado, abre o navegador em `http://localhost:8765/dev-clean-storage`, uma rota fantasma do servidor que executa `localStorage.clear()` no navegador e volta ao jogo. Apaga partidas salvas, configurações e estados locais do navegador atual.
 - `exit` (ou `X` / `Ctrl+C`) — solicita o encerramento com confirmação [Y/N].
 
-Os comandos `test*` abrem uma janela separada para não interromper o servidor. Os comandos `clean` e `reset storage` são destrutivos e sempre pedem confirmação. A porta exibida no terminal é usada na rota fantasma (normalmente 8765).
+Os comandos `install` e `test*` abrem uma janela separada do Prompt de Comando, mantendo o servidor do jogo ativo. É necessário instalar o Node.js LTS; ele já inclui `npm` e `npx`. O comando `install` usa `npm install` (não é necessário executar `npx npm`). Depois da instalação, `test` executa diretamente os scripts npm definidos em `tests/package.json`. Se o Jest ainda não estiver instalado, o servidor orienta a executar `install` primeiro. Os comandos `clean` e `reset storage` são destrutivos e sempre pedem confirmação. A porta exibida no terminal é usada na rota fantasma (normalmente 8765).
 
 ## Mapa dos arquivos
 

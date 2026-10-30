@@ -73,7 +73,7 @@ function Write-Help {
     Write-Host '  test integration    — roda apenas os testes de integração (npm run test:integration)' -ForegroundColor Gray
     Write-Host '  clean  /  limpar    — apaga node_modules e caches dos testes (pede confirmação)' -ForegroundColor Gray
     Write-Host '  reset storage       — limpa o localStorage do jogo via rota fantasma (pede confirmação)' -ForegroundColor Gray
-    Write-Host '  Requer Node.js/npm instalado para os comandos de teste.' -ForegroundColor DarkGray
+    Write-Host '  Requer Node.js LTS (inclui npm e npx); install prepara o Jest em tests/.' -ForegroundColor DarkGray
     Write-Host ''
     Write-Host '  ENCERRAMENTO' -ForegroundColor Cyan
     Write-Host '  Pressione X para solicitar o encerramento.' -ForegroundColor Gray
@@ -107,21 +107,78 @@ function Confirm-YesNo {
     }
 }
 
+function Get-NpmCommand {
+    # No Windows, npm.cmd é o shim apropriado para processos iniciados pelo cmd.exe.
+    # Evita depender de npm.ps1, que é específico do PowerShell.
+    return Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
+}
+
+function Start-TestCommandWindow {
+    param(
+        [Parameter(Mandatory = $true)][string]$TestsRoot,
+        [Parameter(Mandatory = $true)][string]$CommandLine
+    )
+
+    $commandProcessor = $env:ComSpec
+    if ([string]::IsNullOrWhiteSpace($commandProcessor)) { $commandProcessor = 'cmd.exe' }
+
+    # /k mantém a janela aberta depois do comando para que o usuário possa ler
+    # o resultado e eventuais mensagens de erro do npm/Jest.
+    Start-Process -FilePath $commandProcessor `
+        -ArgumentList @('/d', '/k', $CommandLine) `
+        -WorkingDirectory $TestsRoot `
+        -ErrorAction Stop | Out-Null
+}
+
+function Install-NodeRuntime {
+    $wingetCommand = Get-Command 'winget.exe' -ErrorAction SilentlyContinue
+    if (-not $wingetCommand) {
+        Write-Host '  O winget não foi encontrado. Instale o Node.js LTS em https://nodejs.org/ e reabra o servidor.' -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host '  Iniciando instalação do Node.js via winget...' -ForegroundColor Cyan
+    Write-Host '  O npm e o npx são instalados junto com o Node.js.' -ForegroundColor Gray
+    try {
+        $process = Start-Process -FilePath $wingetCommand.Source `
+            -ArgumentList @('install', '--id', 'OpenJS.NodeJS.LTS', '--exact', '--accept-package-agreements', '--accept-source-agreements') `
+            -Wait -PassThru -ErrorAction Stop
+
+        if ($process.ExitCode -ne 0) {
+            Write-Host "  A instalação do Node.js terminou com código $($process.ExitCode)." -ForegroundColor Red
+            Write-Host '  Confira a mensagem do winget ou instale manualmente em https://nodejs.org/.' -ForegroundColor Gray
+            return
+        }
+
+        Write-Host '  Instalação do Node.js concluída.' -ForegroundColor Green
+        Write-Host '  Feche este servidor (digite X) e abra-o novamente para atualizar o PATH.' -ForegroundColor Yellow
+    } catch {
+        Write-Host "  Não foi possível instalar o Node.js: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host '  Baixe o instalador em: https://nodejs.org/' -ForegroundColor Gray
+    }
+}
+
 function Invoke-TestInstall {
     $testsRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, 'tests'))
     if (-not [System.IO.Directory]::Exists($testsRoot)) {
         Write-Host "  Pasta de testes não encontrada: $testsRoot" -ForegroundColor Red
         return
     }
-    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js antes de instalar as dependências.' -ForegroundColor Red
-        Write-Host '  Baixe o Node.js em: https://nodejs.org/' -ForegroundColor Gray
+
+    if (-not (Get-NpmCommand)) {
+        Write-Host '  npm (incluído no Node.js) não foi encontrado no PATH.' -ForegroundColor Yellow
+        if (Confirm-YesNo 'Deseja instalar o Node.js automaticamente agora (via winget)?') {
+            Install-NodeRuntime
+        } else {
+            Write-Host '  Comando cancelado. Instale o Node.js LTS em: https://nodejs.org/' -ForegroundColor Gray
+        }
         return
     }
+
     Write-Host "  Executando 'npm install' na pasta tests/ em uma nova janela..." -ForegroundColor Green
     try {
-        Start-Process -FilePath 'cmd.exe' -ArgumentList '/k npm install && echo. && echo Instalacao concluida! Feche esta janela.' -WorkingDirectory $testsRoot
-        Write-Host '  Janela de instalação aberta. Feche-a manualmente ao terminar.' -ForegroundColor Gray
+        Start-TestCommandWindow -TestsRoot $testsRoot -CommandLine 'npm install'
+        Write-Host '  Janela de instalação aberta. Acompanhe o npm install nessa janela.' -ForegroundColor Gray
     } catch {
         Write-Host "  Não foi possível abrir a janela de instalação: $($_.Exception.Message)" -ForegroundColor Red
     }
@@ -134,15 +191,31 @@ function Invoke-TestRun {
         Write-Host "  Pasta de testes não encontrada: $testsRoot" -ForegroundColor Red
         return
     }
-    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js e use o comando install para preparar o ambiente.' -ForegroundColor Red
-        Write-Host '  Baixe o Node.js em: https://nodejs.org/' -ForegroundColor Gray
+
+    # Aceita somente os scripts definidos em tests/package.json.
+    $allowedScripts = @('test:all', 'test:unit', 'test:integration')
+    if ($ScriptName -notin $allowedScripts) {
+        Write-Host "  Script de teste não permitido: $ScriptName" -ForegroundColor Red
         return
     }
+
+    if (-not (Get-NpmCommand)) {
+        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js e reabra o servidor.' -ForegroundColor Red
+        Write-Host '  Baixe o Node.js LTS em: https://nodejs.org/' -ForegroundColor Gray
+        return
+    }
+
+    $jestEntryPoint = [System.IO.Path]::Combine($testsRoot, 'node_modules', 'jest', 'bin', 'jest.js')
+    if (-not [System.IO.File]::Exists($jestEntryPoint)) {
+        Write-Host '  As dependências de teste ainda não estão instaladas.' -ForegroundColor Yellow
+        Write-Host "  Digite 'install' e aguarde o npm install terminar antes de executar '$ScriptName'." -ForegroundColor Gray
+        return
+    }
+
     Write-Host "  Iniciando 'npm run $ScriptName' em uma nova janela..." -ForegroundColor Green
     try {
-        Start-Process -FilePath 'cmd.exe' -ArgumentList "/k npm run $ScriptName" -WorkingDirectory $testsRoot
-        Write-Host '  Janela de testes aberta. Feche-a manualmente ao terminar.' -ForegroundColor Gray
+        Start-TestCommandWindow -TestsRoot $testsRoot -CommandLine "npm run $ScriptName"
+        Write-Host '  Janela de testes aberta. O resultado ficará visível nessa janela.' -ForegroundColor Gray
     } catch {
         Write-Host "  Não foi possível abrir a janela de testes: $($_.Exception.Message)" -ForegroundColor Red
     }
