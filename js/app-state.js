@@ -53,7 +53,7 @@
                   }
               }
           } catch (_) {}
-          return { glowIntensity: 2, glowIntensityRaw: 50, animSpeed: 2, animSpeedRaw: 50, nasaIntensity: 60, nasaSpeed: 50, playerColorAnimOn: true, playerColorFreq: 50, playerTileOn: true, playerIdentityOff: false, insertSpeed: 50 };
+          return { glowIntensity: 2, glowIntensityRaw: 50, animSpeed: 2, animSpeedRaw: 50, nasaIntensity: 60, nasaSpeed: 50, playerColorAnimOn: false, playerColorFreq: 50, playerTileOn: false, playerIdentityOff: false, insertSpeed: 50 };
       }
 
       const DIFFICULTY_LABELS = {

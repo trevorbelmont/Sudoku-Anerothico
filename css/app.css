@@ -1269,3 +1269,301 @@ body.board-focus-mode .mp-feature-vote-toast {
   filter: none;
   will-change: auto;
 }
+
+
+/* ============================================================
+   v6.8 — Sistema de painéis ajustáveis e colapsáveis
+   ============================================================ */
+
+/* ── Variáveis de largura dos painéis ── */
+:root {
+  --left-panel-width: 280px;
+  --left-panel-min: 180px;
+  --left-panel-max: 420px;
+  --left-panel-collapsed-width: 0px;
+  --resizer-width: 6px;
+}
+
+/* ── Layout principal via flex em desktop ── */
+@media (min-width: 1024px) {
+  main.app-main-layout {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    gap: 0 !important;
+    padding-left: 0.625rem !important;
+    padding-right: 0.625rem !important;
+    max-width: 1600px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Painel esquerdo: largura definida pela variável */
+  .panel-left {
+    width: var(--left-panel-width);
+    min-width: 0;
+    flex-shrink: 0;
+    flex-grow: 0;
+    transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.22s ease,
+                padding 0.22s ease;
+    overflow: hidden;
+    container-type: inline-size;
+    container-name: left-panel;
+    position: relative;
+  }
+
+  /* Painel colapsado: oculta o conteúdo mas mantém estrutura */
+  .panel-left.collapsed {
+    width: 0px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .panel-left.collapsed > * {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* O botão de colapso fica fixo na borda esquerda quando painel está fechado */
+  .panel-left.collapsed > .panel-collapse-btn {
+    opacity: 1;
+    pointer-events: auto;
+    position: fixed;
+    top: 50%;
+    left: 0;
+    right: auto;
+    transform: translateY(-50%);
+    border-radius: 0 8px 8px 0;
+    border-left: none;
+    z-index: 50;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.18);
+  }
+
+  /* Área central: ocupa o espaço restante */
+  .panel-center {
+    flex: 1 1 0;
+    min-width: 0;
+    transition: flex 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  /* Resizer / divisor arrastável */
+  .panel-resizer {
+    width: var(--resizer-width);
+    min-width: var(--resizer-width);
+    flex-shrink: 0;
+    align-self: stretch;
+    cursor: col-resize;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+    z-index: 10;
+    touch-action: none;
+    user-select: none;
+  }
+
+  /* Linha central decorativa do resizer */
+  .panel-resizer::after {
+    content: '';
+    display: block;
+    width: 2px;
+    height: 48px;
+    border-radius: 9999px;
+    background: var(--board-border-cell);
+    opacity: 0.5;
+    transition: opacity 0.15s ease, background 0.15s ease, height 0.15s ease;
+  }
+
+  .panel-resizer:hover::after,
+  .panel-resizer.dragging::after {
+    opacity: 1;
+    background: var(--accent);
+    height: 72px;
+  }
+
+  .panel-resizer:hover,
+  .panel-resizer.dragging {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+
+  /* Esconde resizer quando painel está colapsado */
+  .panel-left.collapsed ~ .panel-resizer {
+    cursor: default;
+    pointer-events: none;
+    opacity: 0;
+    width: 0;
+    min-width: 0;
+  }
+}
+
+/* ── Botão de colapso / expansão do painel ── */
+.panel-collapse-btn {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  transform: translateY(-50%);
+  z-index: 20;
+  width: 20px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 8px 8px 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--board-border-cell);
+  border-left: none;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.12);
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.panel-collapse-btn:hover {
+  background: var(--bg-panel-alt);
+  color: var(--accent);
+  opacity: 1 !important;
+}
+
+/* Ícone de expansão quando painel está colapsado */
+.panel-collapse-btn .icon-collapse {
+  display: block;
+  transition: transform 0.25s ease;
+}
+
+/* Quando colapsado: ícone aponta para direita (expandir) */
+.panel-left.collapsed .panel-collapse-btn .icon-collapse {
+  transform: scaleX(-1);
+}
+
+/* ── Tipografia fluida via Container Queries no painel esquerdo ── */
+@container left-panel (max-width: 220px) {
+  .panel-left .theme-panel button span:not(.sr-only),
+  .panel-left .theme-panel a span:not(.sr-only) {
+    font-size: clamp(0.52rem, 4cqw, 0.72rem);
+  }
+  .panel-left .theme-panel h2,
+  .panel-left .theme-panel h3 {
+    font-size: clamp(0.58rem, 4.5cqw, 0.78rem);
+  }
+  .panel-left .theme-panel p,
+  .panel-left .theme-panel span:not(.btn-accent):not([class*="badge"]) {
+    font-size: clamp(0.5rem, 3.8cqw, 0.68rem);
+  }
+  .panel-left .diff-btn {
+    padding: 0.25rem 0.35rem;
+  }
+  .panel-left .diff-btn > span:first-child {
+    font-size: clamp(0.5rem, 3.8cqw, 0.68rem);
+  }
+}
+
+@container left-panel (min-width: 221px) and (max-width: 300px) {
+  .panel-left .theme-panel button span:not(.sr-only),
+  .panel-left .theme-panel a span:not(.sr-only) {
+    font-size: clamp(0.6rem, 3.2cqw, 0.78rem);
+  }
+  .panel-left .theme-panel h2,
+  .panel-left .theme-panel h3 {
+    font-size: clamp(0.66rem, 3.5cqw, 0.82rem);
+  }
+  .panel-left .theme-panel p,
+  .panel-left .theme-panel span:not(.btn-accent):not([class*="badge"]) {
+    font-size: clamp(0.56rem, 3cqw, 0.72rem);
+  }
+}
+
+@container left-panel (min-width: 301px) {
+  .panel-left .theme-panel button span:not(.sr-only),
+  .panel-left .theme-panel a span:not(.sr-only) {
+    font-size: clamp(0.68rem, 2.5cqw, 0.85rem);
+  }
+  .panel-left .theme-panel h2,
+  .panel-left .theme-panel h3 {
+    font-size: clamp(0.74rem, 2.8cqw, 0.9rem);
+  }
+  .panel-left .theme-panel p,
+  .panel-left .theme-panel span:not(.btn-accent):not([class*="badge"]) {
+    font-size: clamp(0.62rem, 2.4cqw, 0.8rem);
+  }
+}
+
+/* ── Overflow prevention no painel esquerdo ── */
+.panel-left .theme-panel button span,
+.panel-left .theme-panel a span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: inline-block;
+}
+
+.panel-left .diff-btn > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: block;
+}
+
+/* ── Modo foco: ignora todo o sistema de painéis ── */
+body.board-focus-mode .panel-left,
+body.board-focus-mode .panel-resizer,
+body.board-focus-mode .panel-collapse-btn {
+  display: none !important;
+}
+
+/* ── Mobile: layout empilhado sem resizers ── */
+@media (max-width: 1023px) {
+  .panel-left {
+    width: 100% !important;
+    overflow: visible;
+    container-type: inline-size;
+    container-name: left-panel;
+  }
+
+  .panel-left.collapsed {
+    width: 100% !important;
+    overflow: hidden;
+    height: 0 !important;
+    padding: 0 !important;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .panel-resizer {
+    display: none !important;
+  }
+
+  .panel-collapse-btn {
+    /* Em mobile, o botão fica no canto superior direito do painel */
+    position: static;
+    transform: none;
+    margin-left: auto;
+    border-radius: 8px;
+    border: 1px solid var(--board-border-cell);
+    width: 32px;
+    height: 32px;
+    box-shadow: none;
+  }
+
+  .panel-collapse-btn-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .panel-collapse-btn-wrapper {
+    display: none;
+  }
+}
