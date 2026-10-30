@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sudoku Aneróthico PRÓ v6.4 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v6.5 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -37,7 +37,7 @@
         </div>
         <div class="header-title-block min-w-0">
           <h1 class="header-brand-title text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v6.4 🧠</span>
+            <span>Sudoku Aneróthico PRÓ v6.5 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="header-subtitle text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -433,7 +433,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.4</div>
+        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.5</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -639,7 +639,23 @@
       <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
         <div class="relative pl-4 border-l-2 border-fuchsia-500">
           <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.4 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.5 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
+            <li><strong>Privacidade:</strong> as dimensões de tela e viewport foram removidas dos metadados coletados por jogador. Os metadados restantes são gravados em um nó privado separado do nó de presença compartilhado, reduzindo o perfil de dados visível para os demais participantes da sala.</li>
+            <li><strong>Anti-cheat — células corretas:</strong> em salas multiplayer, uma célula que já contém o valor correto da solução não pode ser apagada por nenhum jogador (nem local nem remoto). Isso impede a tática de apagar e reescrever o mesmo número correto para roubar pontuação. Células erradas continuam apagáveis por qualquer jogador.</li>
+            <li><strong>Cursor multiplayer sem inflação de log:</strong> a posição do cursor/foco de cada jogador agora é publicada em um nó mutável por jogador (<code>cursors/{playerId}</code>), em vez de ser anexada ao log de movimentos (<code>moves</code>) a cada evento de foco. Isso evita o crescimento ilimitado do log e reduz tráfego e custo de processamento.</li>
+            <li><strong>Votações com tempo máximo de 45 s:</strong> todas as votações (novo tabuleiro e votações de recursos como NASA e erro imediato) são automaticamente canceladas se a maioria não for atingida em 45 segundos.</li>
+            <li><strong>Votações: atalho solo:</strong> se o jogador está sozinho na sala ao propor uma votação, a ação é tomada imediatamente sem abrir votação.</li>
+            <li><strong>Votações em tela cheia:</strong> o modal de votação de novo tabuleiro e o painel de votação de recursos agora aparecem na frente do tabuleiro no modo tela cheia (F11), em vez de ficar cobertos por ele.</li>
+            <li><strong>IDs de sala com melhor entropia:</strong> o identificador de sala gerado automaticamente agora usa <code>crypto.getRandomValues</code> em vez de <code>Math.random</code>, aumentando a imprevisibilidade e reduzindo chance de colisão acidental.</li>
+            <li><strong>Solução não exposta no Firebase:</strong> a grade de solução não é mais publicada nos metadados da sala. Cada cliente re-deriva a solução localmente via solver, eliminando a exposição da resposta para quem lê o banco.</li>
+            <li><strong>Robustez — localStorage:</strong> os acessos ao <code>localStorage</code> que não tinham tratamento de erro agora estão protegidos com <code>try/catch</code>, garantindo que ambientes com armazenamento bloqueado ou cota esgotada não interrompam a inicialização ou o uso do jogo.</li>
+            <li><strong>Proteção de sala contra sobrescrita:</strong> ao tentar criar uma sala com nome personalizado já existente, o sistema verifica o estado da sala antes de gravar. Salas com jogadores ativos ou usadas nos últimos 2 dias são protegidas: o criador recebe um aviso e deve entrar na sala ou escolher outro nome. Salas inativas e expiradas podem ser reutilizadas. Toda presença na sala (entrar, mover cursor, jogar) renova automaticamente o marcador de atividade.</li>
+          </ul>
+        </div>
+        <div class="relative pl-4 border-l-2 border-fuchsia-500">
+          <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.4 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
           <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
             <li><strong>Cores multiplayer perceptualmente distintas:</strong> ao entrar em uma sala, o sistema compara cores candidatas com as cores dos participantes online, dos registros históricos e das reservas da sala, escolhendo a candidata com maior distância mínima perceptual em OKLab.</li>
             <li><strong>Reserva de cor:</strong> a escolha é persistida por participante usando transação do Firebase, quando as regras do banco permitem essa gravação, para evitar que entradas simultâneas recebam a mesma cor. Se a reserva não puder ser feita, o jogo mantém um fallback compatível. Cores anteriores válidas são preservadas, inclusive em reconexões com o mesmo identificador; registros antigos sem reserva continuam compatíveis.</li>
@@ -851,7 +867,7 @@
         </label>
       </div>
       <p class="text-[10px] opacity-65 text-left leading-relaxed border-t pt-2" style="border-color: var(--board-border-cell);">
-        Privacidade: ao criar ou entrar em uma sala, o histórico do Firebase registra navegador/versão, sistema operacional estimado, idioma e fuso horário para métricas de diagnóstico. Resultados de partidas terminadas também são guardadas assim como suas métricas. As partidas em si não são guardadas.
+        Privacidade: ao criar ou entrar em uma sala, o navegador/versão, sistema operacional estimado, idioma, fuso horário e tipo de conexão são enviados para diagnóstico privado (não visível aos demais jogadores). Resultados de partidas e métricas são guardados. Dimensões de tela e viewport não são coletadas.
       </p>
       <div class="flex gap-2 mt-2">
           <button id="btn-join-room" type="button" class="flex-1 py-3 rounded-xl theme-panel-alt border font-bold text-sm shadow-sm transition hover:opacity-90">
@@ -865,7 +881,7 @@
   </div>
   
   <!-- MODAL 10: VOTAÇÃO NOVO JOGO -->
-  <div id="modal-vote-newgame" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/70 backdrop-blur-md p-4">
+  <div id="modal-vote-newgame" class="fixed inset-0 z-[100010] hidden items-center justify-center bg-black/70 backdrop-blur-md p-4">
     <div class="theme-panel rounded-3xl max-w-sm w-full p-6 text-center flex flex-col gap-4 animate-bounce-once border-2 border-amber-500 shadow-2xl">
       <div class="flex justify-center mb-1">
          <div class="w-16 h-16 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-3xl shadow-lg">

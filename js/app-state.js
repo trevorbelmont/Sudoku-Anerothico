@@ -6,6 +6,10 @@
         CURRENT_GAME_ID: 'sudoku_anerothico_current_id_v1'
       };
 
+      // Número de dias após a última atividade de uma sala antes de ela poder ser sobrescrita.
+      // Enquanto esse prazo não vence, a sala está "protegida" e não pode ser criada com o mesmo nome.
+      const ROOM_PROTECTION_DAYS = 2;
+
       const DIFFICULTY_LABELS = {
         facil: '🍭Melzinho na Chupeta🍼',
         medio: '🛸Suave na Nave👽',

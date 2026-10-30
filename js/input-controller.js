@@ -68,7 +68,13 @@
           }
           state.highlightedSymbol = symbol; updateCellPencilDOM(r, c);
         } else {
-          if (state.board[r][c] === symbol) { 
+          if (state.board[r][c] === symbol) {
+            // Anti-cheat: em multiplayer, não permite apagar célula correta pelo mesmo gesto de toggle.
+            if (state.multiplayer.active && state.solution && state.solution[r] &&
+                state.board[r][c] === state.solution[r][c]) {
+              // O jogador clicou no número correto já preenchido: apenas ilumina, não apaga.
+              state.highlightedSymbol = symbol; updateAllCellVisuals(); return;
+            }
             state.board[r][c] = ''; state.highlightedSymbol = null; setNasaContributionCell(r, c, false);
             pushMoveToFirebase('ERASE', r, c, '');
           }
@@ -92,6 +98,11 @@
 
       function eraseCell(r, c) {
         if (state.completed || state.initial[r][c] !== '') return;
+        // Anti-cheat: em multiplayer, não apaga células que já contêm o valor correto.
+        // Uma célula correta só pode ser "apagada" pela própria pessoa que a preencheu — e ainda assim a
+        // pontuação já foi registrada — portanto bloqueamos o apagamento de células corretas por qualquer jogador.
+        if (state.multiplayer.active && state.solution && state.solution[r] &&
+            state.board[r][c] !== '' && state.board[r][c] === state.solution[r][c]) return;
         state.board[r][c] = ''; state.notes[r][c].clear(); state.revealedErrors[r][c] = false; state.highlightedSymbol = null; setNasaContributionCell(r, c, false);
         pushMoveToFirebase('ERASE', r, c, '');
         updateCellPencilDOM(r, c); updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();

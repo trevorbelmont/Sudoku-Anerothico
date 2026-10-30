@@ -222,13 +222,12 @@ function getFirebaseAPI() {
       function collectClientMetadata() {
           const nav = typeof navigator !== 'undefined' ? navigator : {};
           const userAgent = String(nav.userAgent || '');
-          const screenObject = typeof screen !== 'undefined' ? screen : {};
           const connection = nav.connection || nav.mozConnection || nav.webkitConnection || null;
           let timeZone = '';
           try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (error) { /* optional browser metadata */ }
           const languages = Array.isArray(nav.languages) ? nav.languages.slice(0, 5).map(value => String(value).slice(0, 32)) : [];
           return {
-              schemaVersion: 1,
+              schemaVersion: 2,
               capturedAtTimestamp: Date.now(),
               browser: detectClientBrowser(userAgent),
               operatingSystem: detectClientOperatingSystem(userAgent),
@@ -236,16 +235,6 @@ function getFirebaseAPI() {
               language: String(nav.language || '').slice(0, 32),
               languages,
               timeZone,
-              screen: {
-                  width: Number(screenObject.width) || null,
-                  height: Number(screenObject.height) || null,
-                  colorDepth: Number(screenObject.colorDepth) || null,
-                  devicePixelRatio: typeof devicePixelRatio === 'number' ? devicePixelRatio : 1
-              },
-              viewport: {
-                  width: typeof window !== 'undefined' ? Number(window.innerWidth) || null : null,
-                  height: typeof window !== 'undefined' ? Number(window.innerHeight) || null : null
-              },
               online: typeof nav.onLine === 'boolean' ? nav.onLine : null,
               connectionType: connection && connection.effectiveType ? String(connection.effectiveType).slice(0, 16) : ''
           };
@@ -277,7 +266,8 @@ function getFirebaseAPI() {
               blockColumnCount: overrides.blockColumnCount ?? state.blockC,
               symbolValues: overrides.symbolValues ?? state.symbols.slice(),
               fixedInitialGrid: overrides.fixedInitialGrid ?? state.initial.map(row => row.slice()),
-              solutionGrid: overrides.solutionGrid ?? state.solution.map(row => row.slice()),
+              // solutionGrid é omitido intencionalmente: cada cliente re-deriva a solução localmente
+              // via solvePartialGrid para que ela não fique exposta no Firebase para todos lerem.
               roomMode: overrides.roomMode ?? state.multiplayer.roomMode ?? 'coop',
               realtimeMetrics: overrides.realtimeMetrics ?? !!state.multiplayer.realtimeMetrics
           };
@@ -363,7 +353,16 @@ function getFirebaseAPI() {
           const incomingElapsed = Number.isFinite(Number(roomState.elapsedSeconds)) ? Number(roomState.elapsedSeconds) : 0;
           if (roomState.isCompleted || wasCompleted) state.timerSeconds = incomingElapsed;
           state.completed = !!roomState.isCompleted;
-          state.board = roomState.boardValues.map(row => row.map(value => value == null ? '' : String(value)));
+          // Anti-cheat: ao aplicar o estado remoto, não permite que uma célula com valor correto
+          // seja apagada por outro jogador. Se o valor remoto é vazio e o local é correto, preserva o local.
+          const incomingBoard = roomState.boardValues.map(row => row.map(value => value == null ? '' : String(value)));
+          state.board = incomingBoard.map((row, r) => row.map((incomingVal, c) => {
+              if (state.initial[r] && state.initial[r][c] !== '') return state.initial[r][c]; // pista fixa
+              const localVal = previousBoard[r] ? previousBoard[r][c] : '';
+              const isLocalCorrect = localVal !== '' && state.solution && state.solution[r] && localVal === state.solution[r][c];
+              if (isLocalCorrect && incomingVal === '') return localVal; // preserva valor correto local
+              return incomingVal;
+          }));
           if (state.multiplayer.roomMode === 'versus') {
               // Keep private annotations local, but still apply normal Sudoku candidate cleanup
               // when an opponent fills a cell with a new value.
@@ -477,6 +476,39 @@ function getFirebaseAPI() {
           fb.update(boardStateRef, patch).catch(error => console.error('Falha ao sincronizar a casa do Sudoku:', error));
       }
 
+      // Atualiza o timestamp de última atividade da sala (chamado a cada interação significativa).
+      // Isso alimenta o marcador de proteção contra sobrescrita da sala por N dias.
+      function touchRoomActivity() {
+          if (!state.multiplayer.active || !state.multiplayer.roomId) return;
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          const roomPresenceRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'presence'));
+          fb.update(roomPresenceRef, { lastSeenTimestamp: Date.now(), isActive: true }).catch(() => {});
+      }
+
+      // Verifica se uma sala com roomId já existe e se está ativa ou protegida.
+      // Retorna: 'active' | 'protected' | 'free'
+      async function checkRoomStatus(roomId) {
+          const fb = getFirebaseAPI();
+          if (!fb) return 'free';
+          try {
+              // Lê apenas o nó 'presence' — menor e suficiente para a decisão.
+              const snapshot = await fb.get(fb.ref(fb.db, roomPath(roomId, 'presence')));
+              const presence = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : null;
+              if (!presence || typeof presence !== 'object') return 'free';
+              if (presence.isActive === true) return 'active';
+              const lastSeen = Number(presence.lastSeenTimestamp) || 0;
+              if (!lastSeen) return 'free';
+              const protectionMs = (typeof ROOM_PROTECTION_DAYS === 'number' ? ROOM_PROTECTION_DAYS : 2) * 24 * 60 * 60 * 1000;
+              if (Date.now() - lastSeen < protectionMs) return 'protected';
+              return 'free';
+          } catch (error) {
+              console.warn('Não foi possível verificar o status da sala:', error);
+              // Em caso de falha de leitura, assume livre para não bloquear o jogo.
+              return 'free';
+          }
+      }
+
       function registerRoomPresence(roomId) {
           const fb = getFirebaseAPI();
           if (!fb) return;
@@ -495,9 +527,21 @@ function getFirebaseAPI() {
                   console.error('Falha ao registrar presença multiplayer:', error);
                   fb.set(playerRef, presence).catch(() => {});
               });
+          // Remove o cursor do jogador ao desconectar para não deixar avatar flutuante.
+          const cursorRef = fb.ref(fb.db, roomPath(roomId, `cursors/${state.multiplayer.playerId}`));
+          fb.onDisconnect(cursorRef).remove().catch(() => {});
           const memberRef = fb.ref(fb.db, roomPath(roomId, `members/${state.multiplayer.playerId}`));
-          const memberRecord = { ...presence, clientMetadata: collectClientMetadata() };
-          fb.set(memberRef, memberRecord).catch(error => console.warn('Não foi possível registrar o participante no histórico da sala:', error));
+          // Apenas informações de presença pública são gravadas no nó members (lido por todos).
+          // Os metadados do cliente ficam em privateData, que deve ser protegido pelas regras do Firebase.
+          fb.set(memberRef, { ...presence }).catch(error => console.warn('Não foi possível registrar o participante no histórico da sala:', error));
+          const privateRef = fb.ref(fb.db, roomPath(roomId, `privateData/${state.multiplayer.playerId}/clientMetadata`));
+          fb.set(privateRef, collectClientMetadata()).catch(() => { /* privateData pode não existir nas regras legadas; ignorar silenciosamente */ });
+
+          // Marcador de atividade da sala: isActive volta para false ao desconectar;
+          // lastSeenTimestamp persiste para implementar o período de proteção contra sobrescrita.
+          const roomPresenceRef = fb.ref(fb.db, roomPath(roomId, 'presence'));
+          fb.onDisconnect(roomPresenceRef).update({ isActive: false, lastDisconnectedTimestamp: Date.now() }).catch(() => {});
+          fb.update(roomPresenceRef, { isActive: true, lastSeenTimestamp: Date.now() }).catch(() => {});
       }
 
 
@@ -558,6 +602,8 @@ function getFirebaseAPI() {
           if (!state.multiplayer.active || !state.multiplayer.roomId) return;
           // Pencil edits in competitive rooms stay local: do not even publish their symbol in the move log.
           if (action === 'NOTE' && state.multiplayer.roomMode === 'versus') return;
+          // FOCUS events usam um nó mutável de cursor, não o log append-only. Ver publishCursorToFirebase.
+          if (action === 'FOCUS') { publishCursorToFirebase(row, column); return; }
           const fb = getFirebaseAPI();
           if (!fb) return;
           ensureMultiplayerColor();
@@ -575,7 +621,7 @@ function getFirebaseAPI() {
           };
           const movesRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'moves'));
           fb.push(movesRef, movePayload).catch(error => console.error('Erro ao enviar jogada para o Firebase:', error));
-          if (action !== 'FOCUS') publishRoomBoardCell(row, column, action === 'SET' || action === 'NASA');
+          publishRoomBoardCell(row, column, action === 'SET' || action === 'NASA');
           if (['SET', 'ERASE', 'NASA'].includes(action) && row >= 0 && column >= 0) {
               state.multiplayer.contributions = state.multiplayer.contributions || {};
               const localKey = `${row}_${column}`;
@@ -600,6 +646,26 @@ function getFirebaseAPI() {
               }
               operation.catch(error => console.error('Falha ao atualizar a contribuição da célula:', error));
           }
+      }
+
+      // Publica a posição do cursor do jogador local num nó mutável por jogador,
+      // em vez de anexar ao log append-only de moves. Isso evita crescimento ilimitado do log de moves.
+      function publishCursorToFirebase(row, column) {
+          if (!state.multiplayer.active || !state.multiplayer.roomId) return;
+          const fb = getFirebaseAPI();
+          if (!fb) return;
+          ensureMultiplayerColor();
+          const cursorRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `cursors/${state.multiplayer.playerId}`));
+          fb.set(cursorRef, {
+              row,
+              column,
+              userId: state.multiplayer.playerId,
+              userName: state.multiplayer.playerName,
+              userColor: state.multiplayer.color,
+              timestamp: Date.now()
+          }).catch(() => { /* cursor updates are best-effort */ });
+          // Toda movimentação de cursor conta como atividade da sala para o marcador de proteção.
+          touchRoomActivity();
       }
 
       function processIncomingMove(move) {
@@ -680,6 +746,28 @@ function getFirebaseAPI() {
           const membersRef = fb.ref(fb.db, roomPath(roomId, 'members'));
           const featureVoteRef = fb.ref(fb.db, roomPath(roomId, 'featureVote'));
           const settingsRef = fb.ref(fb.db, roomPath(roomId, 'settings'));
+          const cursorsRef = fb.ref(fb.db, roomPath(roomId, 'cursors'));
+
+          // Listener de cursores: atualiza a posição visível de cada jogador sem poluir o log de moves.
+          state.multiplayer.listeners.push(fb.onValue(cursorsRef, snapshot => {
+              const cursors = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
+              state.multiplayer.peers = state.multiplayer.peers || {};
+              Object.entries(cursors).forEach(([userId, cursor]) => {
+                  if (userId === state.multiplayer.playerId) return;
+                  if (!cursor || typeof cursor !== 'object') return;
+                  const row = Number.isInteger(Number(cursor.row)) ? Number(cursor.row) : -1;
+                  const column = Number.isInteger(Number(cursor.column)) ? Number(cursor.column) : -1;
+                  const userName = typeof cursor.userName === 'string' ? cursor.userName.slice(0, 64) : 'Jogador';
+                  const userColor = typeof cursor.userColor === 'string' && /^#[0-9a-f]{6}$/i.test(cursor.userColor) ? cursor.userColor : '#3b82f6';
+                  const previous = state.multiplayer.peers[userId] || {};
+                  state.multiplayer.peers[userId] = { ...previous, row, column, name: userName, color: userColor, lastSeen: Date.now() };
+              });
+              // Remove cursores de jogadores que não estão mais online.
+              const onlineIds = new Set(Object.keys(state.multiplayer.players || {}));
+              Object.keys(state.multiplayer.peers).forEach(id => { if (!onlineIds.has(id)) delete state.multiplayer.peers[id]; });
+              updateAllCellVisuals();
+              renderMultiplayerSidebar();
+          }));
 
           state.multiplayer.listeners.push(fb.onValue(contributionsRef, snapshot => {
               state.multiplayer.contributions = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
@@ -794,7 +882,7 @@ function getFirebaseAPI() {
           }, { onlyOnce: true });
       }
 
-      function hostRoom(playerName) {
+      async function hostRoom(playerName) {
           if (state.isManualCreating) {
               showToast('Finalize a criação manual antes de hospedar.', 'warn');
               return;
@@ -810,9 +898,30 @@ function getFirebaseAPI() {
           state.multiplayer.roomMode = document.getElementById('multiplayer-room-mode')?.value === 'versus' ? 'versus' : 'coop';
           state.multiplayer.realtimeMetrics = state.multiplayer.roomMode === 'versus' && !!document.getElementById('multiplayer-realtime-metrics')?.checked;
           let roomId = customRoomName;
-          if (!roomId) roomId = Math.random().toString(36).slice(2, 6).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
-          else roomId = roomId.replace(/[.#$\[\]/]/g, '_');
+          if (!roomId) {
+              // Sala com nome automático: usa crypto.getRandomValues para gerar um ID com alta entropia.
+              // IDs aleatórios têm chance de colisão desprezível, então não verificamos existência.
+              const bytes = new Uint8Array(8);
+              crypto.getRandomValues(bytes);
+              roomId = Array.from(bytes, b => b.toString(36).padStart(2, '0')).join('').toUpperCase().slice(0, 8);
+          } else {
+              roomId = roomId.replace(/[.#$\[\]/]/g, '_');
+              // Nome personalizado: verifica se a sala já existe e se está protegida.
+              showToast('Verificando sala...', 'info');
+              const status = await checkRoomStatus(roomId);
+              if (status === 'active') {
+                  showToast(`A sala "${roomId}" está ativa com jogadores conectados. Entre nela ou escolha outro nome.`, 'warn');
+                  return;
+              }
+              if (status === 'protected') {
+                  const days = typeof ROOM_PROTECTION_DAYS === 'number' ? ROOM_PROTECTION_DAYS : 2;
+                  showToast(`Uma sala com o nome "${roomId}" já existe e foi usada recentemente (protegida por ${days} dias). Entre nela ou escolha outro nome para criar a sua.`, 'warn');
+                  return;
+              }
+              // status === 'free': sala não existe ou expirou → pode sobrescrever.
+          }
 
+          // Só muta o estado local depois da verificação passar.
           state.multiplayer.active = true;
           state.multiplayer.roomId = roomId;
           state.multiplayer.playerName = playerName || 'Host';

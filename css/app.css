@@ -940,3 +940,13 @@ body.board-focus-mode #sudoku-board-viewport { scrollbar-width: thin; }
 }
 
 .sudoku-cell .pencil-note-empty { visibility: hidden; }
+
+/* Votações ficam na frente do tabuleiro no modo tela cheia.
+   O board-wrapper tem z-index 99995; votações precisam ser superiores. */
+body.board-focus-mode #modal-vote-newgame {
+  z-index: 100010 !important;
+}
+body.board-focus-mode .mp-feature-vote-toast {
+  z-index: 100010 !important;
+  position: fixed !important;
+}

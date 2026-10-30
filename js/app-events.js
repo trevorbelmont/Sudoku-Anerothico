@@ -114,7 +114,8 @@ function initEventListeners() {
         document.getElementById('btn-create-room').addEventListener('click', () => {
             const fb = getFirebaseAPI();
             if (!fb || !fb.db) { showToast('Carregando conexão de rede... Tente novamente em 2 segundos.', 'warn'); return; }
-            const savedName = localStorage.getItem('sudoku_anerothico_mp_name') || '';
+            let savedName = '';
+            try { savedName = localStorage.getItem('sudoku_anerothico_mp_name') || ''; } catch (_) {}
             document.getElementById('multiplayer-name-input').value = savedName;
             openModal('modal-multiplayer');
         });
@@ -218,7 +219,7 @@ function initEventListeners() {
         document.getElementById('btn-host-room').addEventListener('click', () => {
             let name = document.getElementById('multiplayer-name-input').value.trim();
             if (!name) name = 'Anônimo';
-            localStorage.setItem('sudoku_anerothico_mp_name', name);
+            try { localStorage.setItem('sudoku_anerothico_mp_name', name); } catch (_) {}
             hostRoom(name);
         });
         
@@ -228,7 +229,7 @@ function initEventListeners() {
             let room = document.getElementById('multiplayer-room-input').value.trim();
             if (!room) { showToast('Digite o nome/ID da sala para entrar.', 'warn'); return; }
             room = room.replace(/[\.#\$\[\]/]/g, '_');
-            localStorage.setItem('sudoku_anerothico_mp_name', name);
+            try { localStorage.setItem('sudoku_anerothico_mp_name', name); } catch (_) {}
             joinRoom(room, name);
         });
         
@@ -306,13 +307,15 @@ function initEventListeners() {
       }
 
       function initApp() {
-        const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'rainbow';
+        let savedTheme = 'rainbow';
+        try { savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'rainbow'; } catch (_) {}
         applyTheme(savedTheme);
         initEventListeners();
         updateSavedBadgeCount();
         if (tryLoadSharedPuzzleFromURL()) return;
         const savedGames = getAllSavedGames();
-        const lastId = localStorage.getItem(STORAGE_KEYS.CURRENT_GAME_ID);
+        let lastId = null;
+        try { lastId = localStorage.getItem(STORAGE_KEYS.CURRENT_GAME_ID); } catch (_) {}
         const lastGame = savedGames.find(g => g.gameId === lastId && !g.completed) || savedGames.find(g => !g.completed);
         if (lastGame) loadSavedGameRecord(lastGame); else startNewGame();
       }

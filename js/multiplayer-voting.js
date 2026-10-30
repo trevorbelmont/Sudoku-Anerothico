@@ -19,11 +19,38 @@ async function requestNewGameConsensus() {
               showToast('Não foi possível conferir quem está online para abrir a votação.', 'warn');
               return;
           }
-          const proposalId = 'proposal_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
           const requiredPlayerIds = Array.from(new Set([
               ...Object.keys(livePlayers),
               state.multiplayer.playerId
           ]));
+
+          // Atalho solo: se o jogador está sozinho na sala, executa diretamente sem votação.
+          const otherPlayers = requiredPlayerIds.filter(id => id !== state.multiplayer.playerId);
+          if (otherPlayers.length === 0) {
+              const soloProposal = {
+                  proposalId: 'solo_' + Date.now(),
+                  proposerId: state.multiplayer.playerId,
+                  proposerName: state.multiplayer.playerName,
+                  gameMode: state.mode,
+                  difficultyLevel: state.difficulty,
+                  minimumSymbolValue: state.mode === 'custom' ? Number(document.getElementById('custom-min-input').value) : 1,
+                  maximumSymbolValue: state.mode === 'custom' ? Number(document.getElementById('custom-max-input').value) : 9,
+                  includesZeroValue: state.mode === 'custom' ? document.getElementById('custom-include-zero').checked : false,
+                  boardDimension: N,
+                  requiredPlayerIds,
+                  baseInstanceNumber: state.multiplayer.instanceCount,
+                  status: 'pending',
+                  voters: {},
+                  createdAtTimestamp: Date.now()
+              };
+              state.multiplayer.currentProposal = soloProposal;
+              executeMultiplayerNewGame(soloProposal);
+              return;
+          }
+
+          const bytes = new Uint8Array(5);
+          crypto.getRandomValues(bytes);
+          const proposalId = 'proposal_' + Date.now() + '_' + Array.from(bytes, b => b.toString(36)).join('').slice(0, 7);
           const proposal = {
               proposalId,
               proposerId: state.multiplayer.playerId,
@@ -38,7 +65,8 @@ async function requestNewGameConsensus() {
               baseInstanceNumber: state.multiplayer.instanceCount,
               status: 'pending',
               voters: {},
-              createdAtTimestamp: Date.now()
+              createdAtTimestamp: Date.now(),
+              expiresAtTimestamp: Date.now() + 45000
           };
           const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
           state.multiplayer.currentProposal = proposal;
@@ -46,6 +74,19 @@ async function requestNewGameConsensus() {
           state.multiplayer.observedProposalVoteIds = {};
           fb.set(propRef, proposal).then(() => {
               showProposalWaitingState(proposal, true);
+              // Timeout de 45 segundos: se a proposta ainda estiver pendente, cancela automaticamente.
+              const roomIdAtVote = state.multiplayer.roomId;
+              setTimeout(() => {
+                  if (!state.multiplayer.active || state.multiplayer.roomId !== roomIdAtVote) return;
+                  const current = state.multiplayer.currentProposal;
+                  if (!current || current.proposalId !== proposalId || current.status !== 'pending') return;
+                  state.multiplayer.currentProposal = { ...current, status: 'cancelled' };
+                  closeModal('modal-vote-newgame');
+                  fb.remove(propRef).then(() => {
+                      state.multiplayer.currentProposal = null;
+                      showToast('Tempo esgotado: proposta de novo tabuleiro cancelada (45 s).', 'info');
+                  }).catch(() => {});
+              }, 45000);
           }).catch(error => {
               console.error('Não foi possível solicitar novo tabuleiro:', error);
               showToast('Não foi possível enviar a proposta de novo tabuleiro.', 'warn');
@@ -361,13 +402,47 @@ function requestFeatureVote(type, requestedValue = null) {
         renderFeatureVoteCard(state.multiplayer.currentFeatureVote);
         return true;
     }
-    const voteId = `feature_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // Atalho solo: jogador está sozinho na sala, aplica a ação diretamente sem votação.
+    const onlinePlayers = Object.keys(state.multiplayer.players || {});
+    const onlineOthers = onlinePlayers.filter(id => id !== state.multiplayer.playerId);
+    if (onlineOthers.length === 0) {
+        if (type === 'nasa') {
+            giveNasaHint();
+        } else if (type === 'immediateError') {
+            state.immediateErrorCheck = !!requestedValue;
+            const errorToggle = document.getElementById('toggle-immediate-error');
+            if (errorToggle) errorToggle.checked = !!requestedValue;
+            updateAllCellVisuals();
+            const settingsRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'settings'));
+            fb.update(settingsRef, { immediateErrorCheck: !!requestedValue, immediateErrorUpdatedAt: Date.now(), immediateErrorUpdatedBy: state.multiplayer.playerId }).catch(error => console.error(error));
+        }
+        return true;
+    }
+
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    const voteId = `feature_${Date.now()}_${Array.from(bytes, b => b.toString(36)).join('').slice(0, 8)}`;
     const vote = {
         voteId, type, requestedValue, proposerId: state.multiplayer.playerId,
-        proposerName: state.multiplayer.playerName || 'Jogador', status: 'pending', votes: {}, createdAtTimestamp: Date.now()
+        proposerName: state.multiplayer.playerName || 'Jogador', status: 'pending', votes: {},
+        createdAtTimestamp: Date.now(),
+        expiresAtTimestamp: Date.now() + 45000
     };
     const ref = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'featureVote'));
-    fb.set(ref, vote).then(() => renderFeatureVoteCard(vote)).catch(error => {
+    fb.set(ref, vote).then(() => {
+        renderFeatureVoteCard(vote);
+        // Timeout de 45 segundos: cancela a votação de feature se não atingiu maioria.
+        const roomIdAtVote = state.multiplayer.roomId;
+        setTimeout(() => {
+            if (!state.multiplayer.active || state.multiplayer.roomId !== roomIdAtVote) return;
+            const current = state.multiplayer.currentFeatureVote;
+            if (!current || current.voteId !== voteId || current.status !== 'pending') return;
+            fb.update(ref, { status: 'rejected', resolvedAtTimestamp: Date.now(), timedOut: true })
+              .then(() => showToast('Tempo esgotado: votação cancelada sem maioria (45 s).', 'info'))
+              .catch(() => {});
+        }, 45000);
+    }).catch(error => {
         console.error('Falha ao abrir votação da sala:', error);
         showToast('Não foi possível abrir a votação. Confira as regras do Firebase.', 'warn');
     });

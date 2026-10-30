@@ -104,7 +104,7 @@ function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEY
           card.querySelector('.h-date').textContent = fullDateStr;
           card.querySelector('.h-btn-res').textContent = item.completed ? 'Visualizar' : 'Retomar';
           card.querySelector('.h-btn-res').addEventListener('click', () => { loadSavedGameRecord(item); closeModal('modal-history'); showToast('Partida restaurada!', 'success'); });
-          card.querySelector('.h-btn-del').addEventListener('click', () => { const updated = getAllSavedGames().filter(g => g.gameId !== item.gameId); localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(updated)); updateSavedBadgeCount(updated); renderHistoryModalList(); });
+          card.querySelector('.h-btn-del').addEventListener('click', () => { const updated = getAllSavedGames().filter(g => g.gameId !== item.gameId); try { localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(updated)); } catch (_) {} updateSavedBadgeCount(updated); renderHistoryModalList(); });
           container.appendChild(card);
         }
       }
