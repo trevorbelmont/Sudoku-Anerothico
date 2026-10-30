@@ -203,13 +203,14 @@
         return null;
       }
 
-      const SEEDS_17_CLUES = ['8...3..........4.7..2.8....4....3...5......2.....7...3.5..........2..61..6.......', '.......1.4.........2...........5.4.7..8...3....1.9....3..4..2...5.1........8.6...', '.......12........3..23..4....18....5.6..7.8.......9.....85.....9...4.5..47...6...', '.....6....59.....82....8....45........3........6..3.54...325..6..................', '....14....3....2...7..........9...3.6.1.............8.2.....1.4....5.6.....7.8...'];
+      const SEEDS_17_CLUES = ['8...3..........4.7..2.8....4....3...5......2.....7...3.5..........2..61..6.......', '.......1.4.........2...........5.4.7..8...3....1.9....3..4..2...5.1........8.6...', '.......12........3..23..4....18....5.6..7.8.......9.....85.....9...4.5..47...6...', '.2.61..........4.3.......8.26......4...1..8...9.....6.9...3....3....7..5..8....12', '....14....3....2...7..........9...3.6.1.............8.2.....1.4....5.6.....7.8...'];
       const SEEDS_UAISO_BASE = ['..3...81....9...42....61...6.....7..7.4.2.....39.5.......6.3....1..7.6..8......75', '..7......51.8...43..95....69...1...5....93.822................1.4..6..9..8....7..', '87.9..3......25...4..71....567......2.....9....15..2...8..4..1........6.7.....5.2'];
 
       function buildIsomorphic9x9FromSeed(seedStr, symbols, targetCluesCount) {
         const stdSymbols = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
         const rawInitial = Array.from({ length: 9 }, (_, r) => Array.from({ length: 9 }, (_, c) => { const ch = seedStr[r * 9 + c]; return (ch >= '1' && ch <= '9') ? ch : ''; }));
         const rawSolution = solvePartialGrid(rawInitial, 9, 3, 3, stdSymbols);
+        if (!rawSolution) return null;
         const bandOrder = shuffleArray([0, 1, 2]); const rowPerm = [];
         for (const b of bandOrder) rowPerm.push(...shuffleArray([b * 3, b * 3 + 1, b * 3 + 2]));
         const stackOrder = shuffleArray([0, 1, 2]); const colPerm = [];
@@ -235,8 +236,12 @@
 
       function createUniqueSudokuPuzzle(N, blockR, blockC, symbols, difficulty) {
         if (N === 9 && blockR === 3 && blockC === 3 && (difficulty === 'doido' || difficulty === 'uaiso')) {
-          if (difficulty === 'doido') return buildIsomorphic9x9FromSeed(SEEDS_17_CLUES[Math.floor(Math.random() * SEEDS_17_CLUES.length)], symbols, Math.random() < 0.8 ? 17 : 18);
-          if (difficulty === 'uaiso') return buildIsomorphic9x9FromSeed([...SEEDS_UAISO_BASE, ...SEEDS_17_CLUES][Math.floor(Math.random() * 8)], symbols, 22 + Math.floor(Math.random() * 3));
+          let seedResult = null;
+          if (difficulty === 'doido') seedResult = buildIsomorphic9x9FromSeed(SEEDS_17_CLUES[Math.floor(Math.random() * SEEDS_17_CLUES.length)], symbols, Math.random() < 0.8 ? 17 : 18);
+          if (difficulty === 'uaiso') seedResult = buildIsomorphic9x9FromSeed([...SEEDS_UAISO_BASE, ...SEEDS_17_CLUES][Math.floor(Math.random() * 8)], symbols, 22 + Math.floor(Math.random() * 3));
+          if (seedResult) return seedResult;
+          // Seed sem solução ou busca inconclusiva: recorre ao gerador geral, que parte de uma
+          // solução completa válida e só remove pistas mantendo unicidade — logo sempre satisfatível.
         }
         const solution = generateCompleteValidGrid(N, blockR, blockC, symbols);
         const symToIdx = new Map(symbols.map((s, i) => [s, i]));
