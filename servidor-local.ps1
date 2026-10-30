@@ -66,6 +66,14 @@ function Write-Help {
     Write-Host "  http://localhost:$script:port/" -ForegroundColor Green
     Write-Host '  Copie um dos endereços e cole-o no navegador desejado.' -ForegroundColor Gray
     Write-Host ''
+    Write-Host '  COMANDOS DE DESENVOLVIMENTO' -ForegroundColor Cyan
+    Write-Host '  test                — roda todos os testes (npm run test:all) em nova janela' -ForegroundColor Gray
+    Write-Host '  test unit           — roda apenas os testes unitários (npm run test:unit)' -ForegroundColor Gray
+    Write-Host '  test integration    — roda apenas os testes de integração (npm run test:integration)' -ForegroundColor Gray
+    Write-Host '  clean  /  limpar    — apaga node_modules e caches dos testes (pede confirmação)' -ForegroundColor Gray
+    Write-Host '  reset storage       — limpa o localStorage do jogo via rota fantasma (pede confirmação)' -ForegroundColor Gray
+    Write-Host '  Requer Node.js/npm instalado para os comandos de teste.' -ForegroundColor DarkGray
+    Write-Host ''
     Write-Host '  ENCERRAMENTO' -ForegroundColor Cyan
     Write-Host '  Pressione X para solicitar o encerramento.' -ForegroundColor Gray
     Write-Host '  Ou digite exit e pressione Enter. Depois confirme com Y/yes ou N/no.' -ForegroundColor Gray
@@ -83,6 +91,61 @@ function Confirm-Shutdown {
         if ($answer -in @('n', 'no', 'nao', 'não')) { return $false }
         Write-Host '  Resposta não reconhecida. Digite Y/yes para sair ou N/no para continuar.' -ForegroundColor Red
     }
+}
+
+function Confirm-YesNo {
+    param([string]$Prompt)
+    while ($true) {
+        Write-Host ''
+        Write-Host "  $Prompt" -ForegroundColor Yellow
+        Write-Host '  [Y] Sim   [N] Não' -ForegroundColor Gray
+        $answer = (Read-Host '  Responda Y/N ou yes/no').Trim().ToLowerInvariant()
+        if ($answer -in @('y', 'yes', 's', 'sim')) { return $true }
+        if ($answer -in @('n', 'no', 'nao', 'não')) { return $false }
+        Write-Host '  Resposta não reconhecida. Digite Y/yes para confirmar ou N/no para cancelar.' -ForegroundColor Red
+    }
+}
+
+function Invoke-TestRun {
+    param([string]$ScriptName)
+    $testsRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, 'tests'))
+    if (-not [System.IO.Directory]::Exists($testsRoot)) {
+        Write-Host "  Pasta de testes não encontrada: $testsRoot" -ForegroundColor Red
+        return
+    }
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js para rodar os testes.' -ForegroundColor Red
+        return
+    }
+    Write-Host "  Iniciando 'npm run $ScriptName' em uma nova janela..." -ForegroundColor Green
+    try {
+        Start-Process -FilePath 'cmd.exe' -ArgumentList "/k npm run $ScriptName" -WorkingDirectory $testsRoot
+        Write-Host '  Janela de testes aberta. Feche-a manualmente ao terminar.' -ForegroundColor Gray
+    } catch {
+        Write-Host "  Não foi possível abrir a janela de testes: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+function Invoke-TestClean {
+    $testsRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, 'tests'))
+    $targets = @(
+        [System.IO.Path]::Combine($testsRoot, 'node_modules'),
+        [System.IO.Path]::Combine($testsRoot, 'coverage'),
+        [System.IO.Path]::Combine($testsRoot, '.nyc_output')
+    )
+    foreach ($target in $targets) {
+        if ([System.IO.Directory]::Exists($target)) {
+            try {
+                Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
+                Write-Host "  Removido: $target" -ForegroundColor Green
+            } catch {
+                Write-Host "  Falha ao remover $target : $($_.Exception.Message)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "  Ignorado (não existe): $target" -ForegroundColor DarkGray
+        }
+    }
+    Write-Host '  Limpeza concluída.' -ForegroundColor Green
 }
 
 function Send-HttpResponse($client, [string]$status, [string]$contentType, [byte[]]$body, [bool]$isHead) {
@@ -116,6 +179,16 @@ function Handle-HttpClient($client) {
 
         $relative = [System.Uri]::UnescapeDataString(($rawPath -split '\?', 2)[0]).TrimStart('/')
         if ([string]::IsNullOrWhiteSpace($relative)) { $relative = 'index.html' }
+
+        # Rota fantasma de desenvolvimento: limpa o localStorage do navegador.
+        # Não corresponde a nenhum arquivo do projeto; devolve uma página minúscula.
+        if ($relative -ieq 'dev-clean-storage') {
+            $cleanHtml = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Limpeza de Armazenamento</title></head><body><script>localStorage.clear(); alert("Armazenamento Local Limpo com Sucesso!"); window.location.href="/";</script></body></html>'
+            $cleanBody = [System.Text.Encoding]::UTF8.GetBytes($cleanHtml)
+            Send-HttpResponse $client '200 OK' 'text/html; charset=utf-8' $cleanBody $isHead
+            return
+        }
+
         $candidate = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, $relative.Replace('/', [System.IO.Path]::DirectorySeparatorChar)))
         $rootPrefix = $script:root
         if (-not $rootPrefix.EndsWith([string][System.IO.Path]::DirectorySeparatorChar)) { $rootPrefix += [System.IO.Path]::DirectorySeparatorChar }
@@ -151,6 +224,44 @@ function Process-ConsoleCommand([string]$command) {
     }
     if ($normalized -in @('help', 'ajuda', 'url', 'urls', '?')) {
         Write-Help
+        return
+    }
+    if ($normalized -in @('test', 'test:all', 'test all')) {
+        Invoke-TestRun 'test:all'
+        return
+    }
+    if ($normalized -in @('test unit', 'test:unit', 'testunit')) {
+        Invoke-TestRun 'test:unit'
+        return
+    }
+    if ($normalized -in @('test integration', 'test:integration', 'testintegration')) {
+        Invoke-TestRun 'test:integration'
+        return
+    }
+    if ($normalized -in @('clean', 'limpar')) {
+        Write-Host ''
+        Write-Host '  LIMPEZA DO AMBIENTE DE TESTES' -ForegroundColor Cyan
+        Write-Host '  Serão removidos: tests/node_modules, tests/coverage e tests/.nyc_output.' -ForegroundColor Gray
+        Write-Host '  Os testes precisarão reinstalar as dependências antes de rodar novamente.' -ForegroundColor Gray
+        if (Confirm-YesNo 'Deseja apagar a pasta node_modules e os caches dos testes?') {
+            Invoke-TestClean
+        } else {
+            Write-Host '  Limpeza cancelada. Nada foi removido.' -ForegroundColor Green
+        }
+        return
+    }
+    if ($normalized -eq 'reset storage') {
+        Write-Host ''
+        Write-Host '  RESET DE ARMAZENAMENTO LOCAL (localStorage)' -ForegroundColor Cyan
+        Write-Host '  Será aberto o navegador em uma rota especial que limpa o localStorage do jogo.' -ForegroundColor Gray
+        Write-Host '  Isso apaga partidas salvas, configurações e estados locais neste navegador.' -ForegroundColor Gray
+        if (Confirm-YesNo 'Deseja abrir o navegador e limpar o Armazenamento Local?') {
+            $cleanUrl = "http://localhost:$script:port/dev-clean-storage"
+            Write-Host "  Abrindo: $cleanUrl" -ForegroundColor Green
+            try { Start-Process $cleanUrl } catch { Write-Host "  Não foi possível abrir o navegador: $($_.Exception.Message)" -ForegroundColor Yellow }
+        } else {
+            Write-Host '  Reset cancelado. O navegador não foi aberto.' -ForegroundColor Green
+        }
         return
     }
     if ($normalized.Length -gt 0) {

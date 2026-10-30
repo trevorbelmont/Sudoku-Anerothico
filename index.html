@@ -653,7 +653,26 @@
       <div class="p-6 overflow-y-auto space-y-6 text-xs sm:text-sm">
         <div class="relative pl-4 border-l-2 border-fuchsia-500">
           <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
-          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.6 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.8 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Atual)</span></h3>
+          <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
+            <li><strong>Easter Egg — Modo Desenvolvedor:</strong> clicar rapidamente 9 vezes no logo "9" do cabeçalho (em até 4 s) ativa o Modo Desenvolvedor, confirmado por um toast discreto "Modo Desenvolvedor Ativado". A ativação dura a sessão da aba.</li>
+            <li><strong>Limpeza de memória no Front-end:</strong> o modal de Configurações Visuais passa a exibir (apenas com o Modo Desenvolvedor ativo) uma seção "⚠️ Modo Desenvolvedor: Limpeza" com três botões: <em>Resetar Configurações Visuais</em>, <em>Apagar Todo o Histórico de Jogos Salvos</em> e <em>Nuclear (Reset de Fábrica Completo)</em>. Cada ação exige confirmação nativa (<code>window.confirm</code>) antes de remover as chaves exatas do <code>localStorage</code> (ou <code>localStorage.clear()</code> no Nuclear) e recarregar a página.</li>
+            <li><strong>Sem alterações no jogo:</strong> nenhuma regra, mecânica ou estética do tabuleiro foi modificada — todo o trabalho é restrito a ferramentas de manutenção no front-end.</li>
+          </ul>
+        </div>
+        <div class="relative pl-4 border-l-2 border-fuchsia-500">
+          <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.7 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
+          <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
+            <li><strong>CLI interativa do servidor local:</strong> o terminal do PowerShell (<code>servidor-local.ps1</code>) ganhou comandos de automação de desenvolvimento. <code>test</code>, <code>test unit</code> e <code>test integration</code> abrem uma nova janela executando o <code>npm run</code> correspondente na pasta <code>tests/</code>; <code>clean</code> (ou <code>limpar</code>) pede confirmação [Y/N] antes de remover <code>node_modules</code> e os caches de teste.</li>
+            <li><strong>Rota fantasma de reset:</strong> o comando <code>reset storage</code> pede confirmação [Y/N] e abre o navegador em <code>http://localhost:8765/dev-clean-storage</code>, uma rota especial do servidor que devolve uma página minúscula executando <code>localStorage.clear()</code> e redirecionando de volta ao jogo — útil para limpar o armazenamento local sem mexer no menu do navegador.</li>
+            <li><strong>Scripts centralizados:</strong> o <code>tests/package.json</code> agora expõe <code>test:all</code>, <code>test:unit</code>, <code>test:integration</code> e <code>clean</code>.</li>
+            <li><strong>Sem alterações no jogo:</strong> nenhuma lógica, mecânica ou layout do tabuleiro foi modificada nesta iteração — todo o trabalho focou no servidor nativo e na automação de tarefas de desenvolvimento.</li>
+          </ul>
+        </div>
+        <div class="relative pl-4 border-l-2 border-fuchsia-500">
+          <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
+          <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.6 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
           <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
             <li><strong>Identidade luminosa do jogador:</strong> células preenchidas pelo próprio jogador em salas multiplayer recebem um glow de fundo com cor harmônica ao tema ativo. A iluminação ondula suavemente por padrão, com variáveis CSS próprias para cada um dos 9 temas.</li>
             <li><strong>Animação de inserção de número:</strong> ao inserir um dígito no tabuleiro, o número recebe uma transição pop sutil e contida na célula, diferente da animação da dica NASA.</li>
@@ -1099,6 +1118,26 @@
         </div>
       </div>
 
+      <!-- ── SECÇÃO: MODO DESENVOLVEDOR (oculta por padrão; só aparece com o Modo Desenvolvedor ativo) ── -->
+      <div id="dev-mode-section" class="hidden flex-col gap-2.5 pb-3 border-b" style="border-color: var(--board-border-cell);">
+        <p class="text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5" style="color: #f97316;">
+          <span>⚠️</span> Modo Desenvolvedor: Limpeza
+        </p>
+        <p class="text-[11px] opacity-70 leading-snug -mt-1">Ações irreversíveis de limpeza do armazenamento local. Cada ação pede confirmação antes de executar.</p>
+        <button id="dev-reset-visual" type="button"
+          class="w-full px-3 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/40">
+          <i class="fa-solid fa-palette"></i> Resetar Configurações Visuais
+        </button>
+        <button id="dev-clear-history" type="button"
+          class="w-full px-3 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/40">
+          <i class="fa-solid fa-trash-can"></i> Apagar Todo o Histórico de Jogos Salvos
+        </button>
+        <button id="dev-nuclear" type="button"
+          class="w-full px-3 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition bg-red-500/15 hover:bg-red-500/25 text-red-600 dark:text-red-400 border border-red-500/40">
+          <i class="fa-solid fa-radiation"></i> Nuclear (Reset de Fábrica Completo)
+        </button>
+      </div>
+
       <p class="text-[10px] opacity-45 leading-relaxed">
         Configurações salvas localmente. <code>prefers-reduced-motion</code> do sistema reduz animações automaticamente.
       </p>
@@ -1124,6 +1163,7 @@
   <script src="js/png-export.js"></script>
   <script src="js/ocr-import.js"></script>
   <script src="js/ui-controller.js"></script>
+  <script src="js/dev-mode.js"></script>
   <script src="js/app-events.js"></script>
   <script src="js/panel-system.js"></script>
   <script type="module" src="js/firebase-client.js"></script>

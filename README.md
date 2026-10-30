@@ -15,6 +15,20 @@ Para abrir em outro navegador instalado neste computador, copie e cole o endere�
 
 Em outros sistemas, use um servidor HTTP estático ou hospede a pasta em um serviço de hospedagem estática HTTPS.
 
+## Comandos do terminal (servidor local)
+
+Enquanto o servidor estiver ativo, digite um comando no terminal e pressione Enter. Os comandos de teste exigem o Node.js/npm instalado.
+
+- `help` — mostra os endereços do jogo e os comandos disponíveis.
+- `test` — abre uma nova janela e roda todos os testes (`npm run test:all`) na pasta `tests/`.
+- `test unit` — roda apenas os testes unitários (`npm run test:unit`).
+- `test integration` — roda apenas os testes de integração (`npm run test:integration`).
+- `clean` (ou `limpar`) — pede confirmação [Y/N] e, se confirmado, remove `tests/node_modules`, `tests/coverage` e `tests/.nyc_output`. Útil para forçar uma reinstalação limpa das dependências de teste.
+- `reset storage` — pede confirmação [Y/N] e, se confirmado, abre o navegador em `http://localhost:8765/dev-clean-storage`, uma rota fantasma do servidor que executa `localStorage.clear()` no navegador e volta ao jogo. Apaga partidas salvas, configurações e estados locais do navegador atual.
+- `exit` (ou `X` / `Ctrl+C`) — solicita o encerramento com confirmação [Y/N].
+
+Os comandos `test*` abrem uma janela separada para não interromper o servidor. Os comandos `clean` e `reset storage` são destrutivos e sempre pedem confirmação. A porta exibida no terminal é usada na rota fantasma (normalmente 8765).
+
 ## Mapa dos arquivos
 
 - `index.html` — conteúdo, estrutura semântica e layout responsivo.

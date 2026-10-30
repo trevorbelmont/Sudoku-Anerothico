@@ -124,6 +124,7 @@ function initEventListeners() {
           if (insertSpeedEl) insertSpeedEl.value = String(vs.insertSpeed ?? 50);
           updateSettingsLabels();
           openModal('modal-settings');
+          if (typeof refreshDevModeSectionVisibility === 'function') refreshDevModeSectionVisibility();
         });
         document.getElementById('btn-close-settings').addEventListener('click', () => closeModal('modal-settings'));
 
@@ -451,6 +452,7 @@ function initEventListeners() {
         try { savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'rainbow'; } catch (_) {}
         applyTheme(savedTheme);
         initEventListeners();
+        if (typeof initDevMode === 'function') initDevMode();
         updateSavedBadgeCount();
         if (tryLoadSharedPuzzleFromURL()) return;
         const savedGames = getAllSavedGames();
