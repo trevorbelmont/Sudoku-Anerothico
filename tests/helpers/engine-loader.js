@@ -325,6 +325,141 @@ _exports.shareCurrentPuzzleStateURL = shareCurrentPuzzleStateURL;
   return { exports, state: stateMock };
 }
 
+function loadMultiplayerVotingModule() {
+  const src = stripModuleDirectives(JS('multiplayer-voting.js'));
+  const exports = {};
+
+  const state = makeStateStubb();
+
+  // Réplica fiel de isNASAContributionEntry (definida em board-view.js)
+  function isNASAContributionEntry(entry) {
+    return !!entry && (entry.kind === 'NASA' || entry.action === 'NASA' || entry.playerId === 'NASA' || entry.playerName === 'NASA');
+  }
+
+  // Réplica fiel de getNasaContributionStats (definida em board-view.js),
+  // usando apenas state.nasaContributions e state.nasaCalls.
+  function ensureNasaContributionGrid() {
+    if (!Array.isArray(state.nasaContributions) || state.nasaContributions.length !== state.N) {
+      state.nasaContributions = Array.from({ length: state.N }, () => Array(state.N).fill(false));
+    }
+  }
+
+  function isNasaContributionCell(row, column) {
+    ensureNasaContributionGrid();
+    if (state.multiplayer && state.multiplayer.active) {
+      const contributions = state.multiplayer.contributions || {};
+      const key = row + '_' + column;
+      if (Object.prototype.hasOwnProperty.call(contributions, key)) return isNASAContributionEntry(contributions[key]);
+    }
+    return !!(state.nasaContributions[row] && state.nasaContributions[row][column]);
+  }
+
+  function getNasaContributionStats() {
+    ensureNasaContributionGrid();
+    let nasaOwnedCells = 0;
+    let editableFilled = 0;
+    for (let r = 0; r < state.N; r++) for (let c = 0; c < state.N; c++) {
+      if (state.initial && state.initial[r] && state.initial[r][c] !== '') continue;
+      if (state.board && state.board[r] && state.board[r][c] !== '') {
+        editableFilled++;
+        if (isNasaContributionCell(r, c)) nasaOwnedCells++;
+      }
+    }
+    const currentNasaCellCount = nasaOwnedCells;
+    const callCount = Math.max(0, Number.isFinite(Number(state.nasaCalls)) ? Number(state.nasaCalls) : 0) || currentNasaCellCount;
+    const humanFilledCells = Math.max(0, editableFilled - currentNasaCellCount);
+    const totalContributions = humanFilledCells + callCount;
+    return { count: callCount, cells: currentNasaCellCount, total: totalContributions, percent: totalContributions ? Math.round(callCount / totalContributions * 100) : 0 };
+  }
+
+  const wrapper = `
+${src}
+_exports.computeContributionStats = computeContributionStats;
+  `;
+
+  const ctx = {
+    state,
+    isNASAContributionEntry,
+    getNasaContributionStats,
+    _exports: exports,
+  };
+
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function(...keys, wrapper)(...vals);
+  } catch (_) {
+    // Outras funções do módulo dependem de Firebase/DOM; só computeContributionStats importa aqui.
+  }
+  return { exports, state };
+}
+
+function loadGameStorageModule() {
+  const src = stripModuleDirectives(JS('game-storage.js'));
+  const exports = {};
+
+  // localStorage mock compartilhado entre save e getAll
+  const storage = {};
+  const localStorageMock = {
+    getItem: k => storage[k] ?? null,
+    setItem: (k, v) => { storage[k] = String(v); },
+    removeItem: k => { delete storage[k]; },
+    clear: () => { Object.keys(storage).forEach(k => delete storage[k]); },
+  };
+
+  const engine = loadEngineModule();
+  const appState = loadAppStateModule();
+
+  const state = makeStateStubb();
+
+  // Elemento de badge para updateSavedBadgeCount
+  const badgeEl = { textContent: '' };
+  const documentMock = {
+    ...makeDOMStub(),
+    getElementById: (id) => {
+      if (id === 'saved-count-badge') return badgeEl;
+      if (id === 'manual-create-bar') return { classList: { add: () => {}, remove: () => {} } };
+      if (id === 'timer-display') return { textContent: '' };
+      return null;
+    },
+  };
+
+  // Garante que state.nasaContributions tem o tamanho correto de N
+  const ensureNasaContributionGrid = () => {
+    if (!Array.isArray(state.nasaContributions) || state.nasaContributions.length !== state.N) {
+      state.nasaContributions = Array.from({ length: state.N }, () => Array(state.N).fill(false));
+    }
+  };
+
+  const wrapper = `
+${src}
+_exports.getAllSavedGames       = getAllSavedGames;
+_exports.saveCurrentGameState    = saveCurrentGameState;
+_exports.updateSavedBadgeCount  = updateSavedBadgeCount;
+  `;
+
+  const ctx = {
+    localStorage: localStorageMock,
+    STORAGE_KEYS: appState.STORAGE_KEYS,
+    validateGameState: engine.validateGameState,
+    state,
+    ensureNasaContributionGrid,
+    computeBlockDimensions: engine.computeBlockDimensions,
+    buildSymbolsFromRange: engine.buildSymbolsFromRange,
+    formatTime: (s) => String(s),
+    document: documentMock,
+    _exports: exports,
+  };
+
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  // eslint-disable-next-line no-new-func
+  new Function(...keys, wrapper)(...vals);
+
+  return { exports, state, storage, localStorageMock, badgeEl, STORAGE_KEYS: appState.STORAGE_KEYS };
+}
+
 function loadPanelSystemModule() {
   const src = stripModuleDirectives(JS('panel-system.js'));
   const exports = {};
@@ -401,7 +536,9 @@ module.exports = {
   loadAppStateModule,
   loadUiHelpersModule,
   loadMultiplayerServiceColorModule,
+  loadMultiplayerVotingModule,
   loadSharingModule,
+  loadGameStorageModule,
   loadPanelSystemModule,
   makeStateStubb,
   makeDOMStub,

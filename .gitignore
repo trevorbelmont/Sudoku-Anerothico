@@ -1,1 +1,16 @@
 misc/
+# Dependências e Locks de Teste
+tests/node_modules/
+tests/package-lock.json
+tests/bun.lockb
+tests/bun.lock
+
+# Logs e Caches de Teste
+.nyc_output/
+coverage/
+npm-debug.log
+yarn-error.log
+
+# Arquivos de Sistema
+.DS_Store
+Thumbs.db

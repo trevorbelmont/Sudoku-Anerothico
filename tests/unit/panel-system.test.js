@@ -63,75 +63,142 @@ describe('panel-system constants', () => {
 
 // ─────────────────────────────────────────────────────────────
 // Testa persistência via localStorage mock
+//
+// O panel-system.js é uma IIFE que chama init() imediatamente quando
+// document.readyState !== 'loading'. O init() só progride se existir um
+// elemento <main> com duas <section> filhas (com classes lg:col-span-2 e
+// lg:col-span-10). Por isso o mock DOM abaixo reproduz essa estrutura para
+// que o fluxo completo (loadSavedState → createCollapseButton →
+// createResizer → applyPanelState) seja executado e a variável CSS
+// --left-panel-width seja realmente definida via documentElement.style.setProperty.
 // ─────────────────────────────────────────────────────────────
-describe('panel-system localStorage persistence', () => {
-  let storage;
-  let documentMock;
-  let setPropCalls;
 
-  function runPanelSystem(extraCtx = {}) {
-    storage = {};
-    setPropCalls = [];
+/**
+ * Cria um elemento DOM mock genérico com a API mínima usada pelo panel-system.
+ */
+function makeMockEl(tag) {
+  const classSet = new Set();
+  return {
+    tagName: tag ? String(tag).toUpperCase() : 'DIV',
+    id: '',
+    className: '',
+    style: {},
+    dataset: {},
+    innerHTML: '',
+    type: '',
+    firstChild: null,
+    nextSibling: null,
+    parentNode: null,
+    classList: {
+      add: (c) => classSet.add(c),
+      remove: (c) => classSet.delete(c),
+      contains: (c) => classSet.has(c),
+      toggle: (c) => { classSet.has(c) ? classSet.delete(c) : classSet.add(c); },
+    },
+    children: [],
+    appendChild: function (child) { this.children.push(child); child.parentNode = this; if (!this.firstChild) this.firstChild = child; return child; },
+    insertBefore: function (newNode, ref) { this.children.unshift(newNode); newNode.parentNode = this; this.firstChild = newNode; return newNode; },
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    setAttribute: jest.fn(),
+    getAttribute: jest.fn(() => null),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    remove: jest.fn(),
+  };
+}
 
-    const localStorageMock = {
-      getItem: k => storage[k] ?? null,
-      setItem: (k, v) => { storage[k] = String(v); },
-    };
+/**
+ * Monta um document mock com a estrutura esperada por init():
+ *   <main>
+ *     <section class="lg:col-span-2">…</section>   ← painel esquerdo
+ *     <section class="lg:col-span-10">…</section>  ← área central
+ *   </main>
+ */
+function makeDocumentMock(storage) {
+  const setPropCalls = [];
 
-    documentMock = {
-      querySelector: (sel) => {
-        if (sel === '.panel-left') return {
-          classList: { add: jest.fn(), remove: jest.fn(), contains: () => false },
-          offsetWidth: 280,
-          getBoundingClientRect: () => ({ width: 280 }),
-          addEventListener: jest.fn(),
-        };
-        if (sel === '.panel-resizer') return {
-          classList: { add: jest.fn(), remove: jest.fn() },
-          addEventListener: jest.fn(),
-        };
-        if (sel === '.panel-collapse-btn') return {
-          classList: { add: jest.fn(), remove: jest.fn() },
-          addEventListener: jest.fn(),
-          setAttribute: jest.fn(),
-          querySelector: () => null,
-          querySelectorAll: () => [],
-        };
-        return null;
-      },
-      querySelectorAll: () => [],
-      getElementById: () => null,
-      documentElement: {
-        style: { setProperty: (prop, val) => { setPropCalls.push({ prop, val }); } },
-      },
-      body: { classList: { contains: () => false } },
-      addEventListener: jest.fn(),
-    };
+  const leftSection = makeMockEl('section');
+  leftSection.classList.add('lg:col-span-2');
+  leftSection.classList.add('order-2');
+  leftSection.classList.add('lg:order-1');
 
-    const src = fs.readFileSync(
-      path.resolve(__dirname, '../../js/panel-system.js'), 'utf8'
-    );
+  const centerSection = makeMockEl('section');
+  centerSection.classList.add('lg:col-span-10');
+  centerSection.classList.add('order-1');
+  centerSection.classList.add('lg:order-2');
 
-    const ctx = {
-      document: documentMock,
-      localStorage: localStorageMock,
-      window: { addEventListener: jest.fn() },
-      renderSudokuBoard: jest.fn(),
-      state: { board: [], symbols: [] },
-      setTimeout: (fn, delay) => { if (!delay) fn(); },
-      ...extraCtx,
-    };
+  const mainEl = makeMockEl('main');
+  mainEl.querySelectorAll = (sel) => {
+    if (sel && sel.indexOf(':scope') !== -1) return [leftSection, centerSection];
+    return [];
+  };
+  // Empacota as duas sections como "filhas" para o forEach do init()
+  mainEl.children = [leftSection, centerSection];
 
-    const keys = Object.keys(ctx);
-    const vals = keys.map(k => ctx[k]);
-    try {
-      // eslint-disable-next-line no-new-func
-      new Function(...keys, src)(...vals);
-    } catch (_) {}
+  const documentMock = {
+    readyState: 'complete',
+    querySelector: (sel) => (sel === 'main' ? mainEl : null),
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    createElement: (tag) => makeMockEl(tag),
+    documentElement: {
+      style: { setProperty: (prop, val) => { setPropCalls.push({ prop, val }); } },
+    },
+    body: { classList: { contains: () => false }, style: {} },
+    addEventListener: jest.fn(),
+  };
 
-    return { storage, setPropCalls };
+  const localStorageMock = {
+    getItem: (k) => (storage[k] !== undefined ? storage[k] : null),
+    setItem: (k, v) => { storage[k] = String(v); },
+    removeItem: (k) => { delete storage[k]; },
+  };
+
+  return { documentMock, localStorageMock, mainEl, leftSection, centerSection, setPropCalls };
+}
+
+/**
+ * Avalia o fonte do panel-system em um contexto controlado, retornando o
+ * storage, as chamadas de setProperty e os elementos mock criados.
+ */
+function runPanelSystem(initialStorage = {}) {
+  const storage = { ...initialStorage };
+  const { documentMock, localStorageMock, mainEl, leftSection, centerSection, setPropCalls } =
+    makeDocumentMock(storage);
+
+  const src = fs.readFileSync(
+    path.resolve(__dirname, '../../js/panel-system.js'), 'utf8'
+  );
+
+  // window mock com addEventListener para capturar handlers de drag
+  const windowListeners = {};
+  const windowMock = {
+    addEventListener: jest.fn((evt, fn) => { windowListeners[evt] = fn; }),
+  };
+
+  const ctx = {
+    document: documentMock,
+    localStorage: localStorageMock,
+    window: windowMock,
+    renderSudokuBoard: jest.fn(),
+    state: { board: [], symbols: [] },
+    setTimeout: (fn, delay) => { if (!delay) fn(); },
+  };
+
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function(...keys, src)(...vals);
+  } catch (e) {
+    // Falhas silenciosas (ex.: APIs de DOM não cobertas) não devem quebrar o teste
   }
 
+  return { storage, setPropCalls, mainEl, leftSection, centerSection, windowListeners };
+}
+
+describe('panel-system localStorage persistence', () => {
   test('define --left-panel-width via CSS ao inicializar', () => {
     const { setPropCalls } = runPanelSystem();
     const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
@@ -139,52 +206,117 @@ describe('panel-system localStorage persistence', () => {
     expect(widthCall.val).toMatch(/^\d+px$/);
   });
 
-  test('lê largura salva do localStorage se válida', () => {
-    const { setPropCalls } = runPanelSystem({
-      // Injeta storage pré-preenchido antes da avaliação
-    });
-    // Sem estado pré-salvo: usa o DEFAULT (280px)
+  test('sem estado salvo, aplica a largura DEFAULT (280px)', () => {
+    const { setPropCalls } = runPanelSystem();
     const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
+    expect(widthCall).toBeDefined();
     expect(widthCall.val).toBe('280px');
   });
 
-  test('usa default quando a largura salva é inválida (fora dos limites)', () => {
-    // Fornece largura 50 (abaixo do mínimo 180) como valor pré-salvo
-    const src = fs.readFileSync(path.resolve(__dirname, '../../js/panel-system.js'), 'utf8');
-    const storage = { 'sudoku_anerothico_left_panel_width_v1': '50' };
-    const setPropCalls = [];
-
-    const ctx = {
-      document: {
-        querySelector: (sel) => {
-          if (sel === '.panel-left') return {
-            classList: { add: jest.fn(), remove: jest.fn(), contains: () => false },
-            offsetWidth: 280, getBoundingClientRect: () => ({ width: 280 }),
-            addEventListener: jest.fn(),
-          };
-          if (sel === '.panel-resizer') return { classList: { add: jest.fn(), remove: jest.fn() }, addEventListener: jest.fn() };
-          if (sel === '.panel-collapse-btn') return { classList: { add: jest.fn(), remove: jest.fn() }, addEventListener: jest.fn(), setAttribute: jest.fn(), querySelector: () => null, querySelectorAll: () => [] };
-          return null;
-        },
-        querySelectorAll: () => [],
-        getElementById: () => null,
-        documentElement: { style: { setProperty: (p, v) => setPropCalls.push({ prop: p, val: v }) } },
-        body: { classList: { contains: () => false } },
-        addEventListener: jest.fn(),
-      },
-      localStorage: { getItem: k => storage[k] ?? null, setItem: jest.fn() },
-      window: { addEventListener: jest.fn() },
-      renderSudokuBoard: jest.fn(),
-      state: { board: [], symbols: [] },
-      setTimeout: (fn, delay) => { if (!delay) fn(); },
-    };
-
-    const keys = Object.keys(ctx);
-    const vals = keys.map(k => ctx[k]);
-    try { new Function(...keys, src)(...vals); } catch (_) {} // eslint-disable-line no-new-func
-
+  test('lê largura salva do localStorage quando dentro dos limites', () => {
+    const { setPropCalls, storage } = runPanelSystem({
+      'sudoku_anerothico_left_panel_width_v1': '320',
+    });
     const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
-    // Com valor inválido (50 < 180), deve aplicar o DEFAULT (280px)
+    expect(widthCall).toBeDefined();
+    expect(widthCall.val).toBe('320px');
+    // storage permanece intacto (não foi regravado na inicialização)
+    expect(storage['sudoku_anerothico_left_panel_width_v1']).toBe('320');
+  });
+
+  test('usa default quando a largura salva é menor que o mínimo (50 < 180)', () => {
+    const { setPropCalls } = runPanelSystem({
+      'sudoku_anerothico_left_panel_width_v1': '50',
+    });
+    const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
+    expect(widthCall).toBeDefined();
     expect(widthCall.val).toBe('280px');
+  });
+
+  test('usa default quando a largura salva é maior que o máximo (500 > 420)', () => {
+    const { setPropCalls } = runPanelSystem({
+      'sudoku_anerothico_left_panel_width_v1': '500',
+    });
+    const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
+    expect(widthCall).toBeDefined();
+    expect(widthCall.val).toBe('280px');
+  });
+
+  test('usa default quando a largura salva não é numérica', () => {
+    const { setPropCalls } = runPanelSystem({
+      'sudoku_anerothico_left_panel_width_v1': 'abc',
+    });
+    const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
+    expect(widthCall).toBeDefined();
+    expect(widthCall.val).toBe('280px');
+  });
+
+  test('aplica o limite máximo (420px) quando a largura salva é exatamente o máximo', () => {
+    const { setPropCalls } = runPanelSystem({
+      'sudoku_anerothico_left_panel_width_v1': '420',
+    });
+    const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
+    expect(widthCall.val).toBe('420px');
+  });
+
+  test('aplica o limite mínimo (180px) quando a largura salva é exatamente o mínimo', () => {
+    const { setPropCalls } = runPanelSystem({
+      'sudoku_anerothico_left_panel_width_v1': '180',
+    });
+    const widthCall = setPropCalls.find(c => c.prop === '--left-panel-width');
+    expect(widthCall.val).toBe('180px');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Colapso do painel (estado collapsed)
+// ─────────────────────────────────────────────────────────────
+describe('panel-system collapse state', () => {
+  test('inicializa sem a classe collapsed quando storage está vazio', () => {
+    const { leftSection } = runPanelSystem();
+    expect(leftSection.classList.contains('collapsed')).toBe(false);
+  });
+
+  test('aplica a classe collapsed quando storage tem o flag true', () => {
+    const { leftSection } = runPanelSystem({
+      'sudoku_anerothico_left_panel_collapsed_v1': 'true',
+    });
+    expect(leftSection.classList.contains('collapsed')).toBe(true);
+  });
+
+  test('não aplica collapsed quando storage tem flag false', () => {
+    const { leftSection } = runPanelSystem({
+      'sudoku_anerothico_left_panel_collapsed_v1': 'false',
+    });
+    expect(leftSection.classList.contains('collapsed')).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Estrutura do layout criada pelo init()
+// ─────────────────────────────────────────────────────────────
+describe('panel-system init layout structure', () => {
+  test('adiciona a classe app-main-layout ao <main>', () => {
+    const { mainEl } = runPanelSystem();
+    expect(mainEl.classList.contains('app-main-layout')).toBe(true);
+  });
+
+  test('atribui id="panel-left" e classe panel-left à seção esquerda', () => {
+    const { leftSection } = runPanelSystem();
+    expect(leftSection.id).toBe('panel-left');
+    expect(leftSection.classList.contains('panel-left')).toBe(true);
+  });
+
+  test('adiciona a classe panel-center à seção central', () => {
+    const { centerSection } = runPanelSystem();
+    expect(centerSection.classList.contains('panel-center')).toBe(true);
+  });
+
+  test('remove as classes Tailwind de grid das seções', () => {
+    const { leftSection, centerSection } = runPanelSystem();
+    expect(leftSection.classList.contains('lg:col-span-2')).toBe(false);
+    expect(leftSection.classList.contains('order-2')).toBe(false);
+    expect(centerSection.classList.contains('lg:col-span-10')).toBe(false);
+    expect(centerSection.classList.contains('order-1')).toBe(false);
   });
 });
