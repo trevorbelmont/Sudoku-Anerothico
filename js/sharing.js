@@ -32,7 +32,7 @@ function copyTextToClipboard(text, successMessage) {
           if (!validMeta) return false;
           if (rawData.st === 1 && !isValidMatrix(rawData.b, validMeta.N, validMeta.symbols)) return false;
           
-          state.gameId = 'shared_' + Date.now(); state.gameName = ''; document.getElementById('game-name-input').value = ''; state.mode = rawData.m || 'standard'; state.difficulty = rawData.d || 'medio';
+          state.gameId = 'shared_' + Date.now(); state.gameName = ''; setGameNameInput(''); state.mode = rawData.m || 'standard'; state.difficulty = rawData.d || 'medio';
           state.minVal = rawData.minV ?? 1; state.maxVal = rawData.maxV ?? 9; state.includeZero = !!rawData.incZ;
           state.symbols = validMeta.symbols; state.N = validMeta.N; state.blockR = validMeta.bR; state.blockC = validMeta.bC;
           state.initial = validMeta.initial;

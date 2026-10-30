@@ -25,7 +25,7 @@ function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEY
       function loadSavedGameRecord(record) {
         if (!record) return;
         state.gameId = record.gameId; state.gameName = record.gameName || ''; state.mode = record.mode || 'standard';
-        const nameInput = document.getElementById('game-name-input'); if (nameInput) nameInput.value = state.gameName; state.difficulty = record.difficulty || 'facil';
+        setGameNameInput(state.gameName); state.difficulty = record.difficulty || 'facil';
         state.minVal = record.minVal ?? 1; state.maxVal = record.maxVal ?? 9; state.includeZero = !!record.includeZero;
         state.symbols = record.symbols || buildSymbolsFromRange(1, 9, false); state.N = record.N || state.symbols.length;
         const dims = computeBlockDimensions(state.N); state.blockR = record.blockR || dims.blockR; state.blockC = record.blockC || dims.blockC;

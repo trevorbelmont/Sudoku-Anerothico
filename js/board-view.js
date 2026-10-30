@@ -146,14 +146,58 @@
           cellDiv.style.setProperty('--nasa-symbol-hue', `${symbolHue}deg`);
           const isNasaCell = isNasaContributionCell(r, c);
           cellDiv.classList.toggle('is-nasa-contribution', isNasaCell);
+          // v6.7: aplica classe de estado NASA (static/off/normal) com base nas configurações
+          if (isNasaCell) {
+            const vsN = state.visualSettings || {};
+            const nasaI = Number(vsN.nasaIntensity ?? 60);
+            const nasaS = Number(vsN.nasaSpeed ?? 50);
+            if (nasaI === 0) { cellDiv.classList.add('nasa-off'); cellDiv.classList.remove('nasa-static'); }
+            else if (nasaS === 0) { cellDiv.classList.add('nasa-static'); cellDiv.classList.remove('nasa-off'); }
+            else { cellDiv.classList.remove('nasa-off', 'nasa-static'); }
+          } else {
+            cellDiv.classList.remove('nasa-off', 'nasa-static');
+          }
 
           // v6.3: color only the glyph stroke when live contribution metrics are enabled in Versus.
           // Given clues and NASA-attributed cells retain their existing theme-specific identities.
           const playerStrokeColor = getRealtimePlayerContributionColor(r, c, val, isNasaCell);
-          cellDiv.classList.toggle('is-player-contribution', !!playerStrokeColor);
-          if (playerStrokeColor) cellDiv.style.setProperty('--player-stroke-color', playerStrokeColor);
+          // v6.7: respeita a configuração playerTileOn do jogador
+          const tileVisible = isPlayerTileVisible();
+          cellDiv.classList.toggle('is-player-contribution', !!playerStrokeColor && tileVisible);
+          if (playerStrokeColor && tileVisible) cellDiv.style.setProperty('--player-stroke-color', playerStrokeColor);
           else cellDiv.style.removeProperty('--player-stroke-color');
-          
+
+          // v6.6: glow de identidade do jogador local — células preenchidas pelo próprio jogador.
+          const isLocalPlayerFill = !isNasaCell && val !== '' && state.initial[r][c] === '' && state.multiplayer.active &&
+              (() => {
+                  const entry = (state.multiplayer.contributions || {})[`${r}_${c}`];
+                  return !!entry && !isNASAContributionEntry(entry) && (entry.playerId === state.multiplayer.playerId);
+              })();
+          const vs = state.visualSettings || {};
+          const glowIntensity = Number(vs.glowIntensity ?? 2);
+          const animSpeed = Number(vs.animSpeed ?? 2);
+          // v6.7: usa raw 0-100 se disponível para maior precisão
+          const glowRaw = Number(vs.glowIntensityRaw ?? glowIntensity * 25);
+          const animRaw = Number(vs.animSpeedRaw ?? animSpeed * 25);
+          // v6.7: respeita playerIdentityOff
+          const identityVisible = isLocalPlayerIdentityVisible();
+          cellDiv.classList.toggle('is-local-player', isLocalPlayerFill && identityVisible);
+          if (isLocalPlayerFill && identityVisible) {
+              // spread contínuo: 0-100 → 0-18px
+              const spread = glowRaw === 0 ? 0 : Math.round(2 + (glowRaw / 100) * 16);
+              cellDiv.style.setProperty('--player-glow-spread', `${spread}px`);
+              // período contínuo: animRaw=0→estático, animRaw=100→0.7s, animRaw=1→6s
+              const period = animRaw === 0 ? 99999 : (0.7 + (100 - animRaw) / 100 * 5.3);
+              cellDiv.style.setProperty('--player-glow-period', `${period.toFixed(2)}s`);
+              if (glowRaw === 0) { cellDiv.classList.add('glow-off'); cellDiv.classList.remove('glow-static'); }
+              else if (animRaw === 0) { cellDiv.classList.add('glow-static'); cellDiv.classList.remove('glow-off'); }
+              else { cellDiv.classList.remove('glow-off', 'glow-static'); }
+          } else {
+              cellDiv.classList.remove('glow-off', 'glow-static');
+              cellDiv.style.removeProperty('--player-glow-spread');
+              cellDiv.style.removeProperty('--player-glow-period');
+          }
+                    
           const pencilEl = document.getElementById(`pencil-${r}-${c}`);
           if (pencilEl) pencilEl.querySelectorAll('.pencil-note').forEach(span => {
             span.classList.toggle('is-note-highlighted', state.notes[r][c].has(span.dataset.sym) && highlightedSymbol === span.dataset.sym);
@@ -309,4 +353,84 @@ async function toggleBoardFocusMode(force) {
         renderSudokuBoard();
         showToast('Interface restaurada.', 'success');
     }
+}
+
+/* ============================================================
+   v6.7 — Varredura de cor do jogador (sweep de baixo para cima,
+           direita para esquerda) e helpers de configurações visuais
+   ============================================================ */
+
+/**
+ * Percorre as células preenchidas pelo jogador local de baixo para cima
+ * e da direita para esquerda, aplicando a animação de troca de cor com
+ * um pequeno delay escalonado para criar efeito de varredura.
+ *
+ * @param {number} sweepDurationMs Duração da animação CSS em cada célula (ms)
+ */
+function runPlayerColorSweep(sweepDurationMs) {
+  if (!state.board || !state.board.length) return;
+  const vs = state.visualSettings || {};
+  // Respeita toggle master
+  if (vs.playerIdentityOff === true) return;
+  if (vs.playerColorAnimOn === false) return;
+
+  const N = state.N;
+  const playerCells = [];
+
+  // Coleta células preenchidas pelo jogador local
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (state.board[r][c] === '' || state.initial[r][c] !== '') continue;
+      const isNasaCell = isNasaContributionCell(r, c);
+      if (isNasaCell) continue;
+      if (state.multiplayer && state.multiplayer.active) {
+        const entry = (state.multiplayer.contributions || {})[`${r}_${c}`];
+        if (!entry || isNASAContributionEntry(entry) || entry.playerId !== state.multiplayer.playerId) continue;
+      }
+      playerCells.push({ r, c });
+    }
+  }
+
+  if (playerCells.length === 0) return;
+
+  // Ordena: baixo → cima (r decrescente), depois direita → esquerda (c decrescente)
+  playerCells.sort((a, b) => b.r !== a.r ? b.r - a.r : b.c - a.c);
+
+  // Delay escalonado por posição na varredura
+  const delayPerCell = Math.max(30, Math.min(200, sweepDurationMs / Math.max(1, playerCells.length)));
+  const durS = (sweepDurationMs / 1000).toFixed(2);
+
+  playerCells.forEach(({ r, c }, idx) => {
+    const cellEl = document.querySelector(`#sudoku-grid .sudoku-cell[data-r="${r}"][data-c="${c}"]`);
+    if (!cellEl) return;
+    setTimeout(() => {
+      cellEl.style.setProperty('--player-sweep-duration', `${durS}s`);
+      cellEl.classList.remove('player-color-sweep');
+      void cellEl.offsetWidth; // força reflow para reiniciar animação
+      cellEl.classList.add('player-color-sweep');
+      cellEl.addEventListener('animationend', () => cellEl.classList.remove('player-color-sweep'), { once: true });
+    }, idx * delayPerCell);
+  });
+}
+
+/**
+ * Retorna se a opção de exibir o tile de mapa de calor está ligada
+ * levando em conta as configurações do jogador e as condições de multiplayer.
+ */
+function isPlayerTileVisible() {
+  const vs = state.visualSettings || {};
+  if (vs.playerIdentityOff === true) return false;
+  if (vs.playerTileOn === false) return false;
+  // No modo versus sem métricas em tempo real, tiles do mapa de calor não são exibidos
+  const mp = state.multiplayer;
+  if (mp && mp.active && mp.roomMode === 'versus' && mp.realtimeMetrics !== true) return false;
+  return true;
+}
+
+/**
+ * Retorna se a identidade local (glow do jogador) está habilitada.
+ */
+function isLocalPlayerIdentityVisible() {
+  const vs = state.visualSettings || {};
+  return vs.playerIdentityOff !== true;
 }

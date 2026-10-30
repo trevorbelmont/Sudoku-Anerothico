@@ -17,5 +17,16 @@ function openModal(id) { const el = document.getElementById(id); if (el) { el.cl
       }
 
       function syncDifficultyButtonsUI() {
-        document.querySelectorAll('.diff-btn').forEach(b => { b.className = b.dataset.diff === state.difficulty ? 'diff-btn px-3 py-2 rounded-lg text-xs font-bold btn-accent text-left flex items-center justify-between' : 'diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex items-center justify-between'; });
+        document.querySelectorAll('.diff-btn').forEach(b => { b.className = b.dataset.diff === state.difficulty ? 'diff-btn px-3 py-2 rounded-lg text-xs font-bold btn-accent text-left flex flex-col gap-0.5' : 'diff-btn px-3 py-2 rounded-lg text-xs font-bold theme-panel-alt opacity-80 text-left flex flex-col gap-0.5'; });
       }
+
+/* v6.7: helper para atualizar o valor do campo de nome e auto-redimensionar textarea */
+function setGameNameInput(value) {
+  const el = document.getElementById('game-name-input');
+  if (!el) return;
+  el.value = value;
+  if (el.tagName === 'TEXTAREA') {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 64) + 'px';
+  }
+}

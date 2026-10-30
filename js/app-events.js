@@ -35,7 +35,10 @@ function initEventListeners() {
             if (state.board && state.board.length) renderSudokuBoard();
           }
         });
-        document.getElementById('game-name-input').addEventListener('input', (e) => { state.gameName = e.target.value; saveCurrentGameState(); if (state.multiplayer.active && state.multiplayer.roomId) { const fb = getFirebaseAPI(); if (fb) fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState')), { gameName: state.gameName, lastUpdatedByPlayerId: state.multiplayer.playerId, updatedAtTimestamp: Date.now() }).catch(() => {}); } });
+        document.getElementById('game-name-input').addEventListener('input', (e) => { state.gameName = e.target.value; saveCurrentGameState(); if (state.multiplayer.active && state.multiplayer.roomId) { const fb = getFirebaseAPI(); if (fb) fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState')), { gameName: state.gameName, lastUpdatedByPlayerId: state.multiplayer.playerId, updatedAtTimestamp: Date.now() }).catch(() => {}); }
+          // v6.7: auto-resize textarea
+          const ta = e.target; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 64) + 'px';
+        });
         document.getElementById('tab-mode-standard').addEventListener('click', () => { state.mode = 'standard'; syncModeTabsUI(); });
         document.getElementById('tab-mode-custom').addEventListener('click', () => { state.mode = 'custom'; syncModeTabsUI(); });
         ['custom-min-input', 'custom-max-input', 'custom-include-zero'].forEach(id => { document.getElementById(id).addEventListener('input', updateCustomRangePreview); document.getElementById(id).addEventListener('change', updateCustomRangePreview); });
@@ -79,7 +82,7 @@ function initEventListeners() {
           }
           state.initial = newInitial; state.solution = newSolution; state.isManualCreating = false;
           document.getElementById('manual-create-bar').classList.remove('flex'); document.getElementById('manual-create-bar').classList.add('hidden');
-          state.gameId = 'manual_' + Date.now(); state.gameName = 'Manual ' + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); document.getElementById('game-name-input').value = state.gameName; renderSudokuBoard(); startTimer(); saveCurrentGameState(); showToast('Pistas fixadas! Boa sorte!', 'success');
+          state.gameId = 'manual_' + Date.now(); state.gameName = 'Manual ' + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); setGameNameInput(state.gameName); renderSudokuBoard(); startTimer(); saveCurrentGameState(); showToast('Pistas fixadas! Boa sorte!', 'success');
         });
         
         document.getElementById('btn-reveal-errors-yes').addEventListener('click', () => { closeModal('modal-errors-prompt'); revealErrorsOnBoard(); });
@@ -100,6 +103,143 @@ function initEventListeners() {
           }
         });
         document.getElementById('btn-close-gift').addEventListener('click', () => closeModal('modal-gift'));
+
+        // Configurações visuais
+        document.getElementById('btn-open-settings').addEventListener('click', () => {
+          const vs = state.visualSettings || {};
+          document.getElementById('setting-glow-intensity').value = String(vs.glowIntensityRaw ?? vs.glowIntensity * 25 ?? 50);
+          document.getElementById('setting-anim-speed').value = String(vs.animSpeedRaw ?? vs.animSpeed * 25 ?? 50);
+          // v6.7: novos controles NASA (0-100)
+          document.getElementById('setting-nasa-intensity').value = String(vs.nasaIntensity ?? 60);
+          document.getElementById('setting-nasa-speed').value = String(vs.nasaSpeed ?? 50);
+          // v6.7: animação de cor do jogador
+          document.getElementById('setting-player-color-anim-on').checked = (vs.playerColorAnimOn !== false);
+          document.getElementById('setting-player-color-freq').value = String(vs.playerColorFreq ?? 50);
+          // v6.7: tile de mapa de calor
+          document.getElementById('setting-player-tile-on').checked = (vs.playerTileOn !== false);
+          // v6.7: desligar identificação
+          document.getElementById('setting-player-identity-off').checked = (vs.playerIdentityOff === true);
+          // v6.7: velocidade de inserção (0-100 — substituindo o slider antigo 0-3)
+          const insertSpeedEl = document.getElementById('setting-insert-speed');
+          if (insertSpeedEl) insertSpeedEl.value = String(vs.insertSpeed ?? 50);
+          updateSettingsLabels();
+          openModal('modal-settings');
+        });
+        document.getElementById('btn-close-settings').addEventListener('click', () => closeModal('modal-settings'));
+
+        function updateSettingsLabels() {
+          // v6.7: sliders glow e anim-speed agora são 0-100
+          const giRaw = Number(document.getElementById('setting-glow-intensity').value);
+          const asRaw = Number(document.getElementById('setting-anim-speed').value);
+          const glowLabelEl = document.getElementById('setting-glow-intensity-label');
+          const animLabelEl = document.getElementById('setting-anim-speed-label');
+          if (glowLabelEl) glowLabelEl.textContent = giRaw === 0 ? 'Desligado' : giRaw < 34 ? 'Baixo' : giRaw < 67 ? 'Médio' : 'Alto';
+          if (animLabelEl) animLabelEl.textContent = asRaw === 0 ? 'Estático' : asRaw < 34 ? 'Lento' : asRaw < 67 ? 'Normal' : 'Rápido';
+          // v6.7: labels NASA
+          const nasaI = Number(document.getElementById('setting-nasa-intensity').value);
+          const nasaS = Number(document.getElementById('setting-nasa-speed').value);
+          const nasaIntEl = document.getElementById('setting-nasa-intensity-label');
+          const nasaSpdEl = document.getElementById('setting-nasa-speed-label');
+          if (nasaIntEl) nasaIntEl.textContent = nasaI === 0 ? 'Desligado' : nasaI < 34 ? 'Baixo' : nasaI < 67 ? 'Médio' : 'Alto';
+          if (nasaSpdEl) nasaSpdEl.textContent = nasaS === 0 ? 'Estático' : nasaS < 34 ? 'Lento' : nasaS < 67 ? 'Normal' : 'Rápido';
+          // v6.7: label frequência cor do jogador
+          const freqEl = document.getElementById('setting-player-color-freq-label');
+          const freqV = Number(document.getElementById('setting-player-color-freq').value);
+          if (freqEl) freqEl.textContent = freqV === 0 ? 'Desligado' : freqV >= 98 ? 'Constante' : freqV < 34 ? 'Lento' : freqV < 67 ? 'Normal' : 'Rápido';
+          // v6.7: label inserção
+          const insEl = document.getElementById('setting-insert-speed-label');
+          const insV = Number((document.getElementById('setting-insert-speed') || {}).value ?? 50);
+          if (insEl) insEl.textContent = insV === 0 ? 'Desligado' : insV >= 98 ? 'Instantâneo' : insV < 34 ? 'Lento' : insV < 67 ? 'Normal' : 'Rápido';
+        }
+
+        function saveAndApplyVisualSettings() {
+          const giRaw = Number(document.getElementById('setting-glow-intensity').value); // 0-100
+          const asRaw = Number(document.getElementById('setting-anim-speed').value);     // 0-100
+          // Mapear 0-100 → 0-3 para compatibilidade com updateAllCellVisuals (legado)
+          const gi = giRaw === 0 ? 0 : giRaw < 34 ? 1 : giRaw < 67 ? 2 : 3;
+          const as = asRaw === 0 ? 0 : asRaw < 34 ? 1 : asRaw < 67 ? 2 : 3;
+          const nasaI = Number(document.getElementById('setting-nasa-intensity').value);
+          const nasaS = Number(document.getElementById('setting-nasa-speed').value);
+          const playerColorAnimOn = document.getElementById('setting-player-color-anim-on').checked;
+          const playerColorFreq = Number(document.getElementById('setting-player-color-freq').value);
+          const playerTileOn = document.getElementById('setting-player-tile-on').checked;
+          const playerIdentityOff = document.getElementById('setting-player-identity-off').checked;
+          const insertSpeedEl = document.getElementById('setting-insert-speed');
+          const insertSpeed = insertSpeedEl ? Number(insertSpeedEl.value) : 50;
+          // Guarda também os valores raw (0-100) para precisão ao reabrir o modal
+          state.visualSettings = { glowIntensity: gi, glowIntensityRaw: giRaw, animSpeed: as, animSpeedRaw: asRaw, nasaIntensity: nasaI, nasaSpeed: nasaS, playerColorAnimOn, playerColorFreq, playerTileOn, playerIdentityOff, insertSpeed };
+          try { localStorage.setItem(STORAGE_KEYS.VISUAL_SETTINGS, JSON.stringify(state.visualSettings)); } catch (_) {}
+          updateSettingsLabels();
+          // Aplica variáveis CSS da NASA em tempo real
+          applyNasaCSSSettings(nasaI, nasaS);
+          // Aplica frequência da varredura de cor do jogador
+          applyPlayerColorSweepSettings(playerColorAnimOn, playerColorFreq);
+          updateAllCellVisuals();
+        }
+
+        // v6.7: aplica variáveis CSS de intensidade/velocidade da NASA
+        function applyNasaCSSSettings(intensity, speed) {
+          const root = document.documentElement;
+          const nasaCells = document.querySelectorAll('#sudoku-grid .sudoku-cell.is-nasa-contribution');
+          if (intensity === 0) {
+            // sem brilho: remove animação e remove brilho
+            root.style.setProperty('--nasa-anim-duration', '99999s');
+            root.style.setProperty('--nasa-glow-max-brightness', '1.1');
+            root.style.setProperty('--nasa-glow-max-saturation', '1.05');
+            root.style.setProperty('--nasa-glow-spread', '2px');
+            root.style.setProperty('--nasa-glow-opacity', '0.2');
+            nasaCells.forEach(c => { c.classList.remove('nasa-static'); c.classList.add('nasa-off'); });
+          } else {
+            // duração: speed=0 → estático (sem piscar), speed=1→6s, speed=100→0.6s
+            if (speed === 0) {
+              root.style.setProperty('--nasa-anim-duration', '99999s');
+              const t = intensity / 100;
+              root.style.setProperty('--nasa-static-brightness', (1.1 + t * 0.8).toFixed(2));
+              nasaCells.forEach(c => { c.classList.remove('nasa-off'); c.classList.add('nasa-static'); });
+            } else {
+              const dur = 0.6 + (100 - speed) * 0.054; // speed=100→0.6s, speed=1→6s
+              root.style.setProperty('--nasa-anim-duration', `${dur.toFixed(2)}s`);
+              nasaCells.forEach(c => { c.classList.remove('nasa-off', 'nasa-static'); });
+            }
+            // intensidade: 0-100 → brightness 1.1 – 2.8, saturação 1.05 – 2.0, spread 2px – 22px
+            const t = intensity / 100;
+            root.style.setProperty('--nasa-glow-max-brightness', (1.1 + t * 1.7).toFixed(2));
+            root.style.setProperty('--nasa-glow-max-saturation', (1.05 + t * 0.95).toFixed(2));
+            root.style.setProperty('--nasa-glow-spread', `${Math.round(2 + t * 20)}px`);
+            root.style.setProperty('--nasa-glow-opacity', (0.3 + t * 0.7).toFixed(2));
+          }
+        }
+
+        // v6.7: configura o intervalo de varredura de cor nos números do jogador
+        function applyPlayerColorSweepSettings(enabled, freq) {
+          // Limpa timer anterior se existir
+          if (window._playerColorSweepTimer) { clearInterval(window._playerColorSweepTimer); window._playerColorSweepTimer = null; }
+          if (!enabled || freq === 0) return;
+          // freq=100 → intervalo=0 (constante, todos os frames), freq=1 → 30s
+          const intervalMs = freq >= 98 ? 800 : Math.round(30000 - (freq / 100) * 29200);
+          const sweepDurationMs = Math.max(400, Math.min(2000, 2000 - freq * 16));
+          window._playerColorSweepTimer = setInterval(() => {
+            runPlayerColorSweep(sweepDurationMs);
+          }, intervalMs);
+        }
+
+        document.getElementById('setting-glow-intensity').addEventListener('input', saveAndApplyVisualSettings);
+        document.getElementById('setting-anim-speed').addEventListener('input', saveAndApplyVisualSettings);
+        document.getElementById('setting-nasa-intensity').addEventListener('input', saveAndApplyVisualSettings);
+        document.getElementById('setting-nasa-speed').addEventListener('input', saveAndApplyVisualSettings);
+        document.getElementById('setting-player-color-anim-on').addEventListener('change', saveAndApplyVisualSettings);
+        document.getElementById('setting-player-color-freq').addEventListener('input', saveAndApplyVisualSettings);
+        document.getElementById('setting-player-tile-on').addEventListener('change', saveAndApplyVisualSettings);
+        document.getElementById('setting-player-identity-off').addEventListener('change', saveAndApplyVisualSettings);
+        const insertSpeedSlider = document.getElementById('setting-insert-speed');
+        if (insertSpeedSlider) insertSpeedSlider.addEventListener('input', saveAndApplyVisualSettings);
+        
+        // Aplica as configurações salvas imediatamente ao iniciar
+        (function applyInitialVisualSettings() {
+          const vs = state.visualSettings || {};
+          applyNasaCSSSettings(vs.nasaIntensity ?? 60, vs.nasaSpeed ?? 50);
+          applyPlayerColorSweepSettings(vs.playerColorAnimOn !== false, vs.playerColorFreq ?? 50);
+        })();
         
         document.getElementById('btn-open-history').addEventListener('click', () => { renderHistoryModalList(); openModal('modal-history'); });
         document.getElementById('btn-close-history').addEventListener('click', () => closeModal('modal-history'));

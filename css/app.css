@@ -870,8 +870,9 @@
   }
 }
 
+/* Usa --nasa-anim-duration para velocidade (controlado por JS via settings) */
 .sudoku-cell.is-nasa-contribution .sudoku-input {
-  animation: nasaGlyphShimmer 2.4s ease-in-out infinite;
+  animation: nasaGlyphShimmer var(--nasa-anim-duration, 2.4s) ease-in-out infinite;
   will-change: filter;
 }
 
@@ -949,4 +950,322 @@ body.board-focus-mode #modal-vote-newgame {
 body.board-focus-mode .mp-feature-vote-toast {
   z-index: 100010 !important;
   position: fixed !important;
+}
+
+/* ============================================================
+   v6.6 — Animação de inserção, glow do jogador e configurações visuais
+   ============================================================ */
+
+/* Variável de glow de contribuição do jogador — sobrescrita por cada tema */
+:root,
+[data-theme="claro"]        { --player-glow-color: rgba(37, 99, 235, 0.55); }
+[data-theme="escuro"]       { --player-glow-color: rgba(56, 189, 248, 0.60); }
+[data-theme="roxo"]         { --player-glow-color: rgba(192, 132, 252, 0.65); }
+[data-theme="verde"]        { --player-glow-color: rgba(5, 150, 105, 0.60); }
+[data-theme="epico1"]       { --player-glow-color: rgba(255, 0, 127, 0.65); }
+[data-theme="epico2"]       { --player-glow-color: rgba(255, 107, 107, 0.60); }
+[data-theme="rainbow"]      { --player-glow-color: rgba(0, 229, 255, 0.70); }
+[data-theme="altocontraste"]{ --player-glow-color: rgba(0, 255, 255, 0.85); }
+[data-theme="daltonico"]    { --player-glow-color: rgba(0, 114, 178, 0.60); }
+
+/* Animação de ondulação luminosa para células do jogador local */
+@keyframes playerCellGlow {
+  0%, 100% {
+    box-shadow: inset 0 0 0 1.5px var(--accent),
+                0 0 0px 0px var(--player-glow-color);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1.5px var(--accent),
+                0 0 10px 4px var(--player-glow-color);
+  }
+}
+
+/* Animação de inserção de número — pop sutil, contida na célula */
+@keyframes cellInsertPop {
+  0%   { transform: scale(0.72); opacity: 0.55; }
+  55%  { transform: scale(1.10); opacity: 1; }
+  80%  { transform: scale(0.96); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* Classe ativada em JS a cada inserção local */
+.sudoku-cell.cell-insert-pop .sudoku-input {
+  animation: cellInsertPop var(--cell-insert-duration, 0.22s) ease-out both;
+}
+
+/* Glow ativo nas células do jogador local (aplicado via JS quando is-local-player) */
+.sudoku-cell.is-local-player {
+  animation: playerCellGlow var(--player-glow-period, 2.8s) ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+/* Quando animação desligada (Off): glow estático sem pulsação */
+.sudoku-cell.is-local-player.glow-static {
+  animation: none;
+  box-shadow: inset 0 0 0 1.5px var(--accent),
+              0 0 var(--player-glow-spread, 8px) 2px var(--player-glow-color);
+}
+
+/* Sem glow (intensidade 0): remove completamente */
+.sudoku-cell.is-local-player.glow-off {
+  animation: none;
+  box-shadow: none;
+}
+
+/* Respeita prefers-reduced-motion: converte para glow estático */
+@media (prefers-reduced-motion: reduce) {
+  .sudoku-cell.is-local-player {
+    animation: none !important;
+    box-shadow: inset 0 0 0 1.5px var(--accent),
+                0 0 6px 2px var(--player-glow-color);
+  }
+  .sudoku-cell.cell-insert-pop .sudoku-input {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   v6.7 — Tile de mapa de calor, animação de cor do jogador,
+           sidebar compacta e NASA settings wired
+   ============================================================ */
+
+/* ── Variáveis de animação NASA (por padrão) ── */
+:root {
+  --nasa-anim-duration: 2.4s;
+  --nasa-glow-max-brightness: 2.35;
+  --nasa-glow-max-saturation: 1.7;
+  --nasa-glow-spread: 16px;
+  --nasa-glow-opacity: 1;
+  --player-color-anim-duration: 6s;
+}
+
+/* ── Tile de mapa de calor (moldura da casa do jogador) ── */
+.sudoku-cell.is-player-contribution {
+  box-shadow: inset 0 0 0 2px var(--player-stroke-color, var(--accent));
+  z-index: 3;
+}
+
+/* Temas normais: tile estático com a cor do jogador */
+[data-theme="claro"] .sudoku-cell.is-player-contribution,
+[data-theme="escuro"] .sudoku-cell.is-player-contribution,
+[data-theme="roxo"] .sudoku-cell.is-player-contribution,
+[data-theme="verde"] .sudoku-cell.is-player-contribution,
+[data-theme="altocontraste"] .sudoku-cell.is-player-contribution,
+[data-theme="daltonico"] .sudoku-cell.is-player-contribution {
+  box-shadow: inset 0 0 0 2px var(--player-stroke-color, var(--accent));
+}
+
+/* ── Animações do tile nos temas Épico 1, Épico 2 e Rainbow ── */
+@keyframes tileGlowEpic1 {
+  0%   { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #ff007f),
+                    0 0 4px 0px rgba(255,0,127,0); }
+  50%  { box-shadow: inset 0 0 0 2.5px var(--player-stroke-color, #ff6b00),
+                    0 0 10px 3px rgba(255,107,0,0.55); }
+  100% { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #ff007f),
+                    0 0 4px 0px rgba(255,0,127,0); }
+}
+
+@keyframes tileGlowEpic2 {
+  0%   { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #00e5ff),
+                    0 0 4px 0px rgba(0,229,255,0); }
+  50%  { box-shadow: inset 0 0 0 2.5px var(--player-stroke-color, #69ff47),
+                    0 0 10px 3px rgba(105,255,71,0.5); }
+  100% { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #00e5ff),
+                    0 0 4px 0px rgba(0,229,255,0); }
+}
+
+@keyframes tileGlowRainbow {
+  0%   { box-shadow: inset 0 0 0 2px #ff0040, 0 0 6px 1px rgba(255,0,64,0.6); }
+  16%  { box-shadow: inset 0 0 0 2px #ff7300, 0 0 6px 1px rgba(255,115,0,0.6); }
+  33%  { box-shadow: inset 0 0 0 2px #ffeb00, 0 0 6px 1px rgba(255,235,0,0.6); }
+  50%  { box-shadow: inset 0 0 0 2px #00e676, 0 0 6px 1px rgba(0,230,118,0.6); }
+  66%  { box-shadow: inset 0 0 0 2px #00e5ff, 0 0 6px 1px rgba(0,229,255,0.6); }
+  83%  { box-shadow: inset 0 0 0 2px #651fff, 0 0 6px 1px rgba(101,31,255,0.6); }
+  100% { box-shadow: inset 0 0 0 2px #ff0040, 0 0 6px 1px rgba(255,0,64,0.6); }
+}
+
+[data-theme="epico1"] .sudoku-cell.is-player-contribution {
+  animation: tileGlowEpic1 2.2s ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+[data-theme="epico2"] .sudoku-cell.is-player-contribution {
+  animation: tileGlowEpic2 2.5s ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+[data-theme="rainbow"] .sudoku-cell.is-player-contribution {
+  animation: tileGlowRainbow 3s linear infinite;
+  will-change: box-shadow;
+}
+
+/* ── Local player tile (suas próprias casas) - mesmas animações para is-local-player nos temas épicos/rainbow ── */
+@keyframes localTileEpic1 {
+  0%   { box-shadow: inset 0 0 0 1.5px #ff007f, 0 0 var(--player-glow-spread,8px) 2px rgba(255,0,127,0.5); }
+  50%  { box-shadow: inset 0 0 0 2px #ff6b00,   0 0 calc(var(--player-glow-spread,8px) * 1.6) 4px rgba(255,107,0,0.65); }
+  100% { box-shadow: inset 0 0 0 1.5px #ff007f, 0 0 var(--player-glow-spread,8px) 2px rgba(255,0,127,0.5); }
+}
+
+@keyframes localTileEpic2 {
+  0%   { box-shadow: inset 0 0 0 1.5px #00e5ff, 0 0 var(--player-glow-spread,8px) 2px rgba(0,229,255,0.5); }
+  50%  { box-shadow: inset 0 0 0 2px #69ff47,   0 0 calc(var(--player-glow-spread,8px) * 1.6) 4px rgba(105,255,71,0.6); }
+  100% { box-shadow: inset 0 0 0 1.5px #00e5ff, 0 0 var(--player-glow-spread,8px) 2px rgba(0,229,255,0.5); }
+}
+
+@keyframes localTileRainbow {
+  0%   { box-shadow: inset 0 0 0 1.5px #ff0040, 0 0 var(--player-glow-spread,8px) 2px rgba(255,0,64,0.6); }
+  16%  { box-shadow: inset 0 0 0 1.5px #ff7300, 0 0 var(--player-glow-spread,8px) 2px rgba(255,115,0,0.6); }
+  33%  { box-shadow: inset 0 0 0 1.5px #ffeb00, 0 0 var(--player-glow-spread,8px) 2px rgba(255,235,0,0.6); }
+  50%  { box-shadow: inset 0 0 0 1.5px #00e676, 0 0 var(--player-glow-spread,8px) 2px rgba(0,230,118,0.6); }
+  66%  { box-shadow: inset 0 0 0 1.5px #00e5ff, 0 0 var(--player-glow-spread,8px) 2px rgba(0,229,255,0.6); }
+  83%  { box-shadow: inset 0 0 0 1.5px #651fff, 0 0 var(--player-glow-spread,8px) 2px rgba(101,31,255,0.6); }
+  100% { box-shadow: inset 0 0 0 1.5px #ff0040, 0 0 var(--player-glow-spread,8px) 2px rgba(255,0,64,0.6); }
+}
+
+[data-theme="epico1"] .sudoku-cell.is-local-player:not(.glow-off) {
+  animation: localTileEpic1 var(--player-glow-period, 2.8s) ease-in-out infinite;
+}
+
+[data-theme="epico2"] .sudoku-cell.is-local-player:not(.glow-off) {
+  animation: localTileEpic2 var(--player-glow-period, 2.8s) ease-in-out infinite;
+}
+
+[data-theme="rainbow"] .sudoku-cell.is-local-player:not(.glow-off) {
+  animation: localTileRainbow calc(var(--player-glow-period, 2.8s) * 1.5) linear infinite;
+}
+
+/* Versão estática para glow-static nos temas épicos/rainbow */
+[data-theme="epico1"] .sudoku-cell.is-local-player.glow-static {
+  animation: none;
+  box-shadow: inset 0 0 0 1.5px #ff007f, 0 0 var(--player-glow-spread,8px) 2px rgba(255,0,127,0.55);
+}
+[data-theme="epico2"] .sudoku-cell.is-local-player.glow-static {
+  animation: none;
+  box-shadow: inset 0 0 0 1.5px #00e5ff, 0 0 var(--player-glow-spread,8px) 2px rgba(0,229,255,0.55);
+}
+[data-theme="rainbow"] .sudoku-cell.is-local-player.glow-static {
+  animation: none;
+  box-shadow: inset 0 0 0 1.5px #00e5ff, 0 0 var(--player-glow-spread,8px) 2px rgba(0,229,255,0.6);
+}
+
+/* ── Animação de mudança de cor dos números do jogador (varredura) ── */
+/* A varredura vai de baixo para cima e direita para esquerda via CSS custom property no elemento */
+@keyframes playerNumberColorSweep {
+  0%   { filter: none; }
+  8%   { filter: hue-rotate(var(--player-sweep-hue, 30deg)) brightness(1.15) saturate(1.3); }
+  18%  { filter: hue-rotate(calc(var(--player-sweep-hue, 30deg) + 60deg)) brightness(1.25) saturate(1.5); }
+  28%  { filter: hue-rotate(calc(var(--player-sweep-hue, 30deg) + 120deg)) brightness(1.35) saturate(1.7); }
+  38%  { filter: hue-rotate(calc(var(--player-sweep-hue, 30deg) + 180deg)) brightness(1.25) saturate(1.5); }
+  48%  { filter: hue-rotate(calc(var(--player-sweep-hue, 30deg) + 240deg)) brightness(1.15) saturate(1.3); }
+  58%  { filter: hue-rotate(var(--player-sweep-hue, 30deg)) brightness(1.1) saturate(1.2); }
+  70%  { filter: none; }
+  100% { filter: none; }
+}
+
+/* Classe ativada por JS quando o sweep atingir esta célula */
+.sudoku-cell.player-color-sweep .sudoku-input {
+  animation: playerNumberColorSweep var(--player-sweep-duration, 1.2s) ease-out both;
+  will-change: filter;
+}
+
+/* Por tema — hue de varredura diferente */
+[data-theme="claro"]          { --player-sweep-hue: 30deg; }
+[data-theme="escuro"]         { --player-sweep-hue: 200deg; }
+[data-theme="roxo"]           { --player-sweep-hue: 260deg; }
+[data-theme="verde"]          { --player-sweep-hue: 120deg; }
+[data-theme="epico1"]         { --player-sweep-hue: 0deg; }
+[data-theme="epico2"]         { --player-sweep-hue: 170deg; }
+[data-theme="rainbow"]        { --player-sweep-hue: 0deg; }
+[data-theme="altocontraste"]  { --player-sweep-hue: 60deg; }
+[data-theme="daltonico"]      { --player-sweep-hue: 200deg; }
+
+/* NASA: aplicar intensidade/velocidade via CSS variables sobrescritas por JS */
+.sudoku-cell.is-nasa-contribution .sudoku-input {
+  animation: nasaGlyphShimmer var(--nasa-anim-duration, 2.4s) ease-in-out infinite;
+  will-change: filter;
+}
+
+/* ── Sidebar esquerda compacta — textos menores nos botões ── */
+@media (min-width: 1024px) {
+  .lg\:col-span-2 .theme-panel button,
+  .lg\:col-span-2 .theme-panel a {
+    font-size: 0.65rem;
+  }
+  .lg\:col-span-2 .theme-panel h2,
+  .lg\:col-span-2 .theme-panel h3 {
+    font-size: 0.7rem;
+  }
+  .lg\:col-span-2 .theme-panel p,
+  .lg\:col-span-2 .theme-panel span {
+    font-size: 0.62rem;
+  }
+  /* Labels de dificuldade compactos */
+  .lg\:col-span-2 .diff-btn {
+    padding: 0.35rem 0.45rem;
+    font-size: 0.62rem;
+  }
+  .lg\:col-span-2 .diff-btn > span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  /* Evita overflow em textos de botões */
+  .lg\:col-span-2 .theme-panel button span,
+  .lg\:col-span-2 .theme-panel a span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ── Etiqueta de nome da sala (multi-linha sem sair da moldura) ── */
+#game-name-input {
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  min-height: 1.5rem;
+  max-height: 4rem;
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.4;
+  display: block;
+  scrollbar-width: thin;
+}
+
+/* ── Prefers-reduced-motion: cancela tile animations épicas/rainbow ── */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="epico1"] .sudoku-cell.is-player-contribution,
+  [data-theme="epico2"] .sudoku-cell.is-player-contribution,
+  [data-theme="rainbow"] .sudoku-cell.is-player-contribution {
+    animation: none;
+    box-shadow: inset 0 0 0 2px var(--player-stroke-color, var(--accent));
+  }
+  [data-theme="epico1"] .sudoku-cell.is-local-player,
+  [data-theme="epico2"] .sudoku-cell.is-local-player,
+  [data-theme="rainbow"] .sudoku-cell.is-local-player {
+    animation: none !important;
+    box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 6px 2px var(--player-glow-color);
+  }
+  .sudoku-cell.player-color-sweep .sudoku-input {
+    animation: none !important;
+    filter: none;
+  }
+}
+
+/* ── NASA estático (speed=0): filtro fixo sem animação ── */
+.sudoku-cell.nasa-static .sudoku-input {
+  animation: none !important;
+  filter:
+    brightness(var(--nasa-static-brightness, 1.5))
+    saturate(1.35)
+    drop-shadow(0 0 6px rgba(34, 211, 238, 0.7));
+  will-change: auto;
+}
+
+/* ── NASA desligado (intensity=0): sem brilho algum ── */
+.sudoku-cell.nasa-off .sudoku-input {
+  animation: none !important;
+  filter: none;
+  will-change: auto;
 }

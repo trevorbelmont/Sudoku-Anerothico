@@ -388,7 +388,7 @@ function getFirebaseAPI() {
           if (roomState.gameName) {
               state.gameName = String(roomState.gameName);
               const nameInput = document.getElementById('game-name-input');
-              if (nameInput && nameInput.value !== state.gameName) nameInput.value = state.gameName;
+              if (nameInput && nameInput.value !== state.gameName) setGameNameInput(state.gameName);
           }
           // Atualiza o DOM sem recriar os inputs; isso evita perder o foco enquanto o outro jogador digita.
           for (let r = 0; r < N; r++) {
@@ -581,7 +581,7 @@ function getFirebaseAPI() {
           state.multiplayer.lastAppliedInstanceNumber = validMeta.instanceCount;
           state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
           state.gameName = 'Sala: ' + state.multiplayer.roomId + ' #' + state.multiplayer.instanceCount;
-          document.getElementById('game-name-input').value = state.gameName;
+          setGameNameInput(state.gameName);
           document.getElementById('timer-display').textContent = '00:00';
           syncModeTabsUI();
           syncDifficultyButtonsUI();
@@ -610,7 +610,10 @@ function getFirebaseAPI() {
           state.multiplayer.lastProcessedSeq = (state.multiplayer.lastProcessedSeq || 0) + 1;
           const movePayload = {
               sequence: state.multiplayer.lastProcessedSeq,
-              timestamp: Date.now(),
+              // serverTimestamp() é resolvido pelo Firebase no servidor, evitando skew de relógio.
+              // O campo clientTimestamp fica como fallback de ordenação local.
+              timestamp: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(),
+              clientTimestamp: Date.now(),
               userId: state.multiplayer.playerId,
               userName: state.multiplayer.playerName,
               userColor: state.multiplayer.color,
@@ -808,32 +811,44 @@ function getFirebaseAPI() {
           }));
           state.multiplayer.listeners.push(fb.onValue(playersRef, snapshot => onRoomPlayersChanged(snapshot.val())));
           state.multiplayer.listeners.push(fb.onValue(proposalRef, snapshot => onRoomProposalChanged(snapshot.val())));
-          state.multiplayer.listeners.push(fb.onValue(movesRef, snapshot => {
+          // Usa onChildAdded para receber apenas o movimento individual mais recente,
+          // em vez de onValue que baixa o log completo a cada nova jogada.
+          // Na entrada da sala, faz um get() único para contar NASA calls históricas e
+          // marcar os IDs já existentes como processados (sem re-executar moves antigas).
+          fb.get(movesRef).then(snapshot => {
               const moves = snapshot.val();
-              if (!moves || typeof moves !== 'object') {
-                  if (state.nasaCalls !== 0) { state.nasaCalls = 0; updateNasaContributionSummary(); saveCurrentGameState(); }
-                  return;
-              }
-              const entries = Object.entries(moves).sort((a, b) => Number((a[1] || {}).timestamp || 0) - Number((b[1] || {}).timestamp || 0));
-              const nasaMoveCount = entries.filter(([, move]) => move && (move.action || move.act) === 'NASA').length;
+              if (!moves || typeof moves !== 'object') return;
+              const nasaMoveCount = Object.values(moves).filter(m => m && (m.action || m.act) === 'NASA').length;
               if (nasaMoveCount !== Number(state.nasaCalls || 0)) {
                   state.nasaCalls = nasaMoveCount;
+                  updateNasaContributionSummary();
+                  renderMultiplayerSidebar();
+                  saveCurrentGameState();
+              }
+              // Marca todos os moves pré-existentes como já processados (não re-executa cursores antigos).
+              Object.keys(moves).forEach(id => { state.multiplayer.processedMoveIds[id] = true; });
+          }).catch(() => {});
+
+          const unsubMoves = fb.onChildAdded(movesRef, (childSnapshot) => {
+              const moveId = childSnapshot.key;
+              const move = childSnapshot.val();
+              if (!move || state.multiplayer.processedMoveIds[moveId]) return;
+              state.multiplayer.processedMoveIds[moveId] = true;
+              if (move.action === 'NASA' || move.act === 'NASA') {
+                  state.nasaCalls = (Number(state.nasaCalls) || 0) + 1;
                   updateNasaContributionSummary();
                   renderMultiplayerSidebar();
                   saveCurrentGameState();
                   const victoryModal = document.getElementById('modal-victory');
                   if (victoryModal && victoryModal.classList.contains('flex') && state.completed) updateMultiplayerVictorySummary();
               }
-              entries.forEach(([moveId, move]) => {
-                  if (state.multiplayer.processedMoveIds[moveId]) return;
-                  state.multiplayer.processedMoveIds[moveId] = true;
-                  processIncomingMove(move);
-              });
+              processIncomingMove(move);
               const processedIds = Object.keys(state.multiplayer.processedMoveIds);
-              if (processedIds.length > 1500) {
-                  state.multiplayer.processedMoveIds = Object.fromEntries(processedIds.slice(-750).map(id => [id, true]));
+              if (processedIds.length > 2000) {
+                  state.multiplayer.processedMoveIds = Object.fromEntries(processedIds.slice(-1000).map(id => [id, true]));
               }
-          }));
+          });
+          state.multiplayer.listeners.push(unsubMoves);
       }
 
       function joinRoom(roomId, playerName) {
@@ -939,7 +954,7 @@ function getFirebaseAPI() {
           state.multiplayer.gameResult = null;
           state.gameId = 'mp_' + roomId + '_0';
           state.gameName = 'Sala: ' + roomId + ' #0';
-          document.getElementById('game-name-input').value = state.gameName;
+          setGameNameInput(state.gameName);
 
           const roomRef = fb.ref(fb.db, roomPath(roomId));
           const metaPayload = createRoomMeta(0, state.multiplayer.playerId);

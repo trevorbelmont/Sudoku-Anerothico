@@ -81,6 +81,19 @@
           else { 
             state.board[r][c] = symbol; state.notes[r][c].clear(); state.highlightedSymbol = symbol; setNasaContributionCell(r, c, false); removeAutoNotesPeers(r, c, symbol); 
             pushMoveToFirebase('SET', r, c, symbol);
+            // v6.7: Animação de inserção — usa insertSpeed (0-100). 0=desligado, 100=muito rápido
+            const vs67 = state.visualSettings || {};
+            const insertSpeed = Number(vs67.insertSpeed ?? 50);
+            if (insertSpeed > 0) {
+              const cellEl = document.querySelector(`#sudoku-grid .sudoku-cell[data-r="${r}"][data-c="${c}"]`);
+              if (cellEl) {
+                // insertSpeed=100→0.08s, insertSpeed=50→0.22s, insertSpeed=1→0.5s
+                const durS = (0.08 + ((100 - insertSpeed) / 100) * 0.42).toFixed(3);
+                cellEl.style.setProperty('--cell-insert-duration', `${durS}s`);
+                cellEl.classList.remove('cell-insert-pop'); void cellEl.offsetWidth; cellEl.classList.add('cell-insert-pop');
+                cellEl.addEventListener('animationend', () => cellEl.classList.remove('cell-insert-pop'), { once: true });
+              }
+            }
           }
           updateCellPencilDOM(r, c);
         }
@@ -137,8 +150,8 @@
       function togglePencilMode(forceState) {
         state.pencilMode = typeof forceState === 'boolean' ? forceState : !state.pencilMode;
         const btn = document.getElementById('btn-pencil-mode'), badge = document.getElementById('pencil-status-badge');
-        if (state.pencilMode) { btn.classList.add('btn-accent'); btn.classList.remove('theme-panel-alt'); badge.textContent = 'ON'; badge.className = 'px-1.5 py-0.5 text-[10px] rounded bg-white/25 font-extrabold'; }
-        else { btn.classList.remove('btn-accent'); btn.classList.add('theme-panel-alt'); badge.textContent = 'OFF'; badge.className = 'px-1.5 py-0.5 text-[10px] rounded bg-slate-500/20 font-extrabold'; }
+        if (state.pencilMode) { btn.classList.add('btn-accent'); btn.classList.remove('theme-panel-alt'); badge.textContent = 'ON'; badge.className = 'px-1.5 py-0.5 text-[10px] rounded bg-white/25 font-extrabold leading-none'; }
+        else { btn.classList.remove('btn-accent'); btn.classList.add('theme-panel-alt'); badge.textContent = 'OFF'; badge.className = 'px-1.5 py-0.5 text-[10px] rounded bg-slate-500/20 font-extrabold leading-none'; }
       }
 
       function renderVirtualNumpad() {

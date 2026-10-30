@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
-  getDatabase, ref, set, onValue, push, child, update, remove, onDisconnect, get, runTransaction
+  getDatabase, ref, set, onValue, push, child, update, remove, onDisconnect, get, runTransaction,
+  serverTimestamp, onChildAdded, query, orderByChild, limitToLast, startAfter
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 import { FIREBASE_CONFIG } from "./firebase-config.js";
 
@@ -19,5 +20,11 @@ window.firebaseDB = {
   remove,
   onDisconnect,
   get,
-  runTransaction
+  runTransaction,
+  serverTimestamp,
+  onChildAdded,
+  query,
+  orderByChild,
+  limitToLast,
+  startAfter
 };

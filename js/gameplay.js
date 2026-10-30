@@ -71,7 +71,7 @@
         }
         const { solution, initial } = createUniqueSudokuPuzzle(N, blockR, blockC, symbols, state.difficulty);
         state.gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        state.gameName = ''; document.getElementById('game-name-input').value = '';
+        state.gameName = ''; setGameNameInput('');
         state.minVal = minVal; state.maxVal = maxVal; state.includeZero = includeZero; state.symbols = symbols; state.N = N; state.blockR = blockR; state.blockC = blockC;
         state.solution = solution; state.initial = initial; state.board = initial.map(row => row.slice());
         state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set()));
