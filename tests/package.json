@@ -1,0 +1,24 @@
+{
+  "name": "sudoku-anerothico-tests",
+  "version": "1.0.0",
+  "description": "Testes unitários e de integração do Sudoku Aneróthico PRÓ",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage --runInBand",
+    "test:verbose": "jest --verbose --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/*.test.js"],
+    "collectCoverageFrom": ["../js/*.js"],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov"]
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}
