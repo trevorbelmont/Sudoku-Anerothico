@@ -1185,24 +1185,11 @@ body.board-focus-mode .mp-feature-vote-toast {
   will-change: filter;
 }
 
-/* ── Sidebar esquerda compacta — textos menores nos botões ── */
+/* ── Tipografia fluida (desktop) — coberta pelas container queries abaixo ── */
 @media (min-width: 1024px) {
-  .lg\:col-span-2 .theme-panel button,
-  .lg\:col-span-2 .theme-panel a {
-    font-size: 0.65rem;
-  }
-  .lg\:col-span-2 .theme-panel h2,
-  .lg\:col-span-2 .theme-panel h3 {
-    font-size: 0.7rem;
-  }
-  .lg\:col-span-2 .theme-panel p,
-  .lg\:col-span-2 .theme-panel span {
-    font-size: 0.62rem;
-  }
   /* Labels de dificuldade compactos */
   .lg\:col-span-2 .diff-btn {
     padding: 0.35rem 0.45rem;
-    font-size: 0.62rem;
   }
   .lg\:col-span-2 .diff-btn > span:first-child {
     white-space: nowrap;
@@ -1282,6 +1269,11 @@ body.board-focus-mode .mp-feature-vote-toast {
   --left-panel-max: 420px;
   --left-panel-collapsed-width: 0px;
   --resizer-width: 6px;
+
+  /* Tamanho base das letras do painel lateral esquerdo.
+     Aumente/diminua este único valor para escalar todos os textos dos botões,
+     métricas e labels de dificuldade proporcionalmente. */
+  --left-panel-font-base: 0.92rem;
 }
 
 /* ── Layout principal via flex em desktop ── */
@@ -1445,54 +1437,58 @@ body.board-focus-mode .mp-feature-vote-toast {
 }
 
 /* ── Tipografia fluida via Container Queries no painel esquerdo ── */
+/* ── Container queries: tipografia fluida escalada por --left-panel-font-base ──
+   Os clamp() usam a variável como âncora: basta mudar --left-panel-font-base
+   em :root para reescalar toda a tipografia do painel de uma vez.
+   Os offsets (+/- rem) mantêm a hierarquia visual entre níveis. */
 @container left-panel (max-width: 220px) {
   .panel-left .theme-panel button span:not(.sr-only),
   .panel-left .theme-panel a span:not(.sr-only) {
-    font-size: clamp(0.52rem, 4cqw, 0.72rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.22rem), 4cqw, calc(var(--left-panel-font-base) - 0.02rem));
   }
   .panel-left .theme-panel h2,
   .panel-left .theme-panel h3 {
-    font-size: clamp(0.58rem, 4.5cqw, 0.78rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.16rem), 4.5cqw, calc(var(--left-panel-font-base) + 0.04rem));
   }
   .panel-left .theme-panel p,
   .panel-left .theme-panel span:not(.btn-accent):not([class*="badge"]) {
-    font-size: clamp(0.5rem, 3.8cqw, 0.68rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.24rem), 3.8cqw, calc(var(--left-panel-font-base) - 0.06rem));
   }
   .panel-left .diff-btn {
     padding: 0.25rem 0.35rem;
   }
   .panel-left .diff-btn > span:first-child {
-    font-size: clamp(0.5rem, 3.8cqw, 0.68rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.24rem), 3.8cqw, calc(var(--left-panel-font-base) - 0.06rem));
   }
 }
 
 @container left-panel (min-width: 221px) and (max-width: 300px) {
   .panel-left .theme-panel button span:not(.sr-only),
   .panel-left .theme-panel a span:not(.sr-only) {
-    font-size: clamp(0.6rem, 3.2cqw, 0.78rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.14rem), 3.2cqw, calc(var(--left-panel-font-base) + 0.04rem));
   }
   .panel-left .theme-panel h2,
   .panel-left .theme-panel h3 {
-    font-size: clamp(0.66rem, 3.5cqw, 0.82rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.08rem), 3.5cqw, calc(var(--left-panel-font-base) + 0.08rem));
   }
   .panel-left .theme-panel p,
   .panel-left .theme-panel span:not(.btn-accent):not([class*="badge"]) {
-    font-size: clamp(0.56rem, 3cqw, 0.72rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.18rem), 3cqw, calc(var(--left-panel-font-base) - 0.02rem));
   }
 }
 
 @container left-panel (min-width: 301px) {
   .panel-left .theme-panel button span:not(.sr-only),
   .panel-left .theme-panel a span:not(.sr-only) {
-    font-size: clamp(0.68rem, 2.5cqw, 0.85rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.06rem), 2.5cqw, calc(var(--left-panel-font-base) + 0.1rem));
   }
   .panel-left .theme-panel h2,
   .panel-left .theme-panel h3 {
-    font-size: clamp(0.74rem, 2.8cqw, 0.9rem);
+    font-size: clamp(var(--left-panel-font-base), 2.8cqw, calc(var(--left-panel-font-base) + 0.16rem));
   }
   .panel-left .theme-panel p,
   .panel-left .theme-panel span:not(.btn-accent):not([class*="badge"]) {
-    font-size: clamp(0.62rem, 2.4cqw, 0.8rem);
+    font-size: clamp(calc(var(--left-panel-font-base) - 0.12rem), 2.4cqw, calc(var(--left-panel-font-base) + 0.06rem));
   }
 }
 
