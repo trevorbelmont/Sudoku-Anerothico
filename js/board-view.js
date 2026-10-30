@@ -1,10 +1,24 @@
 'use strict';
 
       function renderSudokuBoard() {
-        const gridEl = document.getElementById('sudoku-grid'); gridEl.innerHTML = '';
+        const gridEl = document.getElementById('sudoku-grid');
         const { N, blockR, blockC } = state;
         const viewportEl = document.getElementById('sudoku-board-viewport');
         const availableWidth = (viewportEl && viewportEl.clientWidth) || (gridEl.parentElement && gridEl.parentElement.clientWidth) || 560;
+
+        // Se o viewport ainda não calculou suas dimensões (ex: primeiro carregamento ou redirect do
+        // reset storage), adia a renderização para o próximo frame de layout e retorna sem limpar
+        // o grid, evitando o tabuleiro em miniatura causado por availableWidth === 0.
+        if (availableWidth < 50) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (state.board && state.board.length) renderSudokuBoard();
+            });
+          });
+          return;
+        }
+
+        gridEl.innerHTML = '';
         const focusMode = !!state.boardFocusMode || document.body.classList.contains('board-focus-mode');
         const viewportHeight = Math.max(320, window.innerHeight || 800);
         const heightBudget = focusMode ? Math.max(160, viewportHeight - 24) : Math.max(220, viewportHeight * 0.68);

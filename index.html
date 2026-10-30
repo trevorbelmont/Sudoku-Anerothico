@@ -688,7 +688,7 @@
           <div class="absolute w-3 h-3 bg-fuchsia-500 rounded-full -left-[7px] top-1"></div>
           <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.5 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
           <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
-            <li><strong>Privacidade:</strong> as dimensões de tela e viewport foram removidas dos metadados coletados por jogador. Os metadados restantes são gravados em um nó privado separado do nó de presença compartilhado, reduzindo o perfil de dados visível para os demais participantes da sala.</li>
+            <li><strong>Metadados de sala:</strong> as dimensões de tela e viewport foram removidas dos metadados enviados por jogador. Os metadados restantes são gravados em um nó privado separado do nó de presença compartilhado, não visível para os demais participantes da sala.</li>
             <li><strong>Anti-cheat — células corretas:</strong> em salas multiplayer, uma célula que já contém o valor correto da solução não pode ser apagada por nenhum jogador (nem local nem remoto). Isso impede a tática de apagar e reescrever o mesmo número correto para roubar pontuação. Células erradas continuam apagáveis por qualquer jogador.</li>
             <li><strong>Cursor multiplayer sem inflação de log:</strong> a posição do cursor/foco de cada jogador agora é publicada em um nó mutável por jogador (<code>cursors/{playerId}</code>), em vez de ser anexada ao log de movimentos (<code>moves</code>) a cada evento de foco. Isso evita o crescimento ilimitado do log e reduz tráfego e custo de processamento.</li>
             <li><strong>Votações com tempo máximo de 45 s:</strong> todas as votações (novo tabuleiro e votações de recursos como NASA e erro imediato) são automaticamente canceladas se a maioria não for atingida em 45 segundos.</li>
@@ -714,7 +714,7 @@
           <h3 class="font-extrabold text-base text-fuchsia-600 dark:text-fuchsia-400 mb-1">v6.3 <span class="text-[10px] opacity-70 ml-2 font-mono font-normal">(Versão anterior)</span></h3>
           <ul class="text-xs opacity-80 list-disc pl-5 space-y-1 mb-4">
             <li><strong>Mapa de calor da Rinha:</strong> quando a sala está no modo ⚔️ Versus e a opção Métricas em tempo real está ligada, os números das casas editáveis atribuídas a jogadores recebem apenas um contorno na cor do avatar. Pistas e contribuições da NASA mantêm suas identidades visuais; com métricas desligadas ou em modo cooperativo, o contorno não é aplicado.</li>
-            <li><strong>Privacidade:</strong> IP e cidade aproximada não são gravados no banco por esta versão cliente. Isso requer uma função de servidor e regras que mantenham esses dados em um nó privado, separado dos dados compartilhados da sala.</li>
+            <li><strong>Métricas de gameplay:</strong> a partir desta versão, o código passou a capturar métricas de gameplay nas salas multiplayer.</li>
           </ul>
         </div>
         <div class="relative pl-4 border-l-2 border-fuchsia-500">
@@ -914,7 +914,7 @@
         </label>
       </div>
       <p class="text-[10px] opacity-65 text-left leading-relaxed border-t pt-2" style="border-color: var(--board-border-cell);">
-        Privacidade: ao criar ou entrar em uma sala, o navegador/versão, sistema operacional estimado, idioma, fuso horário e tipo de conexão são enviados para diagnóstico privado (não visível aos demais jogadores). Resultados de partidas e métricas são guardados. Dimensões de tela e viewport não são coletadas.
+        Ao criar ou entrar em uma sala, informações técnicas de sessão (navegador, idioma e fuso horário) são enviadas para diagnóstico interno do servidor da sala.
       </p>
       <div class="flex gap-2 mt-2">
           <button id="btn-join-room" type="button" class="flex-1 py-3 rounded-xl theme-panel-alt border font-bold text-sm shadow-sm transition hover:opacity-90">

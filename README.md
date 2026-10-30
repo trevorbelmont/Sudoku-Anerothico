@@ -96,4 +96,4 @@ Todos os arquivos `.js` passaram na verificação sintática do Node.js. A valid
 ## Versão 6.3 — atribuição visual multiplayer
 
 - Na ⚔️ Rinha de Galo 🐓, quando **Métricas em tempo real** está ligada, o contorno dos números atribuídos a jogadores usa a cor do avatar responsável. O preenchimento do caractere e os demais indicadores de tema permanecem intactos; pistas, casas vazias e contribuições da NASA ficam fora dessa regra.
-- IP e cidade aproximada **não são gravados no banco** pela versão cliente. Para isso, é necessária uma Firebase Cloud Function ou backend equivalente, com gravação em um caminho privado e regras de acesso específicas. Não armazene IP em `members` sem verificar as regras de leitura existentes: esse nó é consumido pelos clientes da sala.
+- A partir desta versão, o código passou a capturar métricas de gameplay nas salas multiplayer.

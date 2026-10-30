@@ -67,6 +67,7 @@ function Write-Help {
     Write-Host '  Copie um dos endereços e cole-o no navegador desejado.' -ForegroundColor Gray
     Write-Host ''
     Write-Host '  COMANDOS DE DESENVOLVIMENTO' -ForegroundColor Cyan
+    Write-Host '  install             — instala as dependências de teste (npm install) na pasta tests/' -ForegroundColor Gray
     Write-Host '  test                — roda todos os testes (npm run test:all) em nova janela' -ForegroundColor Gray
     Write-Host '  test unit           — roda apenas os testes unitários (npm run test:unit)' -ForegroundColor Gray
     Write-Host '  test integration    — roda apenas os testes de integração (npm run test:integration)' -ForegroundColor Gray
@@ -106,6 +107,26 @@ function Confirm-YesNo {
     }
 }
 
+function Invoke-TestInstall {
+    $testsRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, 'tests'))
+    if (-not [System.IO.Directory]::Exists($testsRoot)) {
+        Write-Host "  Pasta de testes não encontrada: $testsRoot" -ForegroundColor Red
+        return
+    }
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js antes de instalar as dependências.' -ForegroundColor Red
+        Write-Host '  Baixe o Node.js em: https://nodejs.org/' -ForegroundColor Gray
+        return
+    }
+    Write-Host "  Executando 'npm install' na pasta tests/ em uma nova janela..." -ForegroundColor Green
+    try {
+        Start-Process -FilePath 'cmd.exe' -ArgumentList '/k npm install && echo. && echo Instalacao concluida! Feche esta janela.' -WorkingDirectory $testsRoot
+        Write-Host '  Janela de instalação aberta. Feche-a manualmente ao terminar.' -ForegroundColor Gray
+    } catch {
+        Write-Host "  Não foi possível abrir a janela de instalação: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
 function Invoke-TestRun {
     param([string]$ScriptName)
     $testsRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, 'tests'))
@@ -114,7 +135,8 @@ function Invoke-TestRun {
         return
     }
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js para rodar os testes.' -ForegroundColor Red
+        Write-Host '  npm não foi encontrado no PATH. Instale o Node.js e use o comando install para preparar o ambiente.' -ForegroundColor Red
+        Write-Host '  Baixe o Node.js em: https://nodejs.org/' -ForegroundColor Gray
         return
     }
     Write-Host "  Iniciando 'npm run $ScriptName' em uma nova janela..." -ForegroundColor Green
@@ -224,6 +246,10 @@ function Process-ConsoleCommand([string]$command) {
     }
     if ($normalized -in @('help', 'ajuda', 'url', 'urls', '?')) {
         Write-Help
+        return
+    }
+    if ($normalized -in @('install', 'npm install', 'instalar')) {
+        Invoke-TestInstall
         return
     }
     if ($normalized -in @('test', 'test:all', 'test all')) {
