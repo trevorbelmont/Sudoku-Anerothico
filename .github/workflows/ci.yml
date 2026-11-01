@@ -20,6 +20,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20' # Versão do Node.js
+      
+      - name: Verificar Sintaxe (Gramática JS)
+        run: for file in js/*.js; do node --check "$file"; done
 
       - name: Instalar Dependências
         working-directory: ./tests

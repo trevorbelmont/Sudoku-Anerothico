@@ -363,6 +363,31 @@ function Process-ConsoleCommand([string]$command) {
         }
         return
     }
+
+    if ($normalized -in @('test syntax', 'test:syntax', 'syntax')) {
+        Write-Host ''
+        Write-Host '  VERIFICAÇÃO DE SINTAXE (Node.js)' -ForegroundColor Cyan
+        Write-Host '  Verificando arquivos em js/ ...' -ForegroundColor Gray
+        
+        $jsFiles = Get-ChildItem -Path (Join-Path $script:root 'js') -Filter *.js
+        $errorCount = 0
+        
+        foreach ($file in $jsFiles) {
+            $process = Start-Process -FilePath "node" -ArgumentList "--check", "`"$($file.FullName)`"" -Wait -NoNewWindow -PassThru
+            if ($process.ExitCode -ne 0) {
+                Write-Host "  [ERRO] Falha de sintaxe em: $($file.Name)" -ForegroundColor Red
+                $errorCount++
+            }
+        }
+        
+        if ($errorCount -eq 0) {
+            Write-Host '  Todos os arquivos estão com a sintaxe correta! ✓' -ForegroundColor Green
+        } else {
+            Write-Host "  Total de erros de sintaxe encontrados: $errorCount" -ForegroundColor Red
+        }
+        return
+    }
+
     if ($normalized.Length -gt 0) {
         Write-Host "  Comando não reconhecido: '$command'. Digite help para ver os endereços e comandos." -ForegroundColor DarkYellow
     }
