@@ -615,6 +615,165 @@
     box-shadow: inset 0 0 0 2px var(--player-stroke-color, var(--accent)) !important;
 }
 
+/* =========================================================
+   DARK OVERLORD: Brilhos, Degradês e Animações Aprimoradas
+   Adiciona gradientes por célula (via --cell-hue), glows
+   (box-shadow), numpad com gradiente, header com borda
+   em gradiente vilão, botões animados e aura pulsante
+   do tabuleiro — complementando as animações já existentes.
+========================================================= */
+
+/* Gradiente vilão reutilizável (Verde Tóxico → Roxo Cósmico → Vermelho Perigo) */
+[data-theme="darkoverlord"] {
+  --villain-gradient: linear-gradient(135deg, #10b981 0%, #a855f7 50%, #ef4444 100%);
+}
+
+/* 1. Header com borda em gradiente vilão */
+[data-theme="darkoverlord"] header.theme-panel {
+  border-bottom: 3px solid transparent;
+  background-image: linear-gradient(var(--bg-panel), var(--bg-panel)), var(--villain-gradient);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+/* 2. btn-accent com gradiente animado (mudança de cor contínua) */
+@keyframes villain-btn-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+[data-theme="darkoverlord"] .btn-accent {
+  background-image: linear-gradient(90deg, #10b981, #a855f7, #ef4444, #a855f7, #10b981);
+  background-size: 200% 200%;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  animation: villain-btn-shift 5s ease-in-out infinite;
+}
+
+/* 3. Aura do tabuleiro com brilhos em camadas e pulsação de cor */
+@keyframes villain-board-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(16, 185, 129, 0.28),
+      0 0 40px rgba(168, 85, 247, 0.18),
+      0 0 55px rgba(239, 68, 68, 0.18);
+  }
+  33% {
+    box-shadow:
+      0 0 28px rgba(16, 185, 129, 0.38),
+      0 0 48px rgba(168, 85, 247, 0.28),
+      0 0 62px rgba(239, 68, 68, 0.24);
+  }
+  66% {
+    box-shadow:
+      0 0 24px rgba(16, 185, 129, 0.22),
+      0 0 52px rgba(168, 85, 247, 0.32),
+      0 0 68px rgba(239, 68, 68, 0.28);
+  }
+}
+
+[data-theme="darkoverlord"] #sudoku-board-wrapper {
+  border-radius: 14px;
+  animation: villain-board-pulse 8s ease-in-out infinite;
+}
+
+/* 4. Células com gradiente por hue (cada célula tem tom único) e borda tingida */
+[data-theme="darkoverlord"] .sudoku-cell {
+  background: linear-gradient(
+    145deg,
+    hsla(var(--cell-hue, 200), 55%, 8%, 0.96),
+    hsla(calc(var(--cell-hue, 200) + 40), 60%, 5%, 0.96)
+  );
+  border-right-color: hsla(var(--cell-hue, 200), 70%, 45%, 0.2);
+  border-bottom-color: hsla(var(--cell-hue, 200), 70%, 45%, 0.2);
+}
+
+/* 5. Pistas (given) com gradiente mais vivo e brilho interno */
+[data-theme="darkoverlord"] .sudoku-cell.given-cell {
+  background: linear-gradient(
+    145deg,
+    hsla(var(--cell-hue, 200), 65%, 14%, 0.97),
+    hsla(calc(var(--cell-hue, 200) + 50), 70%, 8%, 0.97)
+  );
+  box-shadow: inset 0 0 12px hsla(var(--cell-hue, 200), 80%, 40%, 0.15);
+}
+
+/* 6. Cruzeta (crosshair) com gradiente médio */
+[data-theme="darkoverlord"] .sudoku-cell.is-crosshair {
+  background: linear-gradient(
+    145deg,
+    hsla(var(--cell-hue, 200), 70%, 22%, 0.55),
+    hsla(calc(var(--cell-hue, 200) + 40), 75%, 15%, 0.55)
+  ) !important;
+}
+
+/* 7. Célula focada com brilho intenso e borda luminosa */
+[data-theme="darkoverlord"] .sudoku-cell.is-focused {
+  background: linear-gradient(
+    145deg,
+    hsla(var(--cell-hue, 200), 80%, 35%, 0.7),
+    hsla(calc(var(--cell-hue, 200) + 50), 85%, 25%, 0.7)
+  ) !important;
+  box-shadow:
+    inset 0 0 0 3px hsl(var(--cell-hue, 200), 90%, 55%),
+    0 0 14px hsla(var(--cell-hue, 200), 100%, 50%, 0.6) !important;
+}
+
+/* 8. Mesmo número com gradiente vilão (Verde → Roxo) */
+[data-theme="darkoverlord"] .sudoku-cell.is-same-number {
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.85),
+    rgba(168, 85, 247, 0.85)
+  ) !important;
+}
+
+[data-theme="darkoverlord"] .sudoku-cell.is-same-number .sudoku-input {
+  color: #ffffff !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* 9. Erro: remove gradiente, aplica brilho vermelho de perigo */
+[data-theme="darkoverlord"] .sudoku-cell.is-error {
+  background-image: none !important;
+  box-shadow:
+    inset 0 0 0 2px var(--cell-error-border),
+    0 0 12px rgba(239, 68, 68, 0.6) !important;
+}
+
+/* 10. Anotações (pencil notes) com cor por hue e brilho */
+[data-theme="darkoverlord"] .pencil-note {
+  color: hsl(var(--note-hue, var(--cell-hue, 180)), 65%, 68%);
+  text-shadow: 0 0 4px hsla(var(--note-hue, var(--cell-hue, 180)), 80%, 50%, 0.3);
+}
+
+/* 11. Botões do numpad com gradiente por hue e brilho no hover */
+[data-theme="darkoverlord"] .numpad-btn {
+  background: linear-gradient(
+    145deg,
+    hsla(var(--btn-hue, 0), 55%, 18%, 0.9),
+    hsla(calc(var(--btn-hue, 0) + 35), 60%, 12%, 0.95)
+  );
+  border-color: hsl(var(--btn-hue, 0), 70%, 50%);
+  color: hsl(var(--btn-hue, 0), 85%, 72%);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+
+[data-theme="darkoverlord"] .numpad-btn:hover,
+[data-theme="darkoverlord"] .numpad-btn.active-number-highlight {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--btn-hue, 0), 85%, 50%),
+    hsl(calc(var(--btn-hue, 0) + 40), 85%, 42%)
+  );
+  color: #ffffff;
+  box-shadow:
+    0 0 12px hsla(var(--btn-hue, 0), 90%, 55%, 0.7),
+    0 0 20px hsla(calc(var(--btn-hue, 0) + 40), 90%, 55%, 0.4);
+}
+
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
@@ -1396,6 +1555,19 @@ body.board-focus-mode .mp-feature-vote-toast {
   .sudoku-cell.player-color-sweep .sudoku-input {
     animation: none !important;
     filter: none;
+  }
+
+  /* Dark Overlord: cancela aura pulsante do tabuleiro e gradiente animado dos botões */
+  [data-theme="darkoverlord"] #sudoku-board-wrapper {
+    animation: none !important;
+    box-shadow:
+      0 0 20px rgba(16, 185, 129, 0.28),
+      0 0 40px rgba(168, 85, 247, 0.18),
+      0 0 55px rgba(239, 68, 68, 0.18);
+  }
+  [data-theme="darkoverlord"] .btn-accent {
+    animation: none !important;
+    background-position: 0% 50%;
   }
 }
 
