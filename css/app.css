@@ -456,6 +456,165 @@
       --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.12);
     }
 
+
+    /* =========================================================
+   TEMA PREMIUM 10: Dark Overlord 616 Villain 🦹
+   Fundo Abissal, Magia Verde Doom, Roxo Thanos, Sangue Escarlate
+========================================================= */
+
+[data-theme="darkoverlord"] {
+  --bg-app: #030305;
+  --bg-panel: #07070a;
+  --bg-panel-alt: #0c0c12;
+  --text-main: #e2e8f0;
+  --text-muted: #8b5cf6;
+  
+  --accent: #9333ea;
+  --accent-hover: #a855f7;
+  --accent-contrast: #000000;
+  
+  --board-bg: #030305;
+  --board-border-outer: transparent; /* Transparente para o laser */
+  --board-border-block: #3b0764; /* Linhas grossas roxas mais escuras */
+  --board-border-cell: #1a0b2e;
+  
+  --cell-bg: #07070a;
+  --cell-given-bg: #030305;
+  --cell-focus-bg: #2e0854;
+  --cell-crosshair-bg: #1a0b2e;
+  --cell-same-num-bg: #064e3b;
+  --cell-same-num-text: #34d399;
+  
+  --cell-error-bg: #2a0808;
+  --cell-error-text: #ef4444;
+  --cell-error-border: #dc2626;
+  
+  --note-highlight-bg: #10b981;
+  --note-highlight-text: #000000;
+  
+  --shadow-elevated: 0 0 35px rgba(147, 51, 234, 0.4);
+}
+
+/* 1. Cores de Identidade Base (Multiplayer e Inserção) */
+[data-theme="darkoverlord"] { 
+  --player-glow-color: rgba(16, 185, 129, 0.7); 
+  --player-sweep-hue: -80deg; /* Degrade de Verde para Roxo ao inserir número */ 
+}
+
+
+/* =========================================================
+   ANIMAÇÃO: ONDA DE ENERGIA NOS NÚMEROS (SWIPE GRADUAL)
+========================================================= */
+
+@keyframes villain-energy-wave {
+  0%   { color: #10b981; text-shadow: 0 0 15px rgba(16,185,129,0.8); } /* Verde Tóxico */
+  33%  { color: #a855f7; text-shadow: 0 0 15px rgba(168,85,247,0.8); } /* Roxo Cósmico */
+  66%  { color: #ef4444; text-shadow: 0 0 15px rgba(239,68,68,0.8); }  /* Vermelho Perigo */
+  100% { color: #10b981; text-shadow: 0 0 15px rgba(16,185,129,0.8); }
+}
+
+/* Aplicamos a onda nos números digitados pelo utilizador */
+[data-theme="darkoverlord"] .sudoku-cell .sudoku-input {
+   animation: villain-energy-wave 6s linear infinite;
+   /* O GRANDE TRUQUE: O --cell-hue que você calcula no JS cria um delay diferente por célula, fazendo a onda viajar! */
+   animation-delay: calc(var(--cell-hue) * -0.025s);
+}
+
+/* Pistas (Given) pulsam suavemente num roxo sombrio, sem tanta luz */
+@keyframes villain-given-pulse {
+  0%   { color: #7e22ce; text-shadow: 0 0 5px rgba(126,34,206,0.3); }
+  50%  { color: #c084fc; text-shadow: 0 0 10px rgba(192,132,252,0.6); }
+  100% { color: #7e22ce; text-shadow: 0 0 5px rgba(126,34,206,0.3); }
+}
+[data-theme="darkoverlord"] .sudoku-cell.given-cell .sudoku-input {
+   animation: villain-given-pulse 4s ease-in-out infinite;
+   animation-delay: calc(var(--cell-hue) * -0.015s);
+}
+
+
+/* =========================================================
+   ANIMAÇÃO: O LASER ESFUMAÇADO DO TABULEIRO (Borda Infinita)
+========================================================= */
+
+@keyframes spin-laser-616 {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+[data-theme="darkoverlord"] #sudoku-board-viewport {
+  position: relative;
+  overflow: hidden;
+  padding: 4px; /* Espessura do laser */
+  border-radius: 12px;
+  background: #000; 
+  box-shadow: 0 0 40px rgba(16, 185, 129, 0.2); /* Aura geral do tabuleiro */
+}
+
+[data-theme="darkoverlord"] #sudoku-board-viewport::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 250%; /* Extragrande para garantir que o gradiente não corte nos cantos */
+  height: 250%;
+  /* O gradiente agora começa invisível, acende verde, funde pra roxo, vermelho, e DESAPARECE novamente esfumaçado */
+  background: conic-gradient(
+    from 0deg, 
+    transparent 0%, 
+    transparent 35%, 
+    #ef4444 45%, 
+    #a855f7 65%, 
+    #10b981 85%, 
+    transparent 95%, 
+    transparent 100%
+  );
+  animation: spin-laser-616 4s linear infinite;
+  z-index: 0;
+}
+
+[data-theme="darkoverlord"] #sudoku-grid {
+  position: relative;
+  z-index: 1;
+  background-color: var(--board-bg);
+  border-radius: 8px;
+  border: none;
+}
+
+
+/* =========================================================
+   ANIMAÇÕES DE MOLDURAS (Rinha de Galo e Multiplayer)
+========================================================= */
+
+@keyframes tileGlowOverlord {
+  0%   { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #10b981), 0 0 5px 0px rgba(16,185,129,0); }
+  50%  { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #10b981), 0 0 15px 4px rgba(16,185,129,0.9); }
+  100% { box-shadow: inset 0 0 0 2px var(--player-stroke-color, #10b981), 0 0 5px 0px rgba(16,185,129,0); }
+}
+
+@keyframes localTileOverlord {
+  0%   { box-shadow: inset 0 0 0 1.5px #a855f7, 0 0 var(--player-glow-spread,8px) 2px rgba(168,85,247,0.5); }
+  50%  { box-shadow: inset 0 0 0 1.5px #a855f7, 0 0 calc(var(--player-glow-spread,8px) + 8px) 4px rgba(168,85,247,0.9); }
+  100% { box-shadow: inset 0 0 0 1.5px #a855f7, 0 0 var(--player-glow-spread,8px) 2px rgba(168,85,247,0.5); }
+}
+
+[data-theme="darkoverlord"] .sudoku-cell.is-player-contribution {
+  animation: tileGlowOverlord 2.2s ease-in-out infinite;
+  will-change: box-shadow;
+}
+[data-theme="darkoverlord"] .sudoku-cell.is-local-player:not(.glow-off) {
+  animation: localTileOverlord var(--player-glow-period, 2.8s) ease-in-out infinite;
+}
+[data-theme="darkoverlord"] .sudoku-cell.is-local-player.glow-static {
+  animation: none;
+  box-shadow: inset 0 0 0 1.5px #a855f7, 0 0 var(--player-glow-spread,8px) 2px rgba(168,85,247,0.6);
+}
+[data-theme="darkoverlord"] .sudoku-cell.is-player-contribution.glow-off,
+[data-theme="darkoverlord"] .sudoku-cell.is-local-player.glow-off,
+[data-theme="darkoverlord"] .sudoku-cell.is-local-player.glow-static.glow-off {
+    animation: none !important;
+    box-shadow: inset 0 0 0 2px var(--player-stroke-color, var(--accent)) !important;
+}
+
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
