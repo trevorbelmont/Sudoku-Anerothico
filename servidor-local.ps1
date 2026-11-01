@@ -71,6 +71,8 @@ function Write-Help {
     Write-Host '  test                — roda todos os testes (npm run test:all) em nova janela' -ForegroundColor Gray
     Write-Host '  test unit           — roda apenas os testes unitários (npm run test:unit)' -ForegroundColor Gray
     Write-Host '  test integration    — roda apenas os testes de integração (npm run test:integration)' -ForegroundColor Gray
+    Write-Host '  test syntax         — roda roda testes de syntax nos arquivos .JS (node --check) na mesma janela' -ForegroundColor Gray
+
     Write-Host '  clean  /  limpar    — apaga node_modules e caches dos testes (pede confirmação)' -ForegroundColor Gray
     Write-Host '  reset storage       — limpa o localStorage do jogo via rota fantasma (pede confirmação)' -ForegroundColor Gray
     Write-Host '  Requer Node.js LTS (inclui npm e npx); install prepara o Jest em tests/.' -ForegroundColor DarkGray
@@ -177,7 +179,7 @@ function Invoke-TestInstall {
 
     Write-Host "  Executando 'npm install' na pasta tests/ em uma nova janela..." -ForegroundColor Green
     try {
-        Start-TestCommandWindow -TestsRoot $testsRoot -CommandLine 'npm install'
+        Start-TestCommandWindow -TestsRoot $testsRoot -CommandLine 'npm install --no-audit --no-fund --loglevel=error'
         Write-Host '  Janela de instalação aberta. Acompanhe o npm install nessa janela.' -ForegroundColor Gray
     } catch {
         Write-Host "  Não foi possível abrir a janela de instalação: $($_.Exception.Message)" -ForegroundColor Red
@@ -186,6 +188,15 @@ function Invoke-TestInstall {
 
 function Invoke-TestRun {
     param([string]$ScriptName)
+
+    # Garantimos que plmns a sintaxe dos .JS está perfeita
+    $syntaxOk = Invoke-SyntaxCheck
+    if (-not $syntaxOk) {
+        Write-Host "  Abortando a suíte de testes do Jest devido a erros de sintaxe." -ForegroundColor Yellow
+        return
+    }
+
+    # Se a sintaxe tá boa, rodamos os testes reais.
     $testsRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, 'tests'))
     if (-not [System.IO.Directory]::Exists($testsRoot)) {
         Write-Host "  Pasta de testes não encontrada: $testsRoot" -ForegroundColor Red
@@ -201,7 +212,7 @@ function Invoke-TestRun {
 
     if (-not (Get-NpmCommand)) {
         Write-Host '  npm não foi encontrado no PATH. Instale o Node.js e reabra o servidor.' -ForegroundColor Red
-        Write-Host '  Baixe o Node.js LTS em: https://nodejs.org/' -ForegroundColor Gray
+        Write-Host '  Rode aqui o comando install ou baixe o Node.js LTS em: https://nodejs.org/' -ForegroundColor Gray
         return
     }
 
@@ -241,6 +252,34 @@ function Invoke-TestClean {
         }
     }
     Write-Host '  Limpeza concluída.' -ForegroundColor Green
+}
+
+function Invoke-SyntaxCheck {
+    Write-Host ''
+    Write-Host '  VERIFICAÇÃO DE SINTAXE (Node.js)' -ForegroundColor Cyan
+    Write-Host '  Lendo todos os arquivos em js/ ...' -ForegroundColor Gray
+    
+    $jsFiles = Get-ChildItem -Path (Join-Path $script:root 'js') -Filter *.js
+    $errorCount = 0
+    
+    foreach ($file in $jsFiles) {
+        # O operador '&' roda o node nativamente, jogando o erro real na tela do PowerShell
+        & node --check $file.FullName
+        
+        # O $LASTEXITCODE captura se o comando anterior falhou
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [ERRO] A sintaxe quebrou em: $($file.Name)`n" -ForegroundColor Red
+            $errorCount++
+        }
+    }
+    
+    if ($errorCount -eq 0) {
+        Write-Host '  Todos os arquivos passaram na verificação de sintaxe! ✓' -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "  Total de arquivos quebrados: $errorCount. Corrija-os antes de prosseguir." -ForegroundColor Red
+        return $false
+    }
 }
 
 function Send-HttpResponse($client, [string]$status, [string]$contentType, [byte[]]$body, [bool]$isHead) {
@@ -365,26 +404,7 @@ function Process-ConsoleCommand([string]$command) {
     }
 
     if ($normalized -in @('test syntax', 'test:syntax', 'syntax')) {
-        Write-Host ''
-        Write-Host '  VERIFICAÇÃO DE SINTAXE (Node.js)' -ForegroundColor Cyan
-        Write-Host '  Verificando arquivos em js/ ...' -ForegroundColor Gray
-        
-        $jsFiles = Get-ChildItem -Path (Join-Path $script:root 'js') -Filter *.js
-        $errorCount = 0
-        
-        foreach ($file in $jsFiles) {
-            $process = Start-Process -FilePath "node" -ArgumentList "--check", "`"$($file.FullName)`"" -Wait -NoNewWindow -PassThru
-            if ($process.ExitCode -ne 0) {
-                Write-Host "  [ERRO] Falha de sintaxe em: $($file.Name)" -ForegroundColor Red
-                $errorCount++
-            }
-        }
-        
-        if ($errorCount -eq 0) {
-            Write-Host '  Todos os arquivos estão com a sintaxe correta! ✓' -ForegroundColor Green
-        } else {
-            Write-Host "  Total de erros de sintaxe encontrados: $errorCount" -ForegroundColor Red
-        }
+        [void](Invoke-SyntaxCheck)
         return
     }
 
