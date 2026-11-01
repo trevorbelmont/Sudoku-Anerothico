@@ -1,0 +1,32 @@
+name: Sudoku CI/CD - Testes Automatizados
+
+# Define quando rodar
+on:
+  push:
+    branches: [ "main" ] # Roda qdo a main for atualizada
+  pull_request:
+    branches: [ "main" ] # Roda em PRs
+
+jobs:
+  testes:
+    name: Run Jest Tests
+    runs-on: ubuntu-latest # Linux
+
+    steps:
+      - name: Clonar o repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Versão do Node.js
+          cache: 'npm'
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Instalar Dependências
+        working-directory: ./tests
+        run: npm ci 
+
+      - name: Executar Bateria de Testes (Unitários e Integração)
+        working-directory: ./tests
+        run: npm test

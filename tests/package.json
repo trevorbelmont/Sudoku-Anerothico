@@ -16,13 +16,20 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/*.test.js"],
-    "collectCoverageFrom": ["../js/*.js"],
+    "testMatch": [
+      "**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "../js/*.js"
+    ],
     "coverageDirectory": "coverage",
-    "coverageReporters": ["text", "lcov"]
+    "coverageReporters": [
+      "text",
+      "lcov"
+    ]
   },
   "devDependencies": {
-    "jest": "^29.7.0",
+    "jest": "^25.1.0",
     "jest-environment-jsdom": "^29.7.0"
   }
 }
