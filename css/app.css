@@ -1563,3 +1563,30 @@ body.board-focus-mode .panel-collapse-btn {
     display: none;
   }
 }
+
+/* EASTER EGG & DEV MODE ANIMATIONS */
+
+/* Efeito de mola ao clicar no 9 */
+@keyframes logo-spring {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.80) rotate(-8deg); }
+  50%  { transform: scale(1.20) rotate(8deg); }
+  70%  { transform: scale(0.95) rotate(-3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.logo-spring-anim {
+  animation: logo-spring 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Brilho contínuo rodando envolta do 9 quando ativado (Respeitando o Tema) */
+@keyframes dev-mode-glow-rotate {
+  0% { box-shadow: 0 0 10px 2px var(--player-glow-color, var(--accent)), inset 0 0 5px var(--accent); }
+  50% { box-shadow: 0 0 30px 8px var(--player-glow-color, var(--accent)), inset 0 0 15px var(--accent); }
+  100% { box-shadow: 0 0 10px 2px var(--player-glow-color, var(--accent)), inset 0 0 5px var(--accent); }
+}
+
+.dev-mode-active {
+  animation: dev-mode-glow-rotate 2s infinite ease-in-out;
+  border: 2px solid var(--accent);
+}
