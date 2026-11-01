@@ -20,12 +20,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20' # Versão do Node.js
-          cache: 'npm'
-          cache-dependency-path: tests/package-lock.json
 
       - name: Instalar Dependências
         working-directory: ./tests
-        run: npm ci 
+        run: npm install
 
       - name: Executar Bateria de Testes (Unitários e Integração)
         working-directory: ./tests
