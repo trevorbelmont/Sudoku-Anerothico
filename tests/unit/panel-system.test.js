@@ -12,6 +12,10 @@
 const path = require('path');
 const fs   = require('fs');
 
+// Carrega APP_CONFIG da central de configuração para injetar no contexto do panel-system
+const { loadConfigModule } = require('../helpers/engine-loader');
+const APP_CONFIG = loadConfigModule();
+
 // Lê o fonte do panel-system para inspecionar as constantes
 const panelSrc = fs.readFileSync(
   path.resolve(__dirname, '../../js/panel-system.js'), 'utf8'
@@ -183,6 +187,7 @@ function runPanelSystem(initialStorage = {}) {
     window: windowMock,
     renderSudokuBoard: jest.fn(),
     state: { board: [], symbols: [] },
+    APP_CONFIG,
     setTimeout: (fn, delay) => { if (!delay) fn(); },
   };
 

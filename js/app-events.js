@@ -462,15 +462,24 @@ function initEventListeners() {
         if (gameNameInput) gameNameInput.setAttribute('maxlength', String(APP_CONFIG.GAME_NAME_MAX_LENGTH));
         const zoomSlider = document.getElementById('board-zoom');
         if (zoomSlider) { zoomSlider.min = String(APP_CONFIG.BOARD_ZOOM_MIN); zoomSlider.max = String(APP_CONFIG.BOARD_ZOOM_MAX); zoomSlider.step = String(APP_CONFIG.BOARD_ZOOM_STEP); }
+        const zoomOutput = document.getElementById('board-zoom-value');
+        if (zoomOutput) zoomOutput.textContent = `${APP_CONFIG.BOARD_ZOOM_DEFAULT}%`;
         initEventListeners();
         if (typeof initDevMode === 'function') initDevMode();
         updateSavedBadgeCount();
-        if (tryLoadSharedPuzzleFromURL()) return;
+        if (tryLoadSharedPuzzleFromURL()) {
+          // Re-renderiza após o layout do navegador estabilizar — corrige tabuleiro
+          // pequeno no primeiro carregamento (viewport pode não ter largura final no DOMContentLoaded).
+          requestAnimationFrame(() => { requestAnimationFrame(() => { if (state.board && state.board.length) renderSudokuBoard(); }); });
+          return;
+        }
         const savedGames = getAllSavedGames();
         let lastId = null;
         try { lastId = localStorage.getItem(STORAGE_KEYS.CURRENT_GAME_ID); } catch (_) {}
         const lastGame = savedGames.find(g => g.gameId === lastId && !g.completed) || savedGames.find(g => !g.completed);
         if (lastGame) loadSavedGameRecord(lastGame); else startNewGame();
+        // Re-renderiza após o layout estabilizar para garantir o tamanho correto do tabuleiro.
+        requestAnimationFrame(() => { requestAnimationFrame(() => { if (state.board && state.board.length) renderSudokuBoard(); }); });
       }
 
       window.addEventListener('DOMContentLoaded', initApp);
