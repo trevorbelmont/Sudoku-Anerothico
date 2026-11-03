@@ -1,0 +1,4 @@
+# Arquivo de exclusão do Cold Storage (REST)
+rooms/*/moves
+presence
+# rooms/teste

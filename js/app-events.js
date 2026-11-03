@@ -483,3 +483,26 @@ function initEventListeners() {
       }
 
       window.addEventListener('DOMContentLoaded', initApp);
+
+      // Corrige tabuleiro pequeno no primeiro carregamento: o CSS do Tailwind (via CDN)
+      // pode não estar aplicado no DOMContentLoaded. O evento 'load' dispara após TODOS
+      // os recursos (CSS, fonts, scripts) terminarem de carregar, garantindo que o
+      // viewport tenha sua largura final antes de re-renderizar o tabuleiro.
+      window.addEventListener('load', () => {
+        if (state.board && state.board.length) renderSudokuBoard();
+      });
+
+      // Rede de segurança adicional: ResizeObserver detecta qualquer mudança de
+      // tamanho do viewport (incluindo quando o layout CSS é aplicado tardiamente)
+      // e re-renderiza o tabuleiro com debounce para evitar re-renders excessivos.
+      if (typeof ResizeObserver !== 'undefined') {
+        const roViewport = document.getElementById('sudoku-board-viewport');
+        if (roViewport) {
+          let _boardResizeTimer = null;
+          new ResizeObserver(() => {
+            if (!state.board || !state.board.length) return;
+            if (_boardResizeTimer) clearTimeout(_boardResizeTimer);
+            _boardResizeTimer = setTimeout(() => { renderSudokuBoard(); }, 80);
+          }).observe(roViewport);
+        }
+      }
