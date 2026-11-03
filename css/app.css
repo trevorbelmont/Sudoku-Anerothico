@@ -529,6 +529,11 @@
 [data-theme="darkoverlord"] .sudoku-cell.given-cell .sudoku-input {
    animation: villain-given-pulse 4s ease-in-out infinite;
    animation-delay: calc(var(--cell-hue) * -0.015s);
+   font-weight: 900;
+   text-decoration: underline;
+   text-decoration-color: hsla(var(--cell-hue, 200), 80%, 55%, 0.5);
+   text-underline-offset: 3px;
+   text-decoration-thickness: 2px;
 }
 
 
@@ -917,6 +922,10 @@
       caret-color: transparent;
       -webkit-user-select: none;
       user-select: none;
+      text-decoration: underline;
+      text-decoration-color: var(--accent);
+      text-underline-offset: 3px;
+      text-decoration-thickness: 2px;
     }
 
     .pencil-grid {
