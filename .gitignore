@@ -5,6 +5,11 @@ tests/package-lock.json
 tests/bun.lockb
 tests/bun.lock
 
+
+# Arquivos de Configuração de Ambiente
+.env    
+.environment
+
 # Logs e Caches de Teste
 .nyc_output/
 coverage/
