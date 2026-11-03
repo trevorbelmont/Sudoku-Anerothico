@@ -37,7 +37,7 @@
             const fb = getFirebaseAPI();
             if (fb) fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState')), { isCompleted: true, elapsedSeconds: state.timerSeconds }).catch(() => {});
           }
-          if (typeof confetti === 'function') confetti({ particleCount: 95, spread: 70, origin: { y: 0.35 }, zIndex: 9999, colors: ['#34d399', '#22d3ee', '#a78bfa', '#f472b6'] });
+          if (typeof confetti === 'function') confetti(APP_CONFIG.CONFETTI.VICTORY);
           return;
         }
         for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (state.initial[r][c] === '' && state.board[r][c] !== state.solution[r][c]) wrongCoords.push([r, c]);
@@ -56,14 +56,14 @@
         state.timerInterval = setInterval(() => {
           if (!state.timerRunning || state.completed) return;
           state.timerSeconds++; document.getElementById('timer-display').textContent = formatTime(state.timerSeconds);
-          if (state.timerSeconds % 5 === 0) saveCurrentGameState();
-        }, 1000);
+          if (state.timerSeconds % APP_CONFIG.TIMER_AUTOSAVE_INTERVAL_S === 0) saveCurrentGameState();
+        }, APP_CONFIG.TIMER_INTERVAL_MS);
       }
       function pauseTimer() { state.timerRunning = false; document.getElementById('icon-pause-timer').className = 'fa-solid fa-play text-xs'; }
       function togglePauseGame() { if (state.completed) return; if (state.timerRunning) { pauseTimer(); document.getElementById('pause-overlay').classList.remove('hidden'); } else startTimer(); }
 
       function startNewGame(customConfig = null) {
-        let N = 9, blockR = 3, blockC = 3, minVal = 1, maxVal = 9, includeZero = false, symbols = buildSymbolsFromRange(1, 9, false);
+        let N = APP_CONFIG.DEFAULT_GRID_SIZE, blockR = APP_CONFIG.DEFAULT_BLOCK_ROWS, blockC = APP_CONFIG.DEFAULT_BLOCK_COLS, minVal = APP_CONFIG.DEFAULT_MIN_VAL, maxVal = APP_CONFIG.DEFAULT_MAX_VAL, includeZero = APP_CONFIG.DEFAULT_INCLUDE_ZERO, symbols = buildSymbolsFromRange(APP_CONFIG.DEFAULT_MIN_VAL, APP_CONFIG.DEFAULT_MAX_VAL, APP_CONFIG.DEFAULT_INCLUDE_ZERO);
         if (state.mode === 'custom') {
           const cfg = customConfig || updateCustomRangePreview();
           if (!cfg) { showToast('Ajuste o intervalo.', 'warn'); return; }
@@ -80,7 +80,7 @@
         state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false));
         state.focusedCell = { r: 0, c: 0 }; state.highlightedSymbol = null; state.timerSeconds = 0; state.completed = false; state.isManualCreating = false;
         const mcBar = document.getElementById('manual-create-bar'); if (mcBar) { mcBar.classList.remove('flex'); mcBar.classList.add('hidden'); }
-        updateDifficultyCluesUI(state.N); updateHeaderSubtitle(); document.getElementById('timer-display').textContent = '00:00';
+        updateDifficultyCluesUI(state.N); updateHeaderSubtitle(); document.getElementById('timer-display').textContent = APP_CONFIG.TIMER_DISPLAY_INITIAL;
         renderVirtualNumpad(); renderSudokuBoard(); startTimer(); saveCurrentGameState();
       }
 
@@ -102,7 +102,7 @@ function replayCurrentGame() {
     state.completed = false;
     state.pencilMode = false;
     togglePencilMode(false);
-    document.getElementById('timer-display').textContent = '00:00';
+    document.getElementById('timer-display').textContent = APP_CONFIG.TIMER_DISPLAY_INITIAL;
     closeModal('modal-victory');
     renderVirtualNumpad();
     renderSudokuBoard();

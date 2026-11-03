@@ -16,7 +16,7 @@ function getAllSavedGames() { try { const raw = localStorage.getItem(STORAGE_KEY
           };
           const existingIdx = games.findIndex(g => g.gameId === state.gameId);
           if (existingIdx >= 0) games[existingIdx] = record; else games.unshift(record);
-          const trimmed = games.slice(0, 35);
+          const trimmed = games.slice(0, APP_CONFIG.MAX_SAVED_GAMES);
           localStorage.setItem(STORAGE_KEYS.SAVED_GAMES, JSON.stringify(trimmed));
           localStorage.setItem(STORAGE_KEYS.CURRENT_GAME_ID, state.gameId);
           updateSavedBadgeCount(trimmed);

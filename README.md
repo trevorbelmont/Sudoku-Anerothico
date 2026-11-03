@@ -1,4 +1,4 @@
-# Sudoku Aneróthico PRÓ v6.4
+# Sudoku Aneróthico PRÓ v6.8
 
 ## Execução local no Windows
 

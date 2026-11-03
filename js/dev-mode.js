@@ -1,11 +1,11 @@
 'use strict';
 
-const DEV_MODE_KEY = 'sudoku_anerothico_dev_mode_v1';
+const DEV_MODE_KEY = APP_CONFIG.DEV_MODE_KEY;
 let devModeActive = false;
 let devClickCount = 0;
 let devClickFirstAt = 0;
-const DEV_CLICK_TARGET = 9;
-const DEV_CLICK_WINDOW_MS = 4000;
+const DEV_CLICK_TARGET = APP_CONFIG.DEV_MODE_CLICKS_REQUIRED;
+const DEV_CLICK_WINDOW_MS = APP_CONFIG.DEV_MODE_TIME_WINDOW_MS;
 
 function refreshDevModeSectionVisibility() {
   const section = document.getElementById('dev-mode-section');

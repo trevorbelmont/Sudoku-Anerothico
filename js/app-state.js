@@ -1,16 +1,12 @@
 'use strict';
 
-      const STORAGE_KEYS = {
-        THEME: 'sudoku_anerothico_theme_v1',
-        SAVED_GAMES: 'sudoku_anerothico_games_v1',
-        CURRENT_GAME_ID: 'sudoku_anerothico_current_id_v1',
-        PLAYER_ID: 'sudoku_anerothico_player_id_v1',
-        VISUAL_SETTINGS: 'sudoku_anerothico_visual_settings_v1'
-      };
+      // STORAGE_KEYS e ROOM_PROTECTION_DAYS agora referenciam a central de configuração
+      // (js/config.js). Os valores permanecem idênticos — apenas a fonte mudou.
+      const STORAGE_KEYS = APP_CONFIG.STORAGE;
 
       // Número de dias após a última atividade de uma sala antes de ela poder ser sobrescrita.
       // Enquanto esse prazo não vence, a sala está "protegida" e não pode ser criada com o mesmo nome.
-      const ROOM_PROTECTION_DAYS = 2;
+      const ROOM_PROTECTION_DAYS = APP_CONFIG.ROOM_PROTECTION_DAYS;
 
       // Gera ou recupera o identificador persistente do jogador.
       // Ao recarregar a página ou reconectar, o mesmo ID é reutilizado, preservando
@@ -42,18 +38,18 @@
                       glowIntensityRaw: Number(parsed.glowIntensityRaw ?? (gi === 0 ? 0 : gi === 1 ? 25 : gi === 2 ? 50 : 75)),
                       animSpeed: as,
                       animSpeedRaw: Number(parsed.animSpeedRaw ?? (as === 0 ? 0 : as === 1 ? 25 : as === 2 ? 50 : 75)),
-                      nasaIntensity: Number(parsed.nasaIntensity ?? 60),
-                      nasaSpeed: Number(parsed.nasaSpeed ?? 50),
+                      nasaIntensity: Number(parsed.nasaIntensity ?? APP_CONFIG.DEFAULT_NASA_INTENSITY),
+                      nasaSpeed: Number(parsed.nasaSpeed ?? APP_CONFIG.DEFAULT_NASA_SPEED),
                       playerColorAnimOn: parsed.playerColorAnimOn !== false,
-                      playerColorFreq: Number(parsed.playerColorFreq ?? 50),
+                      playerColorFreq: Number(parsed.playerColorFreq ?? APP_CONFIG.DEFAULT_PLAYER_COLOR_FREQ),
                       playerTileOn: parsed.playerTileOn !== false,
                       playerIdentityOff: parsed.playerIdentityOff === true,
-                      insertSpeed: Number(parsed.insertSpeed ?? 50)
+                      insertSpeed: Number(parsed.insertSpeed ?? APP_CONFIG.DEFAULT_INSERT_SPEED)
                     };
                   }
               }
           } catch (_) {}
-          return { glowIntensity: 2, glowIntensityRaw: 50, animSpeed: 2, animSpeedRaw: 50, nasaIntensity: 60, nasaSpeed: 50, playerColorAnimOn: false, playerColorFreq: 50, playerTileOn: false, playerIdentityOff: false, insertSpeed: 50 };
+          return { glowIntensity: 2, glowIntensityRaw: APP_CONFIG.DEFAULT_GLOW_INTENSITY_RAW, animSpeed: 2, animSpeedRaw: APP_CONFIG.DEFAULT_ANIM_SPEED_RAW, nasaIntensity: APP_CONFIG.DEFAULT_NASA_INTENSITY, nasaSpeed: APP_CONFIG.DEFAULT_NASA_SPEED, playerColorAnimOn: false, playerColorFreq: APP_CONFIG.DEFAULT_PLAYER_COLOR_FREQ, playerTileOn: false, playerIdentityOff: false, insertSpeed: APP_CONFIG.DEFAULT_INSERT_SPEED };
       }
 
       const DIFFICULTY_LABELS = {
@@ -76,20 +72,20 @@
       const state = {
         gameId: null,
         gameName: '',
-        mode: 'standard',
-        difficulty: 'facil',
-        minVal: 1,
-        maxVal: 9,
-        includeZero: false,
+        mode: APP_CONFIG.DEFAULT_MODE,
+        difficulty: APP_CONFIG.DEFAULT_DIFFICULTY,
+        minVal: APP_CONFIG.DEFAULT_MIN_VAL,
+        maxVal: APP_CONFIG.DEFAULT_MAX_VAL,
+        includeZero: APP_CONFIG.DEFAULT_INCLUDE_ZERO,
         symbols: [],
-        N: 9,
+        N: APP_CONFIG.DEFAULT_GRID_SIZE,
         boardZoom: 1,
         nasaContributions: [],
         nasaCalls: 0,
         boardFocusMode: false,
         boardZoomBeforeFocus: null,
-        blockR: 3,
-        blockC: 3,
+        blockR: APP_CONFIG.DEFAULT_BLOCK_ROWS,
+        blockC: APP_CONFIG.DEFAULT_BLOCK_COLS,
         solution: [],
         initial: [],
         board: [],
@@ -116,7 +112,7 @@
         multiplayer: {
             active: false,
             roomId: null,
-            playerName: 'Jogador',
+            playerName: APP_CONFIG.DEFAULT_PLAYER_NAME,
             playerId: getOrCreatePersistentPlayerId(),
             listener: null,
             listeners: [],
@@ -134,7 +130,7 @@
             pendingBoardState: null,
             lastProcessedSeq: 0,
             instanceCount: 0,
-            roomMode: 'coop',
+            roomMode: APP_CONFIG.DEFAULT_ROOM_MODE,
             realtimeMetrics: false,
             contributions: {},
             currentFeatureVote: null,

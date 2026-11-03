@@ -410,7 +410,7 @@ function getFirebaseAPI() {
               updateMultiplayerVictorySummary();
               if (!wasCompleted) {
                   openModal('modal-victory');
-                  if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 75, origin: { y: 0.35 }, zIndex: 9999, colors: ['#34d399', '#22d3ee', '#a78bfa', '#f472b6'] });
+                  if (typeof confetti === 'function') confetti(APP_CONFIG.CONFETTI.VICTORY_MP);
               }
           } else if (wasCompleted) {
               state.timerSeconds = Number(roomState.elapsedSeconds) || 0;
@@ -582,7 +582,7 @@ function getFirebaseAPI() {
           state.gameId = 'mp_' + state.multiplayer.roomId + '_' + state.multiplayer.instanceCount;
           state.gameName = 'Sala: ' + state.multiplayer.roomId + ' #' + state.multiplayer.instanceCount;
           setGameNameInput(state.gameName);
-          document.getElementById('timer-display').textContent = '00:00';
+          document.getElementById('timer-display').textContent = APP_CONFIG.TIMER_DISPLAY_INITIAL;
           syncModeTabsUI();
           syncDifficultyButtonsUI();
           updateHeaderSubtitle();

@@ -150,7 +150,20 @@ _exports.DIFFICULTY_REMOVAL_RATIOS = DIFFICULTY_REMOVAL_RATIOS;
   return exports;
 }
 
+function loadConfigModule() {
+  const src = stripModuleDirectives(JS('config.js'));
+  const exports = {};
+  const wrapper = `${src}\n_exports.APP_CONFIG = APP_CONFIG;`;
+  const ctx = { _exports: exports };
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  // eslint-disable-next-line no-new-func
+  new Function(...keys, wrapper)(...vals);
+  return exports.APP_CONFIG;
+}
+
 function loadAppStateModule() {
+  const APP_CONFIG = loadConfigModule();
   const src = stripModuleDirectives(JS('app-state.js'));
 
   // Stub de localStorage
@@ -182,7 +195,7 @@ _exports.getOrCreatePersistentPlayerId = getOrCreatePersistentPlayerId;
 _exports.loadVisualSettings         = loadVisualSettings;
   `;
 
-  const ctx = { localStorage: localStorageMock, crypto: cryptoMock, Intl, _exports: exports };
+  const ctx = { localStorage: localStorageMock, crypto: cryptoMock, Intl, APP_CONFIG, _exports: exports };
   const keys = Object.keys(ctx);
   const vals = keys.map(k => ctx[k]);
   // eslint-disable-next-line no-new-func
@@ -226,6 +239,7 @@ _exports.showToast  = showToast;
 
 function loadMultiplayerServiceColorModule() {
   // Extrai apenas as funções puras de cor (sem Firebase, sem state)
+  const APP_CONFIG = loadConfigModule();
   const src = stripModuleDirectives(JS('multiplayer-service.js'));
 
   const exports = {};
@@ -259,7 +273,7 @@ _exports.MULTIPLAYER_PLAYER_COLOR_PALETTE = MULTIPLAYER_PLAYER_COLOR_PALETTE;
     state: stateMock,
   };
 
-  const ctx = { navigator, _exports: exports, ...noops };
+  const ctx = { navigator, APP_CONFIG, _exports: exports, ...noops };
   const keys = Object.keys(ctx);
   const vals = keys.map(k => ctx[k]);
   // eslint-disable-next-line no-new-func
@@ -326,6 +340,7 @@ _exports.shareCurrentPuzzleStateURL = shareCurrentPuzzleStateURL;
 }
 
 function loadMultiplayerVotingModule() {
+  const APP_CONFIG = loadConfigModule();
   const src = stripModuleDirectives(JS('multiplayer-voting.js'));
   const exports = {};
 
@@ -381,6 +396,7 @@ _exports.computeContributionStats = computeContributionStats;
     state,
     isNASAContributionEntry,
     getNasaContributionStats,
+    APP_CONFIG,
     _exports: exports,
   };
 
@@ -396,6 +412,7 @@ _exports.computeContributionStats = computeContributionStats;
 }
 
 function loadGameStorageModule() {
+  const APP_CONFIG = loadConfigModule();
   const src = stripModuleDirectives(JS('game-storage.js'));
   const exports = {};
 
@@ -442,6 +459,7 @@ _exports.updateSavedBadgeCount  = updateSavedBadgeCount;
   const ctx = {
     localStorage: localStorageMock,
     STORAGE_KEYS: appState.STORAGE_KEYS,
+    APP_CONFIG,
     validateGameState: engine.validateGameState,
     state,
     ensureNasaContributionGrid,
@@ -461,6 +479,7 @@ _exports.updateSavedBadgeCount  = updateSavedBadgeCount;
 }
 
 function loadPanelSystemModule() {
+  const APP_CONFIG = loadConfigModule();
   const src = stripModuleDirectives(JS('panel-system.js'));
   const exports = {};
 
@@ -515,6 +534,7 @@ ${src}
     window: { addEventListener: jest.fn() },
     renderSudokuBoard: jest.fn(),
     state: makeStateStubb(),
+    APP_CONFIG,
     setTimeout: (fn, delay) => { if (delay === 0) fn(); },
     _exports: exports,
     _panelEl: panelEl,
@@ -532,6 +552,7 @@ ${src}
 }
 
 module.exports = {
+  loadConfigModule,
   loadEngineModule,
   loadAppStateModule,
   loadUiHelpersModule,

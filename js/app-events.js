@@ -10,10 +10,10 @@ function initEventListeners() {
           headerToggle.setAttribute('aria-label', collapsed ? 'Expandir cabeçalho' : 'Recolher cabeçalho');
           document.getElementById('header-toggle-label').textContent = collapsed ? 'Expandir cabeçalho' : 'Recolher cabeçalho';
           document.getElementById('header-toggle-icon').className = `fa-solid ${collapsed ? 'fa-chevron-down' : 'fa-chevron-up'} text-xs`;
-          try { localStorage.setItem('sudoku_anerothico_header_collapsed_v1', collapsed ? 'true' : 'false'); } catch (_) {}
+          try { localStorage.setItem(APP_CONFIG.STORAGE.HEADER_COLLAPSED, collapsed ? 'true' : 'false'); } catch (_) {}
         };
         let savedHeaderState = false;
-        try { savedHeaderState = localStorage.getItem('sudoku_anerothico_header_collapsed_v1') === 'true'; } catch (_) {}
+        try { savedHeaderState = localStorage.getItem(APP_CONFIG.STORAGE.HEADER_COLLAPSED) === 'true'; } catch (_) {}
         setHeaderCollapsed(savedHeaderState);
         headerToggle.addEventListener('click', () => setHeaderCollapsed(header.dataset.headerCollapsed !== 'true'));
 
@@ -37,7 +37,7 @@ function initEventListeners() {
         });
         document.getElementById('game-name-input').addEventListener('input', (e) => { state.gameName = e.target.value; saveCurrentGameState(); if (state.multiplayer.active && state.multiplayer.roomId) { const fb = getFirebaseAPI(); if (fb) fb.update(fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState')), { gameName: state.gameName, lastUpdatedByPlayerId: state.multiplayer.playerId, updatedAtTimestamp: Date.now() }).catch(() => {}); }
           // v6.7: auto-resize textarea
-          const ta = e.target; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 64) + 'px';
+          const ta = e.target; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, APP_CONFIG.GAME_NAME_TEXTAREA_MAX_HEIGHT) + 'px';
         });
         document.getElementById('tab-mode-standard').addEventListener('click', () => { state.mode = 'standard'; syncModeTabsUI(); });
         document.getElementById('tab-mode-custom').addEventListener('click', () => { state.mode = 'custom'; syncModeTabsUI(); });
@@ -67,7 +67,7 @@ function initEventListeners() {
           const { N } = state; state.isManualCreating = true;
           state.initial = Array.from({ length: N }, () => Array(N).fill('')); state.board = Array.from({ length: N }, () => Array(N).fill(''));
           state.notes = Array.from({ length: N }, () => Array.from({ length: N }, () => new Set())); state.nasaContributions = Array.from({ length: N }, () => Array(N).fill(false)); state.nasaCalls = 0; state.revealedErrors = Array.from({ length: N }, () => Array(N).fill(false)); state.solution = Array.from({ length: N }, () => Array(N).fill(''));
-          state.completed = false; state.timerSeconds = 0; pauseTimer(); document.getElementById('timer-display').textContent = '00:00';
+          state.completed = false; state.timerSeconds = 0; pauseTimer(); document.getElementById('timer-display').textContent = APP_CONFIG.TIMER_DISPLAY_INITIAL;
           document.getElementById('manual-create-bar').classList.remove('hidden'); document.getElementById('manual-create-bar').classList.add('flex');
           renderVirtualNumpad(); renderSudokuBoard(); showToast('Modo Criação: Preencha as pistas e clique em Iniciar Partida.', 'info');
         });
@@ -99,7 +99,7 @@ function initEventListeners() {
         document.getElementById('btn-open-gift').addEventListener('click', () => {
           openModal('modal-gift');
           if (typeof confetti === 'function') {
-            confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 }, zIndex: 9999, colors: ['#f43f5e', '#ec4899', '#d946ef', '#8b5cf6'] });
+            confetti(APP_CONFIG.CONFETTI.GIFT);
           }
         });
         document.getElementById('btn-close-gift').addEventListener('click', () => closeModal('modal-gift'));
@@ -256,7 +256,7 @@ function initEventListeners() {
             const fb = getFirebaseAPI();
             if (!fb || !fb.db) { showToast('Carregando conexão de rede... Tente novamente em 2 segundos.', 'warn'); return; }
             let savedName = '';
-            try { savedName = localStorage.getItem('sudoku_anerothico_mp_name') || ''; } catch (_) {}
+            try { savedName = localStorage.getItem(APP_CONFIG.STORAGE.MP_PLAYER_NAME) || ''; } catch (_) {}
             document.getElementById('multiplayer-name-input').value = savedName;
             openModal('modal-multiplayer');
         });
@@ -360,7 +360,7 @@ function initEventListeners() {
         document.getElementById('btn-host-room').addEventListener('click', () => {
             let name = document.getElementById('multiplayer-name-input').value.trim();
             if (!name) name = 'Anônimo';
-            try { localStorage.setItem('sudoku_anerothico_mp_name', name); } catch (_) {}
+            try { localStorage.setItem(APP_CONFIG.STORAGE.MP_PLAYER_NAME, name); } catch (_) {}
             hostRoom(name);
         });
         
@@ -370,7 +370,7 @@ function initEventListeners() {
             let room = document.getElementById('multiplayer-room-input').value.trim();
             if (!room) { showToast('Digite o nome/ID da sala para entrar.', 'warn'); return; }
             room = room.replace(/[\.#\$\[\]/]/g, '_');
-            try { localStorage.setItem('sudoku_anerothico_mp_name', name); } catch (_) {}
+            try { localStorage.setItem(APP_CONFIG.STORAGE.MP_PLAYER_NAME, name); } catch (_) {}
             joinRoom(room, name);
         });
         
@@ -448,9 +448,20 @@ function initEventListeners() {
       }
 
       function initApp() {
-        let savedTheme = 'rainbow';
-        try { savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'rainbow'; } catch (_) {}
+        let savedTheme = APP_CONFIG.DEFAULT_THEME;
+        try { savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || APP_CONFIG.DEFAULT_THEME; } catch (_) {}
         applyTheme(savedTheme);
+        // Sincroniza título da aba, cabeçalho e rodapé com a versão centralizada em APP_CONFIG
+        document.title = APP_CONFIG.APP_TITLE;
+        const appTitleEl = document.getElementById('app-title-text');
+        if (appTitleEl) appTitleEl.textContent = APP_CONFIG.APP_TITLE;
+        const appVersionFooterEl = document.getElementById('app-version-footer');
+        if (appVersionFooterEl) appVersionFooterEl.textContent = APP_CONFIG.APP_NAME + ' ' + APP_CONFIG.APP_VERSION;
+        // Aplica limites configuráveis aos atributos dos inputs HTML
+        const gameNameInput = document.getElementById('game-name-input');
+        if (gameNameInput) gameNameInput.setAttribute('maxlength', String(APP_CONFIG.GAME_NAME_MAX_LENGTH));
+        const zoomSlider = document.getElementById('board-zoom');
+        if (zoomSlider) { zoomSlider.min = String(APP_CONFIG.BOARD_ZOOM_MIN); zoomSlider.max = String(APP_CONFIG.BOARD_ZOOM_MAX); zoomSlider.step = String(APP_CONFIG.BOARD_ZOOM_STEP); }
         initEventListeners();
         if (typeof initDevMode === 'function') initDevMode();
         updateSavedBadgeCount();

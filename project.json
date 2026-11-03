@@ -2,6 +2,7 @@
   "name": "Sudoku Aneróthico PRÓ",
   "entry": "index.html",
   "javascript_modules": [
+    "js/config.js",
     "js/app-events.js",
     "js/app-state.js",
     "js/board-view.js",
@@ -20,6 +21,6 @@
     "js/ui-controller.js",
     "js/ui-helpers.js"
   ],
-  "version": "6.6",
-  "release": "v6.6"
+  "version": "6.8",
+  "release": "v6.8"
 }

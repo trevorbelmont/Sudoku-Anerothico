@@ -27,6 +27,6 @@ function setGameNameInput(value) {
   el.value = value;
   if (el.tagName === 'TEXTAREA') {
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 64) + 'px';
+    el.style.height = Math.min(el.scrollHeight, APP_CONFIG.GAME_NAME_TEXTAREA_MAX_HEIGHT) + 'px';
   }
 }

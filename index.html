@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sudoku Aneróthico PRÓ v6.5 🧠</title>
+  <title>Sudoku Aneróthico PRÓ v6.8 🧠</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -37,7 +37,7 @@
         </div>
         <div class="header-title-block min-w-0">
           <h1 class="header-brand-title text-base sm:text-xl font-extrabold tracking-tight leading-tight flex items-center gap-1.5">
-            <span>Sudoku Aneróthico PRÓ v6.5 🧠</span>
+            <span id="app-title-text">Sudoku Aneróthico PRÓ v6.8 🧠</span>
           </h1>
           <p id="subtitle-mode-info" class="header-subtitle text-[11px] sm:text-xs opacity-75 font-medium">
             Grade 9×9 • Blocos 3×3 • Intervalo [1 a 9]
@@ -448,7 +448,7 @@
     </section>
   </main>
     <footer class="mt-8 mb-4 text-center flex flex-col items-center justify-center gap-1.5">
-        <div class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.5</div>
+        <div id="app-version-footer" class="text-[10px] font-bold opacity-50 uppercase tracking-widest">Sudoku Aneróthico PRÓ v6.8</div>
         <div class="flex items-center gap-4 text-xs opacity-60">
             <a href="https://www.linkedin.com/in/marcos-dias-4b545127b" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-linkedin"></i> Marcos Dias</a>
             <a href="https://github.com/trevorbelmont" target="_blank" class="hover:text-blue-500 hover:opacity-100 transition"><i class="fa-brands fa-github"></i> trevorbelmont</a>
@@ -1150,6 +1150,8 @@
 
 
   <!-- Application modules. The order preserves shared state bindings across classic scripts. -->
+  <!-- config.js define APP_CONFIG (Single Source of of Truth) e deve carregar antes de todos. -->
+  <script src="js/config.js"></script>
   <script src="js/app-state.js"></script>
   <script src="js/multiplayer-ui.js"></script>
   <script src="js/multiplayer-service.js"></script>

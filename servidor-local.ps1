@@ -1,7 +1,17 @@
 ﻿$ErrorActionPreference = 'Stop'
 $script:root = [System.IO.Path]::GetFullPath($PSScriptRoot)
+# Valores padrão; sobrescritos pela leitura de js/config.js (Single Source of Truth).
 $script:port = 8765
-$script:version = 'v6.4'
+$script:portMax = 8785
+$script:version = 'v6.8'
+$configPath = [System.IO.Path]::Combine($script:root, 'js', 'config.js')
+if ([System.IO.File]::Exists($configPath)) {
+    $configContent = [System.IO.File]::ReadAllText($configPath)
+    if ($configContent -match "APP_VERSION:\s*'([^']+)'") { $script:version = $matches[1] }
+    if ($configContent -match "SERVER_PORT:\s*(\d+)") { $script:port = [int]$matches[1] }
+    if ($configContent -match "SERVER_PORT_MAX:\s*(\d+)") { $script:portMax = [int]$matches[1] }
+}
+$preferredPort = $script:port
 $script:listener = $null
 $script:running = $true
 $script:commandBuffer = [System.Text.StringBuilder]::new()
@@ -418,7 +428,7 @@ $originalTreatControlC = [Console]::TreatControlCAsInput
 # A porta 8765 é a preferida. Se uma instância antiga ainda estiver ativa,
 # tenta portas próximas para que a nova versão possa iniciar sem conflito.
 $startupError = ''
-for ($candidatePort = 8765; $candidatePort -le 8785; $candidatePort++) {
+for ($candidatePort = $preferredPort; $candidatePort -le $script:portMax; $candidatePort++) {
     $candidateListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $candidatePort)
     try {
         $candidateListener.Start()
@@ -433,7 +443,7 @@ for ($candidatePort = 8765; $candidatePort -le 8785; $candidatePort++) {
 
 if (-not $script:listener) {
     Write-Banner
-    Write-Host '  Não foi possível iniciar o servidor nas portas 8765 a 8785.' -ForegroundColor Red
+    Write-Host "  Não foi possível iniciar o servidor nas portas $preferredPort a $($script:portMax)." -ForegroundColor Red
     Write-Host '  Feche aplicações que possam estar usando essas portas e tente novamente.' -ForegroundColor Yellow
     Write-Host "  Detalhe: $startupError" -ForegroundColor DarkGray
     Write-Host ''
@@ -446,7 +456,7 @@ try {
     Write-Banner
     $url = "http://127.0.0.1:$script:port/"
     Write-Host '  STATUS: ATIVO' -ForegroundColor Green
-    if ($script:port -ne 8765) { Write-Host "  A porta padrão 8765 estava ocupada; usando a porta $script:port." -ForegroundColor DarkYellow }
+    if ($script:port -ne $preferredPort) { Write-Host "  A porta padrão $preferredPort estava ocupada; usando a porta $script:port." -ForegroundColor DarkYellow }
     Write-Host "  Jogo:   $url" -ForegroundColor Green
     Write-Host "  Alternativa: http://localhost:$script:port/" -ForegroundColor Green
     Write-Host ''

@@ -15,8 +15,8 @@
 (function PanelSystem() {
 
   /* ── Constantes de persistência ── */
-  var STORAGE_LEFT_WIDTH   = 'sudoku_anerothico_left_panel_width_v1';
-  var STORAGE_LEFT_COLLAPSED = 'sudoku_anerothico_left_panel_collapsed_v1';
+  var STORAGE_LEFT_WIDTH   = APP_CONFIG.STORAGE.LEFT_PANEL_WIDTH;
+  var STORAGE_LEFT_COLLAPSED = APP_CONFIG.STORAGE.LEFT_PANEL_COLLAPSED;
 
   /* ── Limites de largura (em px) ── */
   var LEFT_MIN_PX  = 180;

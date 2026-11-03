@@ -66,7 +66,7 @@ async function requestNewGameConsensus() {
               status: 'pending',
               voters: {},
               createdAtTimestamp: Date.now(),
-              expiresAtTimestamp: Date.now() + 45000
+              expiresAtTimestamp: Date.now() + APP_CONFIG.MULTIPLAYER_VOTE_TIMEOUT_MS
           };
           const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
           state.multiplayer.currentProposal = proposal;
@@ -86,7 +86,7 @@ async function requestNewGameConsensus() {
                       state.multiplayer.currentProposal = null;
                       showToast('Tempo esgotado: proposta de novo tabuleiro cancelada (45 s).', 'info');
                   }).catch(() => {});
-              }, 45000);
+              }, APP_CONFIG.MULTIPLAYER_VOTE_TIMEOUT_MS);
           }).catch(error => {
               console.error('Não foi possível solicitar novo tabuleiro:', error);
               showToast('Não foi possível enviar a proposta de novo tabuleiro.', 'warn');
@@ -427,7 +427,7 @@ function requestFeatureVote(type, requestedValue = null) {
         voteId, type, requestedValue, proposerId: state.multiplayer.playerId,
         proposerName: state.multiplayer.playerName || 'Jogador', status: 'pending', votes: {},
         createdAtTimestamp: Date.now(),
-        expiresAtTimestamp: Date.now() + 45000
+        expiresAtTimestamp: Date.now() + APP_CONFIG.MULTIPLAYER_VOTE_TIMEOUT_MS
     };
     const ref = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'featureVote'));
     fb.set(ref, vote).then(() => {
@@ -441,7 +441,7 @@ function requestFeatureVote(type, requestedValue = null) {
             fb.update(ref, { status: 'rejected', resolvedAtTimestamp: Date.now(), timedOut: true })
               .then(() => showToast('Tempo esgotado: votação cancelada sem maioria (45 s).', 'info'))
               .catch(() => {});
-        }, 45000);
+        }, APP_CONFIG.MULTIPLAYER_VOTE_TIMEOUT_MS);
     }).catch(error => {
         console.error('Falha ao abrir votação da sala:', error);
         showToast('Não foi possível abrir a votação. Confira as regras do Firebase.', 'warn');
