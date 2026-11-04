@@ -34,3 +34,9 @@ LOG_SHEET_FOLDER_ID=
 # ── Cold Storage (Google Drive) ───────────────────────────────────────────────
 # ID da pasta no Drive onde os arquivos JSON de backup de salas serão gravados.
 DRIVE_FOLDER_ID=id_da_sua_pasta_de_backups_no_drive
+
+# ── URL do Deploy (GAS REST) ──────────────────────────────────────────────────
+# URL pública do Web App implantado no Google Apps Script.
+# Encontrada em: script.google.com → Implantar → Gerenciar implantações → URL
+# Usada para disparar ações REST (master, backup, status, reinstall_trigger).
+GAS_WEBAPP_URL=https://script.google.com/macros/s/SEU_DEPLOYMENT_ID/exec
