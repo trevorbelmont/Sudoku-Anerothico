@@ -1,0 +1,1 @@
+{"name": "sudoku-anerothico", "version": "6.8.0", "description": "Sudoku Aneróthico PRÓ — jogo de Sudoku com multiplayer, OCR, temas e mais", "private": true, "scripts": {"gas:push": "cd backend/GAS && clasp push -f", "gas:pull": "cd backend/GAS && clasp pull", "secrets:update": "node backend/update-secrets.js"}}

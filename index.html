@@ -1150,26 +1150,26 @@
 
 
   <!-- Application modules. The order preserves shared state bindings across classic scripts. -->
-  <!-- config.js define APP_CONFIG (Single Source of of Truth) e deve carregar antes de todos. -->
-  <script src="js/config.js"></script>
-  <script src="js/app-state.js"></script>
-  <script src="js/multiplayer-ui.js"></script>
-  <script src="js/multiplayer-service.js"></script>
-  <script src="js/multiplayer-voting.js"></script>
-  <script src="js/ui-helpers.js"></script>
-  <script src="js/sudoku-engine.js"></script>
-  <script src="js/board-view.js"></script>
-  <script src="js/input-controller.js"></script>
-  <script src="js/gameplay.js"></script>
-  <script src="js/game-storage.js"></script>
-  <script src="js/sharing.js"></script>
-  <script src="js/png-export.js"></script>
-  <script src="js/ocr-import.js"></script>
-  <script src="js/ui-controller.js"></script>
-  <script src="js/dev-mode.js"></script>
-  <script src="js/app-events.js"></script>
-  <script src="js/panel-system.js"></script>
-  <script type="module" src="js/firebase-client.js"></script>
+  <!-- config.js define APP_CONFIG (Single Source of Truth) e deve carregar antes de todos. -->
+  <script src="js/core/config.js"></script>
+  <script src="js/core/app-state.js"></script>
+  <script src="js/network/multiplayer-ui.js"></script>
+  <script src="js/network/multiplayer-service.js"></script>
+  <script src="js/network/multiplayer-voting.js"></script>
+  <script src="js/ui/ui-helpers.js"></script>
+  <script src="js/core/sudoku-engine.js"></script>
+  <script src="js/ui/board-view.js"></script>
+  <script src="js/services/input-controller.js"></script>
+  <script src="js/core/gameplay.js"></script>
+  <script src="js/services/game-storage.js"></script>
+  <script src="js/services/sharing.js"></script>
+  <script src="js/services/png-export.js"></script>
+  <script src="js/services/ocr-import.js"></script>
+  <script src="js/ui/ui-controller.js"></script>
+  <script src="js/ui/dev-mode.js"></script>
+  <script src="js/ui/app-events.js"></script>
+  <script src="js/ui/panel-system.js"></script>
+  <script type="module" src="js/network/firebase-client.js"></script>
 
 </body>
 </html>

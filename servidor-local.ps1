@@ -1,10 +1,10 @@
 ﻿$ErrorActionPreference = 'Stop'
 $script:root = [System.IO.Path]::GetFullPath($PSScriptRoot)
-# Valores padrão; sobrescritos pela leitura de js/config.js (Single Source of Truth).
+# Valores padrão; sobrescritos pela leitura de js/core/config.js (Single Source of Truth).
 $script:port = 8765
 $script:portMax = 8785
 $script:version = 'v6.8'
-$configPath = [System.IO.Path]::Combine($script:root, 'js', 'config.js')
+$configPath = [System.IO.Path]::Combine($script:root, 'js', 'core', 'config.js')
 if ([System.IO.File]::Exists($configPath)) {
     $configContent = [System.IO.File]::ReadAllText($configPath)
     if ($configContent -match "APP_VERSION:\s*'([^']+)'") { $script:version = $matches[1] }
@@ -81,7 +81,15 @@ function Write-Help {
     Write-Host '  test                — roda todos os testes (npm run test:all) em nova janela' -ForegroundColor Gray
     Write-Host '  test unit           — roda apenas os testes unitários (npm run test:unit)' -ForegroundColor Gray
     Write-Host '  test integration    — roda apenas os testes de integração (npm run test:integration)' -ForegroundColor Gray
-    Write-Host '  test syntax         — roda roda testes de syntax nos arquivos .JS (node --check) na mesma janela' -ForegroundColor Gray
+    Write-Host '  test syntax         — roda verificação de sintaxe nos arquivos .JS (node --check) na mesma janela' -ForegroundColor Gray
+    Write-Host ''
+    Write-Host '  REDIRECIONAMENTO DE SAIDA (>arquivo)' -ForegroundColor Cyan
+    Write-Host '  Adicione >caminho/arquivo apos qualquer comando de teste para' -ForegroundColor Gray
+    Write-Host '  gravar os resultados no arquivo (sobrescreve). Exemplos:' -ForegroundColor Gray
+    Write-Host '  test >log-testes.tx          — grava tudo em log-testes.tx na raiz' -ForegroundColor DarkGray
+    Write-Host '  test unit >misc/log-unit.tx  — grava testes unitarios em misc/log-unit.tx' -ForegroundColor DarkGray
+    Write-Host '  test syntax >sintaxe.txt     — grava a verificacao de sintaxe em sintaxe.txt' -ForegroundColor DarkGray
+    Write-Host '  Diretorios pai sao criados automaticamente quando necessario.' -ForegroundColor DarkGray
 
     Write-Host '  clean  /  limpar    — apaga node_modules e caches dos testes (pede confirmação)' -ForegroundColor Gray
     Write-Host '  reset storage       — limpa o localStorage do jogo via rota fantasma (pede confirmação)' -ForegroundColor Gray
@@ -128,18 +136,47 @@ function Get-NpmCommand {
 function Start-TestCommandWindow {
     param(
         [Parameter(Mandatory = $true)][string]$TestsRoot,
-        [Parameter(Mandatory = $true)][string]$CommandLine
+        [Parameter(Mandatory = $true)][string]$CommandLine,
+        [string]$LogFile = $null
     )
 
     $commandProcessor = $env:ComSpec
     if ([string]::IsNullOrWhiteSpace($commandProcessor)) { $commandProcessor = 'cmd.exe' }
 
-    # /k mantém a janela aberta depois do comando para que o usuário possa ler
-    # o resultado e eventuais mensagens de erro do npm/Jest.
-    Start-Process -FilePath $commandProcessor `
-        -ArgumentList @('/d', '/k', $CommandLine) `
-        -WorkingDirectory $TestsRoot `
-        -ErrorAction Stop | Out-Null
+    if ($LogFile) {
+        # ── Modo redirecionamento: cria um .bat temporário que captura a saída ──
+        # O .bat deleta a si mesmo no final (del "%~f0") para não deixar lixo.
+        $batContent = @"
+@echo off
+chcp 65001 >nul 2>&1
+cd /d "$TestsRoot"
+echo Executando: $CommandLine
+echo.
+echo Saida sendo gravada em: $LogFile
+echo.
+$CommandLine > "$LogFile" 2>&1
+echo.
+echo ========================================
+echo Resultados salvos em: $LogFile
+echo ========================================
+del "%~f0"
+"@
+        $batFile = [System.IO.Path]::Combine($env:TEMP, "sudoku_test_redirect_$([System.Guid]::NewGuid().ToString('N').Substring(0,8)).bat")
+        [System.IO.File]::WriteAllText($batFile, $batContent, [System.Text.Encoding]::Default)
+
+        # /k mantem a janela aberta para o usuario ler a mensagem de conclusao.
+        Start-Process -FilePath $commandProcessor `
+            -ArgumentList @('/d', '/k', "`"$batFile`"") `
+            -WorkingDirectory $TestsRoot `
+            -ErrorAction Stop | Out-Null
+    } else {
+        # /k mantém a janela aberta depois do comando para que o usuário possa ler
+        # o resultado e eventuais mensagens de erro do npm/Jest.
+        Start-Process -FilePath $commandProcessor `
+            -ArgumentList @('/d', '/k', $CommandLine) `
+            -WorkingDirectory $TestsRoot `
+            -ErrorAction Stop | Out-Null
+    }
 }
 
 function Install-NodeRuntime {
@@ -197,9 +234,9 @@ function Invoke-TestInstall {
 }
 
 function Invoke-TestRun {
-    param([string]$ScriptName)
+    param([string]$ScriptName, [string]$LogFile = $null)
 
-    # Garantimos que plmns a sintaxe dos .JS está perfeita
+    # Garantimos que a sintaxe dos .JS está perfeita antes de rodar o Jest.
     $syntaxOk = Invoke-SyntaxCheck
     if (-not $syntaxOk) {
         Write-Host "  Abortando a suíte de testes do Jest devido a erros de sintaxe." -ForegroundColor Yellow
@@ -233,10 +270,19 @@ function Invoke-TestRun {
         return
     }
 
-    Write-Host "  Iniciando 'npm run $ScriptName' em uma nova janela..." -ForegroundColor Green
+    if ($LogFile) {
+        Write-Host "  Iniciando 'npm run $ScriptName' com saída redirecionada para:" -ForegroundColor Green
+        Write-Host "  $LogFile" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  Iniciando 'npm run $ScriptName' em uma nova janela..." -ForegroundColor Green
+    }
     try {
-        Start-TestCommandWindow -TestsRoot $testsRoot -CommandLine "npm run $ScriptName"
-        Write-Host '  Janela de testes aberta. O resultado ficará visível nessa janela.' -ForegroundColor Gray
+        Start-TestCommandWindow -TestsRoot $testsRoot -CommandLine "npm run $ScriptName" -LogFile $LogFile
+        if ($LogFile) {
+            Write-Host '  Janela de testes aberta. O resultado será gravado no arquivo especificado.' -ForegroundColor Gray
+        } else {
+            Write-Host '  Janela de testes aberta. O resultado ficará visível nessa janela.' -ForegroundColor Gray
+        }
     } catch {
         Write-Host "  Não foi possível abrir a janela de testes: $($_.Exception.Message)" -ForegroundColor Red
     }
@@ -265,26 +311,70 @@ function Invoke-TestClean {
 }
 
 function Invoke-SyntaxCheck {
-    Write-Host ''
-    Write-Host '  VERIFICAÇÃO DE SINTAXE (Node.js)' -ForegroundColor Cyan
-    Write-Host '  Lendo todos os arquivos em js/ ...' -ForegroundColor Gray
-    
-    $jsFiles = Get-ChildItem -Path (Join-Path $script:root 'js') -Filter *.js
+    param([string]$LogFile = $null)
+
+    # -Recurse: após a refatoração da árvore /js em subdiretórios (core, ui, network, services),
+    # é obrigatório buscar recursivamente para não pular nenhum arquivo.
+    $jsFiles = Get-ChildItem -Path (Join-Path $script:root 'js') -Filter *.js -Recurse
     $errorCount = 0
-    
+
+    if ($LogFile) {
+        # ── Modo redirecionamento: coleta resultados e grava no arquivo ──
+        $output = [System.Collections.ArrayList]::new()
+        [void]$output.Add('========================================')
+        [void]$output.Add('  VERIFICACAO DE SINTAXE (Node.js)')
+        [void]$output.Add("  Data: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
+        [void]$output.Add("  Arquivos encontrados: $($jsFiles.Count)")
+        [void]$output.Add('========================================')
+        [void]$output.Add('')
+
+        foreach ($file in $jsFiles) {
+            $result = & node --check $file.FullName 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                [void]$output.Add("[ERRO] $($file.FullName)")
+                [void]$output.Add($result)
+                [void]$output.Add('')
+                $errorCount++
+            } else {
+                [void]$output.Add("[OK] $($file.FullName.Replace($script:root + '\', ''))")
+            }
+        }
+
+        [void]$output.Add('')
+        if ($errorCount -eq 0) {
+            [void]$output.Add('Todos os arquivos passaram na verificacao de sintaxe!')
+        } else {
+            [void]$output.Add("Total de arquivos com erro: $errorCount")
+        }
+
+        [System.IO.File]::WriteAllText($LogFile, ($output -join "`r`n") + "`r`n", [System.Text.Encoding]::UTF8)
+
+        if ($errorCount -eq 0) {
+            Write-Host "  Verificacao de sintaxe concluida. Resultados em: $LogFile" -ForegroundColor Green
+        } else {
+            Write-Host "  Verificacao de sintaxe encontrou $errorCount erro(s). Resultados em: $LogFile" -ForegroundColor Red
+        }
+        return ($errorCount -eq 0)
+    }
+
+    # ── Modo normal: saida diretamente no console ──
+    Write-Host ''
+    Write-Host '  VERIFICACAO DE SINTAXE (Node.js)' -ForegroundColor Cyan
+    Write-Host "  Lendo todos os arquivos em js/ (recursivo)..." -ForegroundColor Gray
+
     foreach ($file in $jsFiles) {
         # O operador '&' roda o node nativamente, jogando o erro real na tela do PowerShell
         & node --check $file.FullName
-        
+
         # O $LASTEXITCODE captura se o comando anterior falhou
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  [ERRO] A sintaxe quebrou em: $($file.Name)`n" -ForegroundColor Red
             $errorCount++
         }
     }
-    
+
     if ($errorCount -eq 0) {
-        Write-Host '  Todos os arquivos passaram na verificação de sintaxe! ✓' -ForegroundColor Green
+        Write-Host '  Todos os arquivos passaram na verificacao de sintaxe! OK' -ForegroundColor Green
         return $true
     } else {
         Write-Host "  Total de arquivos quebrados: $errorCount. Corrija-os antes de prosseguir." -ForegroundColor Red
@@ -360,7 +450,36 @@ function Handle-HttpClient($client) {
 }
 
 function Process-ConsoleCommand([string]$command) {
-    $normalized = $command.Trim().ToLowerInvariant()
+    # ── Detectar redirecionamento de saida (>arquivo) para comandos de teste ──
+    # Sintaxe: "test >arquivo.tx" ou "test unit >misc/log.tx"
+    # O caminho do arquivo e resolvido relativo a raiz do projeto.
+    # Diretorios pai sao criados automaticamente se necessario.
+    $logFile = $null
+    $baseCommand = $command.Trim()
+    if ($command -match '^(.+?)\s*>\s*(\S.+)$') {
+        $candidateBase = $matches[1].Trim()
+        $candidateNorm = $candidateBase.ToLowerInvariant()
+        # O redirecionamento se aplica apenas a comandos de teste
+        if ($candidateNorm.StartsWith('test') -or $candidateNorm -eq 'syntax') {
+            $baseCommand = $candidateBase
+            $logFilePath = $matches[2].Trim()
+            $logFile = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($script:root, $logFilePath))
+            # Criar diretorio pai se necessario
+            $parentDir = [System.IO.Path]::GetDirectoryName($logFile)
+            if ($parentDir -and -not [System.IO.Directory]::Exists($parentDir)) {
+                try {
+                    [System.IO.Directory]::CreateDirectory($parentDir) | Out-Null
+                    Write-Host "  Diretorio criado: $parentDir" -ForegroundColor DarkGray
+                } catch {
+                    Write-Host "  Nao foi possivel criar o diretorio: $parentDir" -ForegroundColor Red
+                    Write-Host "  Erro: $($_.Exception.Message)" -ForegroundColor DarkRed
+                    return
+                }
+            }
+        }
+    }
+
+    $normalized = $baseCommand.ToLowerInvariant()
     if ($normalized -in @('exit', 'quit', 'q', 'sair', 'encerrar', 'x')) {
         if (Confirm-Shutdown) { $script:running = $false }
         else { Write-Host '  O servidor continua ativo. A partida pode continuar.' -ForegroundColor Green }
@@ -375,15 +494,15 @@ function Process-ConsoleCommand([string]$command) {
         return
     }
     if ($normalized -in @('test', 'test:all', 'test all')) {
-        Invoke-TestRun 'test:all'
+        Invoke-TestRun 'test:all' -LogFile $logFile
         return
     }
     if ($normalized -in @('test unit', 'test:unit', 'testunit')) {
-        Invoke-TestRun 'test:unit'
+        Invoke-TestRun 'test:unit' -LogFile $logFile
         return
     }
     if ($normalized -in @('test integration', 'test:integration', 'testintegration')) {
-        Invoke-TestRun 'test:integration'
+        Invoke-TestRun 'test:integration' -LogFile $logFile
         return
     }
     if ($normalized -in @('clean', 'limpar')) {
@@ -414,7 +533,7 @@ function Process-ConsoleCommand([string]$command) {
     }
 
     if ($normalized -in @('test syntax', 'test:syntax', 'syntax')) {
-        [void](Invoke-SyntaxCheck)
+        [void](Invoke-SyntaxCheck -LogFile $logFile)
         return
     }
 

@@ -13,7 +13,7 @@ tests/bun.lock
 backend/GAS/.temp-secrets.js
 
 # Configuração do Clasp (contém o Script ID do projeto GAS)
-.clasp.json
+backend/GAS/.clasp.json
 
 # Logs e Caches de Teste
 .nyc_output/

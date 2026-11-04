@@ -18,7 +18,7 @@ const APP_CONFIG = loadConfigModule();
 
 // Lê o fonte do panel-system para inspecionar as constantes
 const panelSrc = fs.readFileSync(
-  path.resolve(__dirname, '../../js/panel-system.js'), 'utf8'
+  path.resolve(__dirname, '../../js/ui/panel-system.js'), 'utf8'
 );
 
 // Extrai valores das constantes STORAGE_*, LEFT_MIN_PX, LEFT_MAX_PX, LEFT_DEFAULT
@@ -172,7 +172,7 @@ function runPanelSystem(initialStorage = {}) {
     makeDocumentMock(storage);
 
   const src = fs.readFileSync(
-    path.resolve(__dirname, '../../js/panel-system.js'), 'utf8'
+    path.resolve(__dirname, '../../js/ui/panel-system.js'), 'utf8'
   );
 
   // window mock com addEventListener para capturar handlers de drag

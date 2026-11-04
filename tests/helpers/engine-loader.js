@@ -93,7 +93,7 @@ function makeStateStubb() {
 }
 
 function loadEngineModule() {
-  const src = stripModuleDirectives(JS('sudoku-engine.js'));
+  const src = stripModuleDirectives(JS('core/sudoku-engine.js'));
 
   // Stubs para funções de UI chamadas pelo engine
   const noopFns = [
@@ -151,7 +151,7 @@ _exports.DIFFICULTY_REMOVAL_RATIOS = DIFFICULTY_REMOVAL_RATIOS;
 }
 
 function loadConfigModule() {
-  const src = stripModuleDirectives(JS('config.js'));
+  const src = stripModuleDirectives(JS('core/config.js'));
   const exports = {};
   const wrapper = `${src}\n_exports.APP_CONFIG = APP_CONFIG;`;
   const ctx = { _exports: exports };
@@ -164,7 +164,7 @@ function loadConfigModule() {
 
 function loadAppStateModule() {
   const APP_CONFIG = loadConfigModule();
-  const src = stripModuleDirectives(JS('app-state.js'));
+  const src = stripModuleDirectives(JS('core/app-state.js'));
 
   // Stub de localStorage
   const storage = {};
@@ -205,7 +205,7 @@ _exports.loadVisualSettings         = loadVisualSettings;
 }
 
 function loadUiHelpersModule() {
-  const src = stripModuleDirectives(JS('ui-helpers.js'));
+  const src = stripModuleDirectives(JS('ui/ui-helpers.js'));
   const exports = {};
   const wrapper = `
 ${src}
@@ -240,7 +240,7 @@ _exports.showToast  = showToast;
 function loadMultiplayerServiceColorModule() {
   // Extrai apenas as funções puras de cor (sem Firebase, sem state)
   const APP_CONFIG = loadConfigModule();
-  const src = stripModuleDirectives(JS('multiplayer-service.js'));
+  const src = stripModuleDirectives(JS('network/multiplayer-service.js'));
 
   const exports = {};
   const stateMock = {
@@ -285,7 +285,7 @@ _exports.MULTIPLAYER_PLAYER_COLOR_PALETTE = MULTIPLAYER_PLAYER_COLOR_PALETTE;
 }
 
 function loadSharingModule() {
-  const src = stripModuleDirectives(JS('sharing.js'));
+  const src = stripModuleDirectives(JS('services/sharing.js'));
   const exports = {};
 
   const stateMock = makeStateStubb();
@@ -341,7 +341,7 @@ _exports.shareCurrentPuzzleStateURL = shareCurrentPuzzleStateURL;
 
 function loadMultiplayerVotingModule() {
   const APP_CONFIG = loadConfigModule();
-  const src = stripModuleDirectives(JS('multiplayer-voting.js'));
+  const src = stripModuleDirectives(JS('network/multiplayer-voting.js'));
   const exports = {};
 
   const state = makeStateStubb();
@@ -413,7 +413,7 @@ _exports.computeContributionStats = computeContributionStats;
 
 function loadGameStorageModule() {
   const APP_CONFIG = loadConfigModule();
-  const src = stripModuleDirectives(JS('game-storage.js'));
+  const src = stripModuleDirectives(JS('services/game-storage.js'));
   const exports = {};
 
   // localStorage mock compartilhado entre save e getAll
@@ -480,7 +480,7 @@ _exports.updateSavedBadgeCount  = updateSavedBadgeCount;
 
 function loadPanelSystemModule() {
   const APP_CONFIG = loadConfigModule();
-  const src = stripModuleDirectives(JS('panel-system.js'));
+  const src = stripModuleDirectives(JS('ui/panel-system.js'));
   const exports = {};
 
   const storage = {};

@@ -22,7 +22,7 @@ jobs:
           node-version: '20' # Versão do Node.js
       
       - name: Verificar Sintaxe (Gramática JS)
-        run: for file in js/*.js; do node --check "$file"; done
+        run: find js -name '*.js' -exec node --check {} \;
 
       - name: Instalar Dependências
         working-directory: ./tests

@@ -20,7 +20,7 @@
       "**/*.test.js"
     ],
     "collectCoverageFrom": [
-      "../js/*.js"
+      "../js/**/*.js"
     ],
     "coverageDirectory": "coverage",
     "coverageReporters": [

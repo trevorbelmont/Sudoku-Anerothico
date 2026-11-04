@@ -7,7 +7,7 @@
 # Script ID do projeto GAS. Encontrado em:
 #   script.google.com → seu projeto → Configurações do Projeto → ID do script
 # Usado por update-secrets.js para gerar o .clasp.json automaticamente.
-GAS_SCRIPT_ID=seu_script_id_do_projeto_gas
+SCRIPT_ID=seu_script_id_do_projeto_gas
 
 # ── Autenticação do Web App REST ──────────────────────────────────────────────
 CRON_TOKEN=sua_senha_segura_para_api_rest
@@ -17,7 +17,7 @@ FIREBASE_URL=https://sudoku-anerothico-xxxx.firebaseio.com
 FIREBASE_SECRET=sua_chave_legada_do_banco_de_dados
 
 # ── GitHub Raw (configuração declarativa e regras de exclusão) ────────────────
-GITHUB_JOBS_CONFIG_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/config/jobs-orchestrator.json
+GITHUB_JOBS_CONFIG_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/backend/config/jobs-orchestrator.json
 GITHUB_BUTIGNORE_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/.butIgnore
 
 # ── Telemetria (Google Sheets) ────────────────────────────────────────────────

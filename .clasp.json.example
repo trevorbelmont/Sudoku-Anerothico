@@ -1,9 +1,0 @@
-{
-  "scriptId": "SEU_GAS_SCRIPT_ID_AQUI",
-  "rootDir": "backend\\GAS",
-  "scriptExtensions": [".js", ".gs"],
-  "htmlExtensions": [".html"],
-  "jsonExtensions": [".json"],
-  "filePushOrder": [],
-  "skipSubdirectories": false
-}

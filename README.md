@@ -34,27 +34,30 @@ Os comandos `install` e `test*` abrem uma janela separada do Prompt de Comando, 
 
 - `index.html` — conteúdo, estrutura semântica e layout responsivo.
 - `css/app.css` — temas, estilos do tabuleiro, indicadores multiplayer e animações.
-- `js/app-state.js` — estado da aplicação, chaves de armazenamento e constantes.
-- `js/sudoku-engine.js` — validação, dimensões de blocos, solução e geração de puzzles.
-- `js/board-view.js` — criação do DOM do tabuleiro e atualização visual.
-- `js/input-controller.js` — teclado, entrada mobile, edição, modo lápis e teclado virtual.
-- `js/gameplay.js` — progresso, verificação da solução, cronômetro e início de partidas.
-- `js/game-storage.js` — salvar, listar e restaurar partidas locais.
-- `js/sharing.js` — códigos de instância/estado e compartilhamento por URL.
-- `js/png-export.js` — exportação de tabuleiros para PNG.
-- `js/ocr-import.js` — leitura de imagens por OCR e geração de imagem de exemplo.
-- `js/multiplayer-ui.js` — lista de jogadores, avatares e componentes visuais de votação.
-- `js/multiplayer-service.js` — criação/entrada em salas, presença, sincronização do tabuleiro e movimentos.
-- `js/multiplayer-voting.js` — propostas de novo tabuleiro, votações de recursos, monitoramento do resultado e métricas por jogador.
-- `js/ui-helpers.js` — notificações toast e formatação de tempo.
-- `js/ui-controller.js` — modais, temas e sincronização dos controles visuais.
-- `js/app-events.js` — associação de eventos e inicialização da aplicação.
-- `js/firebase-client.js` — inicialização do SDK e adaptador usado pelo jogo.
-- `js/firebase-config.js` — configuração central da aplicação Firebase.
+- `js/core/config.js` — central de configuração (APP_CONFIG — Single Source of Truth).
+- `js/core/app-state.js` — estado da aplicação, chaves de armazenamento e constantes.
+- `js/core/sudoku-engine.js` — validação, dimensões de blocos, solução e geração de puzzles.
+- `js/core/gameplay.js` — progresso, verificação da solução, cronômetro e início de partidas.
+- `js/ui/board-view.js` — criação do DOM do tabuleiro e atualização visual.
+- `js/ui/ui-helpers.js` — notificações toast e formatação de tempo.
+- `js/ui/ui-controller.js` — modais, temas e sincronização dos controles visuais.
+- `js/ui/app-events.js` — associação de eventos e inicialização da aplicação.
+- `js/ui/panel-system.js` — painel lateral redimensionável e recolhível.
+- `js/ui/dev-mode.js` — modo desenvolvedor e ferramentas de limpeza de armazenamento.
+- `js/network/firebase-config.js` — configuração central da aplicação Firebase.
+- `js/network/firebase-client.js` — inicialização do SDK e adaptador usado pelo jogo.
+- `js/network/multiplayer-ui.js` — lista de jogadores, avatares e componentes visuais de votação.
+- `js/network/multiplayer-service.js` — criação/entrada em salas, presença, sincronização do tabuleiro e movimentos.
+- `js/network/multiplayer-voting.js` — propostas de novo tabuleiro, votações de recursos, monitoramento do resultado e métricas por jogador.
+- `js/services/input-controller.js` — teclado, entrada mobile, edição, modo lápis e teclado virtual.
+- `js/services/game-storage.js` — salvar, listar e restaurar partidas locais.
+- `js/services/sharing.js` — códigos de instância/estado e compartilhamento por URL.
+- `js/services/png-export.js` — exportação de tabuleiros para PNG.
+- `js/services/ocr-import.js` — leitura de imagens por OCR e geração de imagem de exemplo.
 
 ## Trocar a configuração Firebase
 
-Altere os valores em `js/firebase-config.js` para apontar a aplicação a outro projeto Firebase. A configuração do app web fica no cliente; as regras do Realtime Database e a autenticação continuam sendo essenciais para proteger os dados.
+Altere os valores em `js/network/firebase-config.js` para apontar a aplicação a outro projeto Firebase. A configuração do app web fica no cliente; as regras do Realtime Database e a autenticação continuam sendo essenciais para proteger os dados.
 
 ## Arquitetura e compatibilidade
 
@@ -98,3 +101,48 @@ Todos os arquivos `.js` passaram na verificação sintática do Node.js. A valid
 
 - Na ⚔️ Rinha de Galo 🐓, quando **Métricas em tempo real** está ligada, o contorno dos números atribuídos a jogadores usa a cor do avatar responsável. O preenchimento do caractere e os demais indicadores de tema permanecem intactos; pistas, casas vazias e contribuições da NASA ficam fora dessa regra.
 - A partir desta versão, o código passou a capturar métricas de gameplay nas salas multiplayer.
+
+
+## Versão 6.5 — privacidade, anti-cheat, proteção de sala e robustez
+
+- **Metadados de sala:** as dimensões de tela e viewport foram removidas dos metadados enviados por jogador. Os metadados restantes são gravados em um nó privado separado do nó de presença compartilhado, não visível para os demais participantes da sala.
+- **Anti-cheat — células corretas:** em salas multiplayer, uma célula que já contém o valor correto da solução não pode ser apagada por nenhum jogador (nem local nem remoto). Células erradas continuam apagáveis.
+- **Cursor multiplayer sem inflação de log:** a posição do cursor/foco de cada jogador é publicada em um nó mutável por jogador (`cursors/{playerId}`), em vez de ser anexada ao log de movimentos a cada evento de foco.
+- **Votações com tempo máximo de 45 s:** todas as votações (novo tabuleiro e recursos como NASA e erro imediato) são automaticamente canceladas se a maioria não for atingida em 45 segundos.
+- **Votações — atalho solo:** se o jogador está sozinho na sala ao propor uma votação, a ação é tomada imediatamente sem abrir votação.
+- **Votações em tela cheia:** o modal de votação de novo tabuleiro e o painel de votação de recursos aparecem na frente do tabuleiro no modo tela cheia (F11).
+- **IDs de sala com melhor entropia:** o identificador de sala gerado automaticamente usa `crypto.getRandomValues` em vez de `Math.random`.
+- **Solução não exposta no Firebase:** a grade de solução não é mais publicada nos metadados da sala; cada cliente re-deriva a solução localmente via solver.
+- **Robustez — localStorage:** acessos ao `localStorage` sem tratamento de erro passaram a ser protegidos com `try/catch`.
+- **Proteção de sala contra sobrescrita:** ao tentar criar uma sala com nome personalizado já existente, o sistema verifica o estado da sala. Salas com jogadores ativos ou usadas nos últimos 2 dias (`ROOM_PROTECTION_DAYS`) são protegidas; toda presença renova o marcador de atividade.
+
+## Versão 6.6 — identidade luminosa, animações, configurações visuais e CI/CD
+
+- **Identidade luminosa do jogador:** células preenchidas pelo próprio jogador em salas multiplayer recebem um glow de fundo com cor harmônica ao tema ativo, com variáveis CSS próprias para cada um dos 9 temas.
+- **Animação de inserção de número:** ao inserir um dígito, o número recebe uma transição pop sutil e contida na célula.
+- **Modal de Configurações Visuais:** novo botão de engrenagem na barra superior abre um painel com controles deslizantes para intensidade das luzes e velocidade das animações. "Off" na velocidade torna o glow estático; "Off" na intensidade remove completamente o glow. Configurações persistidas no `localStorage`.
+- **Botões de dificuldade compactos:** as métricas dinâmicas de pistas e porcentagem foram movidas para a linha de baixo dentro de cada botão de dificuldade.
+- **Fix — botão Modo Lápis:** corrigido o layout flexbox do botão para que ícone, texto e badge OFF/ON fiquem sempre contidos e alinhados.
+- **Persistência de identidade multiplayer:** o `playerId` é gerado com `crypto.getRandomValues` e persistido no `localStorage`, preservando cor, titularidade de células e histórico de contribuição em recargas e reconexões.
+- **Otimização de tráfego Firebase — moves:** o listener do log de jogadas migrou de `onValue` (baixa o nó completo a cada novo move) para `onChildAdded` (recebe apenas a jogada individual). A contagem de NASA calls é inicializada via `get()` único na entrada da sala.
+- **Timestamp atômico:** os payloads de jogadas usam `serverTimestamp()` do Firebase como campo `timestamp`, com `clientTimestamp` como fallback de ordenação imediata.
+- **Workflow de CI/CD:** workflow do GitHub Actions com verificação sintática (`node --check`) de todos os arquivos JavaScript. Verificação sintática também integrada ao servidor local.
+- **Tema Dark Overlord:** novo tema adicionado à paleta, com refinamentos de contraste e animação.
+
+## Versão 6.7 — CLI do servidor, configuração centralizada e correções
+
+- **CLI interativa do servidor local:** o terminal do PowerShell (`servidor-local.ps1`) ganhou comandos de automação: `install` (npm install), `test`, `test unit`, `test integration`, `clean` (remove `node_modules` e caches), `reset storage` (rota fantasma que limpa o `localStorage` do navegador), e `help`.
+- **Rota fantasma de reset:** o comando `reset storage` abre o navegador em `http://localhost:8765/dev-clean-storage`, uma rota especial que executa `localStorage.clear()` e redireciona de volta ao jogo.
+- **Scripts centralizados:** o `tests/package.json` passa a expor `test:all`, `test:unit`, `test:integration` e `clean`.
+- **Central de configuração (APP_CONFIG):** `js/core/config.js` reúne todos os "magic numbers" e "magic strings" anteriormente espalhados pelos módulos. A versão canônica da aplicação parte daqui; `servidor-local.ps1` e `Iniciar-Sudoku.bat` também lêem `APP_VERSION` deste arquivo.
+- **Correções:** sublinhado das pistas (hint numbers) restaurado; tamanho inicial do tabuleiro corrigido em abas/recarregamentos.
+- **Backend:** adição de `.butIgnore` (regras de exclusão para backup de salas) e `.environment.example` (modelo de variáveis de ambiente).
+
+## Versão 6.8 — reorganização modular, modo desenvolvedor e backend GAS
+
+- **Reorganização modular:** arquivos JavaScript reorganizados em subdiretórios por responsabilidade — `js/core/` (motor, estado, configuração), `js/ui/` (visual, eventos, painel, modo dev), `js/network/` (Firebase, multiplayer) e `js/services/` (input, storage, exportação, OCR, compartilhamento). O mapa de arquivos acima foi atualizado para refletir a nova estrutura.
+- **Easter Egg — Modo Desenvolvedor:** clicar rapidamente 9 vezes no logo "9" do cabeçalho (em até 4 s) ativa o Modo Desenvolvedor, confirmado por um toast discreto. A ativação dura a sessão da aba.
+- **Limpeza de memória no front-end:** o modal de Configurações Visuais exibe (apenas com o Modo Desenvolvedor ativo) uma seção com três botões — Resetar Configurações Visuais, Apagar Todo o Histórico de Jogos Salvos e Nuclear (Reset de Fábrica Completo), cada um com confirmação nativa antes de remover as chaves exatas do `localStorage`.
+- **Backend GAS — Master Orchestrator e Cold Storage:** `master_orchestrator.js` despacha jobs declarativos; o job `coldstorage_rooms` faz backup diferencial de `rooms` para Google Drive baseado em watermark `updatedAt`, com configuração declarativa versionada e telemetria padronizada.
+- **Ferramentas Clasp/secrets:** tooling para deploy e gerenciamento do projeto Google Apps Script.
+- **`updatedAt` no Firebase:** campo adicionado aos nós do Firebase para servir de watermark de backup diferencial.

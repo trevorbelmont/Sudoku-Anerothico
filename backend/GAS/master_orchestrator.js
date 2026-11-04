@@ -29,7 +29,7 @@
  *   CRON_TOKEN              — token de autenticação do Web App
  *   FIREBASE_URL            — URL base do Realtime Database
  *   FIREBASE_SECRET         — credencial REST do Firebase
- *   GITHUB_JOBS_CONFIG_URL  — URL Raw de config/jobs-orchestrator.json
+ *   GITHUB_JOBS_CONFIG_URL  — URL Raw de backend/config/jobs-orchestrator.json
  *   GITHUB_BUTIGNORE_URL    — URL Raw do .butIgnore (capitalização exata)
  *   LOG_SHEET_ID            — ID da planilha ou "NULL" para provisionar
  *   LOG_SHEET_FOLDER_ID     — (opcional) pasta da planilha de telemetria
@@ -654,7 +654,7 @@ function parseIso8601Duration(duration) {
 }
 
 /**
- * Carrega e valida config/jobs-orchestrator.json via URL Raw.
+ * Carrega e valida backend/config/jobs-orchestrator.json via URL Raw.
  * Usa CacheService com TTL de 2 horas. Lança exceção se não houver fonte válida.
  */
 function loadAndValidateConfig(url) {

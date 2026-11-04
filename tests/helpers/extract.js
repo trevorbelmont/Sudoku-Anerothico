@@ -15,7 +15,7 @@ const path = require('path');
 const JS_DIR = path.resolve(__dirname, '../../js');
 
 /**
- * Lê o conteúdo de um arquivo JS do diretório /js.
+ * Lê o conteúdo de um arquivo JS do diretório /js (incluindo subdiretórios).
  */
 function readJS(filename) {
   return fs.readFileSync(path.join(JS_DIR, filename), 'utf8');
