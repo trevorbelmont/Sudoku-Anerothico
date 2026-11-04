@@ -1,10 +1,79 @@
 {
+  "_documentation": {
+    "iso_8601_duration": {
+      "standard": "ISO 8601 — norma internacional para representacao de data/hora (a mesma do formato YYYY-MM-DD).",
+      "format": "P[nW][nD]T[nH][nM][nS]",
+      "rules": [
+        "P inicia sempre a duracao (Period).",
+        "Antes do T (componentes de DATA): W = semanas, D = dias.",
+        "T separa data de tempo — OBRIGATORIO antes de horas/minutos/segundos.",
+        "Depois do T (componentes de TEMPO): H = horas, M = minutos, S = segundos.",
+        "Sem o T, M significa MESES (nao minutos) — rejeitado pelo codigo.",
+        "Anos (Y) e meses-calendario (M antes do T) sao REJEITADOS (duracao nao fixa: mes varia 28-31 dias).",
+        "Dias (D) NUNCA apos o T — PT2D e invalido; use P2D."
+      ],
+      "valid_examples": {
+        "PT30M": "30 minutos (M apos T = minutos)",
+        "PT1H": "1 hora",
+        "PT12H": "12 horas",
+        "P1D": "1 dia (D antes do T)",
+        "P7D": "7 dias",
+        "P1W": "1 semana",
+        "PT45S": "45 segundos",
+        "P1DT12H": "1 dia e 12 horas (composto — valido como intervalo, INVALIDO como trigger)"
+      },
+      "invalid_examples": {
+        "P30M": "REJEITADO — sem T, M = meses; o codigo nao aceita meses",
+        "PT2D": "REJEITADO — dias (D) ficam antes do T, nunca depois",
+        "P1Y": "REJEITADO — anos nao sao duracao fixa",
+        "PT7M": "Valido como duracao, mas NAO aceito como trigger (everyMinutes so aceita 1/5/10/15/30)",
+        "P1DT2H": "Valido como duracao, mas NAO aceito como trigger (composto — trigger exige unica unidade)"
+      },
+      "trigger_restriction": "Para heartbeat_interval (vira trigger do Apps Script): apenas UMA unidade. Minutos aceitos: 1, 5, 10, 15, 30. Horas/dias/semanas devem ser inteiros. Compostos como P1DT12H sao rejeitados."
+    },
+    "scheduling": {
+      "heartbeat_interval": "A cada quanto tempo o trigger dispara o Master Orchestrator. O Master avalia quais jobs estao vencidos a cada heartbeat.",
+      "current_results": {
+        "heartbeat": "PT30M = trigger dispara a cada 30 minutos",
+        "coldstorage_rooms": "PT1H = roda ~a cada 1 hora (elegivel a cada 2o heartbeat)",
+        "coldstorage_chats": "PT12H = reservado (desabilitado)",
+        "l2_cache_purge": "P7D = reservado (desabilitado)"
+      },
+      "note": "O heartbeat deve ser <= o intervalo do job mais rapido habilitado, senao installMasterTrigger() lanca erro."
+    },
+    "repeat_policies": {
+      "description": "Cada politica usa um timestamp de ancora (epoch ms) persistido no Firebase em /server_meta/{jobId} via PATCH. readServerMeta faz GET em /server_meta (no inteiro) e selectAnchorTimestamp escolhe o campo conforme a politica.",
+      "policies": {
+        "ALL": {
+          "anchor": "last_completed_at",
+          "written_when": "Toda execucao (sucesso OU falha)",
+          "behavior": "Re-roda apos o intervalo mesmo se a execucao anterior falhou. Falha reseta o timer."
+        },
+        "ALL_SUCCEEDED": {
+          "anchor": "last_success_at",
+          "written_when": "Apenas em sucesso",
+          "behavior": "Falha NAO reseta o timer — a ancora fica no ultimo sucesso. O proximo heartbeat reavalia e pode re-executar (retry). Ideal para backups."
+        },
+        "SCHEDULED": {
+          "anchor": "last_scheduled_at",
+          "written_when": "Apenas quando invocation = SCHEDULED_MASTER (trigger temporal)",
+          "behavior": "Execucoes manuais nao deslocam a ancora agendada."
+        },
+        "SCHEDULED_SUCCEEDED": {
+          "anchor": "last_scheduled_success_at",
+          "written_when": "Apenas quando SCHEDULED_MASTER + sucesso",
+          "behavior": "Apenas um sucesso agendado avanca o timer. Execucoes manuais e falhas agendadas nao deslocam."
+        }
+      },
+      "persistence": "Firebase Realtime Database: /server_meta/{jobId} via PATCH (persistColdStorageMeta em backup-coldstorage.js). Master proprio em /server_meta/master_orchestrator (persistMasterMeta em master_orchestrator.js). Leitura unificada via readServerMeta (GET /server_meta)."
+    }
+  },
   "system": {
     "version": "1.1.0",
     "timezone": "America/Sao_Paulo",
     "environment": "production",
     "scheduling": {
-      "heartbeat_interval": "PT1H",
+      "heartbeat_interval": "PT30M",
       "default_repeat_policy": "ALL_SUCCEEDED"
     }
   },
@@ -59,7 +128,7 @@
     "coldstorage_rooms": {
       "enabled": true,
       "schedule": {
-        "interval": "P1D",
+        "interval": "PT1H",
         "repeat_policy": "ALL_SUCCEEDED"
       },
       "description": "Backup diferencial de salas ativas baseado em updatedAt."
