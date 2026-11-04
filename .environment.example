@@ -1,2 +1,11 @@
 # Um exemplo de variáveis sensíveis a serem preenchidas do arquivo não versionado
 # Preencher estas secrets são obrigatórias para ações de admnistração
+
+# Configurações do Google Apps Script (BaaS)
+CRON_TOKEN=sua_senha_segura_para_api_rest
+FIREBASE_URL=https://sudoku-anerothico-xxxx.firebaseio.com
+FIREBASE_SECRET=sua_chave_legada_do_banco_de_dados
+GITHUB_JOBS_CONFIG_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/config/jobs-orchestrator.json
+GITHUB_BUTIGNORE_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/.butIgnore
+LOG_SHEET_ID=NULL
+DRIVE_FOLDER_ID=id_da_sua_pasta_de_backups_no_drive

@@ -1,4 +1,11 @@
-# Arquivo de exclusão do Cold Storage (REST)
-rooms/*/moves
+# Regras globais legadas preservadas
+# NOTA: Com a correção do prefixo de caminho (applyButIgnoreFilter inicia com 'rooms'),
+# regras globais são avaliadas contra caminhos que começam com 'rooms/...'.
+# A regra abaixo casaria com um hipotético nó raiz 'rooms/presence'; a exclusão
+# real de presence por sala está na seção [coldstorage_rooms].
 presence
-# rooms/teste
+
+[coldstorage_rooms]
+rooms/*/moves
+rooms/*/presence
+rooms/*/cursors

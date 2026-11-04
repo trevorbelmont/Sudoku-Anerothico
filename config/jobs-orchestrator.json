@@ -1,0 +1,84 @@
+{
+  "system": {
+    "version": "1.1.0",
+    "timezone": "America/Sao_Paulo",
+    "environment": "production",
+    "scheduling": {
+      "heartbeat_interval": "PT1H",
+      "default_repeat_policy": "ALL_SUCCEEDED"
+    }
+  },
+  "telemetry": {
+    "spreadsheet_name": "Sudoku Aneróthico PRÓ - Jobs Telemetry",
+    "sheet_name": "JobsTelemetry"
+  },
+  "visual_theme": {
+    "job_styles": {
+      "master_orchestrator": {
+        "label": "MASTER_ORCHESTRATOR",
+        "row_background": "#1e293b",
+        "row_font_color": "#f8fafc",
+        "job_id_cell": { "bg": "#0f172a", "fg": "#38bdf8" }
+      },
+      "coldstorage_rooms": {
+        "label": "COLDSTORAGE_ROOMS",
+        "row_background": "#ffffff",
+        "row_font_color": "#0f172a",
+        "job_id_cell": { "bg": "#f1f5f9", "fg": "#0284c7" }
+      },
+      "coldstorage_chats": {
+        "label": "COLDSTORAGE_CHATS",
+        "row_background": "#ffffff",
+        "row_font_color": "#0f172a",
+        "job_id_cell": { "bg": "#f1f5f9", "fg": "#0d9488" }
+      },
+      "l2_cache_purge": {
+        "label": "L2_CACHE_PURGE",
+        "row_background": "#ffffff",
+        "row_font_color": "#0f172a",
+        "job_id_cell": { "bg": "#f1f5f9", "fg": "#b45309" }
+      },
+      "default": {
+        "label": "GENERIC_JOB",
+        "row_background": "#ffffff",
+        "row_font_color": "#000000",
+        "job_id_cell": { "bg": "#e2e8f0", "fg": "#334155" }
+      }
+    },
+    "status_cells": {
+      "SUCCESS": { "bg": "#dcfce7", "fg": "#15803d" },
+      "SKIPPED": { "bg": "#f1f5f9", "fg": "#64748b" },
+      "FAILED": { "bg": "#fee2e2", "fg": "#b91c1c" }
+    },
+    "error_column": {
+      "default_clean": { "bg": "#fef9c3", "fg": "#854d0e" },
+      "has_exception": { "bg": "#ef4444", "fg": "#ffffff" }
+    }
+  },
+  "jobs_schedule": {
+    "coldstorage_rooms": {
+      "enabled": true,
+      "schedule": {
+        "interval": "P1D",
+        "repeat_policy": "ALL_SUCCEEDED"
+      },
+      "description": "Backup diferencial de salas ativas baseado em updatedAt."
+    },
+    "coldstorage_chats": {
+      "enabled": false,
+      "schedule": {
+        "interval": "PT12H",
+        "repeat_policy": "SCHEDULED_SUCCEEDED"
+      },
+      "description": "Backup append-only de mensagens em formato JSONL; reservado para etapa futura."
+    },
+    "l2_cache_purge": {
+      "enabled": false,
+      "schedule": {
+        "interval": "P7D",
+        "repeat_policy": "SCHEDULED_SUCCEEDED"
+      },
+      "description": "Expurgo de dados frios/órfãos para o Google Drive; reservado para etapa futura."
+    }
+  }
+}
