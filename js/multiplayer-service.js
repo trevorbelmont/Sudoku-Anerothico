@@ -425,38 +425,53 @@ function getFirebaseAPI() {
           if (!state.multiplayer.active || !state.multiplayer.roomId) return;
           const fb = getFirebaseAPI();
           if (!fb) return;
-          const boardStateRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState'));
-          fb.update(boardStateRef, {
-              boardValues: state.board.map(row => row.map(value => value == null ? '' : String(value))),
-              pencilNotes: state.multiplayer.roomMode === 'versus' ? null : state.notes.map(row => row.map(notes => Array.from(notes || []))),
-              elapsedSeconds: state.timerSeconds,
-              isCompleted: !!state.completed,
-              gameName: state.gameName || '',
-              lastUpdatedByPlayerId: state.multiplayer.playerId,
-              updatedAtTimestamp: Date.now()
-          }).catch(error => console.error('Falha ao sincronizar o estado do tabuleiro:', error));
+
+          // Apontamos para a raiz da sala para podermos atualizar o boardState E o updatedAt simultaneamente.
+          const roomRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId));
+          const timestamp = Date.now();
+
+          const patch = {
+              'boardState/boardValues': state.board.map(row => row.map(value => value == null ? '' : String(value))),
+              'boardState/pencilNotes': state.multiplayer.roomMode === 'versus' ? null : state.notes.map(row => row.map(notes => Array.from(notes || []))),
+              'boardState/elapsedSeconds': state.timerSeconds,
+              'boardState/isCompleted': !!state.completed,
+              'boardState/gameName': state.gameName || '',
+              'boardState/lastUpdatedByPlayerId': state.multiplayer.playerId,
+              'boardState/updatedAtTimestamp': timestamp,
+              'updatedAt': timestamp // <-- CARIMBO DE WATERMARK PARA O COLD STORAGE NA RAIZ DA SALA
+          };
+
+          fb.update(roomRef, patch).catch(error => console.error('Falha ao sincronizar o estado do tabuleiro:', error));
       }
 
       function publishRoomBoardCell(row, column, includePeerNotes = false) {
           if (!state.multiplayer.active || !state.multiplayer.roomId || !Number.isInteger(row) || !Number.isInteger(column)) return;
           const fb = getFirebaseAPI();
           if (!fb) return;
-          const boardStateRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'boardState'));
+
+          // Apontamos para a raiz da sala (multi-path update)
+          const roomRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId));
+          const timestamp = Date.now();
+
           // Atualização por célula, para que jogadas simultâneas em casas diferentes não se sobrescrevam.
+          // Atualização cirúrgica por célula e atualização simultânea da marca d'água da sala.
           const patch = {
-              [`boardValues/${row}/${column}`]: state.board[row][column] == null ? '' : String(state.board[row][column]),
-              lastUpdatedByPlayerId: state.multiplayer.playerId,
-              updatedAtTimestamp: Date.now(),
-              isCompleted: !!state.completed,
-              elapsedSeconds: state.timerSeconds,
-              gameName: state.gameName || ''
+              [`boardState/boardValues/${row}/${column}`]: state.board[row][column] == null ? '' : String(state.board[row][column]),
+              'boardState/lastUpdatedByPlayerId': state.multiplayer.playerId,
+              'boardState/updatedAtTimestamp': timestamp,
+              'boardState/isCompleted': !!state.completed,
+              'boardState/elapsedSeconds': state.timerSeconds,
+              'boardState/gameName': state.gameName || '',
+              'updatedAt': timestamp // <-- CARIMBO DE WATERMARK PARA O COLD STORAGE NA RAIZ DA SALA
           };
+
           if (state.multiplayer.roomMode === 'versus') {
               // Remove any legacy note data from the shared room node and do not stream new notes.
-              patch.pencilNotes = null;
+              patch['boardState/pencilNotes'] = null;
           } else {
-              patch[`pencilNotes/${row}/${column}`] = Array.from(state.notes[row][column] || []);
+              patch[`boardState/pencilNotes/${row}/${column}`] = Array.from(state.notes[row][column] || []);
           }
+
           if (includePeerNotes && state.multiplayer.roomMode !== 'versus') {
               const affected = new Set();
               for (let index = 0; index < state.N; index++) {
@@ -470,10 +485,11 @@ function getFirebaseAPI() {
               }
               affected.forEach(coordinate => {
                   const [r, c] = coordinate.split(',').map(Number);
-                  patch[`pencilNotes/${r}/${c}`] = Array.from(state.notes[r][c] || []);
+                  patch[`boardState/pencilNotes/${r}/${c}`] = Array.from(state.notes[r][c] || []);
               });
           }
-          fb.update(boardStateRef, patch).catch(error => console.error('Falha ao sincronizar a casa do Sudoku:', error));
+
+          fb.update(roomRef, patch).catch(error => console.error('Falha ao sincronizar a casa do Sudoku:', error));
       }
 
       // Atualiza o timestamp de última atividade da sala (chamado a cada interação significativa).
@@ -967,6 +983,7 @@ function getFirebaseAPI() {
               fb.set(fb.child(roomRef, 'contributions'), state.multiplayer.contributions),
               fb.set(fb.child(roomRef, 'members'), {}),
               fb.set(fb.child(roomRef, 'settings'), { immediateErrorCheck: false }),
+              fb.set(fb.child(roomRef, 'updatedAt'), Date.now()), // <-- NOVO CARIMBO DE CRIAÇÃO
               fb.remove(fb.child(roomRef, 'featureVote'))
           ]).then(async () => {
               await assignRoomPlayerColor(roomId);
