@@ -1,11 +1,36 @@
 # Um exemplo de variáveis sensíveis a serem preenchidas do arquivo não versionado
-# Preencher estas secrets são obrigatórias para ações de admnistração
+# Preencher estas secrets são obrigatórias para ações de administração
+# Copie este arquivo como .environment (sem o .example) e preencha os valores reais.
+# O arquivo .environment é ignorado pelo Git — nunca o comite.
 
-# Configurações do Google Apps Script (BaaS)
+# ── Google Apps Script (Clasp) ────────────────────────────────────────────────
+# Script ID do projeto GAS. Encontrado em:
+#   script.google.com → seu projeto → Configurações do Projeto → ID do script
+# Usado por update-secrets.js para gerar o .clasp.json automaticamente.
+GAS_SCRIPT_ID=seu_script_id_do_projeto_gas
+
+# ── Autenticação do Web App REST ──────────────────────────────────────────────
 CRON_TOKEN=sua_senha_segura_para_api_rest
+
+# ── Firebase Realtime Database ────────────────────────────────────────────────
 FIREBASE_URL=https://sudoku-anerothico-xxxx.firebaseio.com
 FIREBASE_SECRET=sua_chave_legada_do_banco_de_dados
+
+# ── GitHub Raw (configuração declarativa e regras de exclusão) ────────────────
 GITHUB_JOBS_CONFIG_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/config/jobs-orchestrator.json
 GITHUB_BUTIGNORE_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/.butIgnore
+
+# ── Telemetria (Google Sheets) ────────────────────────────────────────────────
+# Defina LOG_SHEET_ID como NULL na primeira execução: o script cria a planilha
+# automaticamente e substitui este valor pelo ID real gerado.
+# Após a criação, atualize aqui com o ID real para manter sincronizado.
 LOG_SHEET_ID=NULL
+
+# Opcional: ID da pasta no Drive onde a planilha de telemetria será criada.
+# Deixe em branco ou remova a linha para usar a raiz do Drive.
+# NÃO confundir com DRIVE_FOLDER_ID (que é para os arquivos JSON de backup).
+LOG_SHEET_FOLDER_ID=
+
+# ── Cold Storage (Google Drive) ───────────────────────────────────────────────
+# ID da pasta no Drive onde os arquivos JSON de backup de salas serão gravados.
 DRIVE_FOLDER_ID=id_da_sua_pasta_de_backups_no_drive

@@ -9,6 +9,12 @@ tests/bun.lock
 .env    
 .environment
 
+# Arquivo temporário gerado por backend/update-secrets.js
+backend/GAS/.temp-secrets.js
+
+# Configuração do Clasp (contém o Script ID do projeto GAS)
+.clasp.json
+
 # Logs e Caches de Teste
 .nyc_output/
 coverage/
