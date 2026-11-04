@@ -224,6 +224,7 @@ function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, in
   // ── 3.3 Filtrar salas elegíveis por updatedAt ─────────────────────────
   var filterResult = filterEligibleRooms(allRooms, lastBackupTimestamp, wakeUpTime);
   var eligibleRooms = filterResult.eligible;
+  var legacyRoomIds = filterResult.legacyRoomIds;
   var legacyCount = filterResult.legacyCount;
   var futureCount = filterResult.futureCount;
   var totalRooms = filterResult.totalRooms;
@@ -261,18 +262,23 @@ function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, in
     summary: {
       roomsArchived: Object.keys(eligibleRooms).length,
       legacyRooms: legacyCount,
+      legacyRoomsWatermarked: 0, // atualizado após o PATCH retroativo
       futureDatedRoomsDeferred: futureCount,
       nodesIgnored: nodesIgnored
     },
     rooms: roomsCopy
   };
 
+  // ── 3.6 Serializar e persistir no Drive com UTF-8 explícito ──────────
+  // Usa Utilities.newBlob com charset 'UTF-8' para garantir que caracteres
+  // não-ASCII (acentos, emojis, ideogramas) sejam preservados exatamente
+  // como estão no Firebase, independente do ambiente de execução do GAS.
+  // MimeType.PLAIN_TEXT sem charset explícito pode variar entre versões do runtime.
   var payloadStr = JSON.stringify(payload);
-
-  // ── 3.6 Persistir no Drive ────────────────────────────────────────────
   var filename = generateColdStorageFilename(timezone, runId);
   var folder = DriveApp.getFolderById(folderId);
-  var createdFile = folder.createFile(filename, payloadStr, MimeType.PLAIN_TEXT);
+  var blob = Utilities.newBlob(payloadStr, 'text/plain; charset=UTF-8', filename);
+  var createdFile = folder.createFile(blob);
   // bytesSaved: tamanho real do arquivo persistido
   var bytesSaved = createdFile.getSize();
 
@@ -283,12 +289,27 @@ function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, in
   // ── 3.7 Avançar watermark SOMENTE após confirmação de persistência ────
   advanceWatermark(dbUrl, secret, wakeUpTime);
 
+  // ── 3.8 Estampar watermark retroativo nas salas legacy ────────────────
+  // Após confirmar que o backup foi persistido (3.6) e o watermark avançou
+  // (3.7), escreve updatedAt nas salas que nunca tiveram esse campo.
+  // O valor usado é (wakeUpTime - 1) para que nos próximos ciclos essas salas
+  // caiam na condição "updatedAt < lastBackupTimestamp" e sejam excluídas,
+  // eliminando o rearquivamento redundante sem alterar dados de gameplay.
+  var legacyWatermarked = 0;
+  if (legacyRoomIds.length > 0) {
+    legacyWatermarked = stampLegacyWatermarks(dbUrl, secret, legacyRoomIds, wakeUpTime - 1);
+  }
+
+  // Atualizar o summary com o resultado real do PATCH retroativo
+  payload.summary.legacyRoomsWatermarked = legacyWatermarked;
+
   metrics.status = 'SUCCESS';
   metrics.completedSuccessfully = true;
   metrics.notes = activationLabel +
     '\nJanela: [' + lastBackupTimestamp + ', ' + wakeUpTime + ')' +
     '\nSalas arquivadas: ' + metrics.itemsProcessed +
     ' | Legadas: ' + legacyCount +
+    ' | Watermark retroativo aplicado: ' + legacyWatermarked +
     ' | Futuras adiadas: ' + futureCount +
     ' | Nós ignorados: ' + nodesIgnored +
     '\nArquivo: ' + filename +
@@ -308,8 +329,28 @@ function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, in
 // Filtragem de salas elegíveis
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Filtra as salas que devem entrar no backup desta janela.
+ *
+ * Salas legacy (updatedAt ausente/nulo/0 na raiz da sala) são incluídas e
+ * retornadas também em `legacyRoomIds` para que o chamador possa estampar
+ * o watermark nelas após confirmar a persistência, evitando rearquivamento
+ * redundante nos ciclos seguintes.
+ *
+ * @param {Object} allRooms             — mapa roomId → objeto sala do Firebase
+ * @param {number} lastBackupTimestamp  — marca d'água do último ciclo (epoch ms)
+ * @param {number} wakeUpTime           — início deste ciclo (epoch ms)
+ * @returns {{
+ *   eligible: Object,
+ *   legacyRoomIds: string[],
+ *   legacyCount: number,
+ *   futureCount: number,
+ *   totalRooms: number
+ * }}
+ */
 function filterEligibleRooms(allRooms, lastBackupTimestamp, wakeUpTime) {
   var eligible = {};
+  var legacyRoomIds = [];
   var legacyCount = 0;
   var futureCount = 0;
   var totalRooms = 0;
@@ -324,38 +365,43 @@ function filterEligibleRooms(allRooms, lastBackupTimestamp, wakeUpTime) {
 
     var updatedAt = room.updatedAt;
 
-    // Salas legadas: updatedAt ausente, null, undefined ou numericamente 0
+    // Salas legadas: updatedAt ausente, null, undefined ou numericamente 0.
+    // São incluídas no backup e marcadas para receber o watermark retroativo
+    // após a persistência, eliminando rearquivamentos redundantes futuros.
     if (updatedAt === null || updatedAt === undefined || updatedAt === 0) {
       eligible[roomId] = room;
+      legacyRoomIds.push(roomId);
       legacyCount++;
       continue;
     }
 
-    // Valores não numéricos: conservador — inclui como legado com aviso
+    // Valores não numéricos: conservador — inclui como legado com aviso.
     if (typeof updatedAt !== 'number' || !isFinite(updatedAt)) {
       console.warn('Sala ' + roomId + ' tem updatedAt não numérico (' + String(updatedAt) + '); tratada como legada.');
       eligible[roomId] = room;
+      legacyRoomIds.push(roomId);
       legacyCount++;
       continue;
     }
 
-    // Salas futuras: updatedAt >= wakeUpTime — adiadas para o próximo ciclo
+    // Salas futuras: updatedAt >= wakeUpTime — adiadas para o próximo ciclo.
     if (updatedAt >= wakeUpTime) {
       futureCount++;
       continue;
     }
 
-    // Salas anteriores ao watermark (exceto legadas): já cobertas por ciclo anterior
+    // Salas anteriores ao watermark (exceto legadas): já cobertas por ciclo anterior.
     if (updatedAt < lastBackupTimestamp) {
       continue;
     }
 
-    // Janela elegível: updatedAt >= lastBackupTimestamp && < wakeUpTime
+    // Janela elegível: updatedAt >= lastBackupTimestamp && < wakeUpTime.
     eligible[roomId] = room;
   }
 
   return {
     eligible: eligible,
+    legacyRoomIds: legacyRoomIds,
     legacyCount: legacyCount,
     futureCount: futureCount,
     totalRooms: totalRooms
@@ -528,6 +574,62 @@ function advanceWatermark(dbUrl, secret, wakeUpTime) {
     console.error('Falha ao avançar watermark:', sanitizeError(e));
     throw e; // relança para que o chamador saiba que o checkpoint falhou
   }
+}
+
+/**
+ * Estampa retroativamente `updatedAt` nas salas legacy que nunca tiveram esse
+ * campo, usando um PATCH individual por sala em /rooms/{roomId}/updatedAt.
+ *
+ * O valor gravado é (retroactiveMark) — tipicamente wakeUpTime - 1 —
+ * que fica abaixo do watermark atual, excluindo essas salas de ciclos futuros
+ * sem interferir com dados de gameplay (updatedAt é a marca d'água do cold
+ * storage na raiz da sala, não é lido pelo frontend para lógica de jogo).
+ *
+ * Estratégia de falha: falhas individuais são logadas mas não interrompem o
+ * loop — o chamador recebe a contagem de PATCHes bem-sucedidos. Uma sala que
+ * falhou continuará sendo rearquivada no próximo ciclo (comportamento seguro).
+ *
+ * @param {string}   dbUrl            — URL base do Firebase (sem barra final)
+ * @param {string}   secret           — credencial REST do Firebase
+ * @param {string[]} legacyRoomIds    — IDs das salas a receber o watermark
+ * @param {number}   retroactiveMark  — valor epoch ms a gravar (wakeUpTime - 1)
+ * @returns {number} quantidade de salas efetivamente marcadas
+ */
+function stampLegacyWatermarks(dbUrl, secret, legacyRoomIds, retroactiveMark) {
+  var successCount = 0;
+  for (var i = 0; i < legacyRoomIds.length; i++) {
+    var roomId = legacyRoomIds[i];
+    try {
+      var resp = UrlFetchApp.fetch(
+        dbUrl + '/rooms/' + encodeURIComponent(roomId) + '/updatedAt.json?auth=' + secret,
+        {
+          method: 'PUT',
+          contentType: 'application/json',
+          payload: JSON.stringify(retroactiveMark),
+          muteHttpExceptions: true
+        }
+      );
+      var code = resp.getResponseCode();
+      if (code >= 200 && code < 300) {
+        successCount++;
+      } else {
+        console.warn(
+          'stampLegacyWatermarks: PATCH de sala "' + roomId +
+          '" retornou HTTP ' + code + '. Será rearquivada no próximo ciclo.'
+        );
+      }
+    } catch (e) {
+      console.warn(
+        'stampLegacyWatermarks: falha de rede ao marcar sala "' + roomId +
+        '": ' + sanitizeError(e) + '. Será rearquivada no próximo ciclo.'
+      );
+    }
+  }
+  console.log(
+    'stampLegacyWatermarks: ' + successCount + '/' + legacyRoomIds.length +
+    ' salas marcadas com updatedAt=' + retroactiveMark + '.'
+  );
+  return successCount;
 }
 
 function persistColdStorageMeta(props, metrics, invocation) {

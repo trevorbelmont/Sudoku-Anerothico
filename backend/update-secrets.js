@@ -375,48 +375,67 @@ function setupOrchestratorSecrets() {
 
     // clasp run pode sair com exit code 0 mesmo quando a função remota
     // lança uma exceção (o erro é exibido no stdout/stderr mas não altera o
-    // código de saída). Capturamos a saída para inspecionar.
-    let runOutput = '';
+    // código de saída). Capturamos stdout+stderr separados para diagnóstico.
+    let runStdout = '';
+    let runStderr = '';
     let runExitCode = 0;
+    let runTimedOut = false;
     try {
-      runOutput = execSync('clasp run setupOrchestratorSecrets', {
+      runStdout = execSync('clasp run setupOrchestratorSecrets', {
         cwd: gasDir,
         encoding: 'utf8',
         stdio: ['pipe', 'pipe', 'pipe'],
         timeout: 60000,
       });
     } catch (runErr) {
-      // Se execSync lançar, capturamos stdout/stderr e o código de saída.
-      runOutput = (runErr.stdout || '').toString() + (runErr.stderr || '').toString();
-      runExitCode = runErr.status || 1;
+      // ETIMEDOUT ou ESRCH: processo morto pelo timeout do execSync.
+      if (runErr.code === 'ETIMEDOUT' || runErr.signal === 'SIGTERM' || runErr.killed) {
+        runTimedOut = true;
+      }
+      // Captura stdout e stderr independentemente de timeout.
+      runStdout = (runErr.stdout || '').toString();
+      runStderr = (runErr.stderr || '').toString();
+      runExitCode = typeof runErr.status === 'number' ? runErr.status : 1;
     }
+
+    const runOutput = runStdout + runStderr;
 
     // Exibe a saída capturada para o usuário (mantém visibilidade).
-    if (runOutput.trim()) {
-      console.log(runOutput.trim());
-    }
+    if (runStdout.trim()) console.log(runStdout.trim());
+    if (runStderr.trim()) console.error('[stderr]', runStderr.trim());
 
     // Detecta falhas mesmo quando clasp sai com exit code 0.
-    // Padrões de erro do Apps Script Execution API.
+    // Padrões de erro: Execution API, GAS runtime, clasp CLI e timeouts locais.
     const errorPatterns = [
       /Exception:/i,
+      /ScriptError/i,
       /Error code\s+\w+/i,
       /NOT_FOUND/i,
       /PERMISSION_DENIED/i,
       /FAILED_PRECONDITION/i,
+      /Could not find/i,       // função não existe no deploy atual
+      /Execution timed out/i,  // GAS reporta timeout remoto no stdout
+      /UNAUTHENTICATED/i,
     ];
-    const runFailed = runExitCode !== 0 || errorPatterns.some(p => p.test(runOutput));
+    const runFailed = runTimedOut || runExitCode !== 0 || errorPatterns.some(p => p.test(runOutput));
 
     if (runFailed) {
       console.error('\n❌ A execução remota de setupOrchestratorSecrets falhou.');
+      console.error('   Exit code:', runExitCode, runTimedOut ? '(timeout local — sem resposta da Execution API)' : '');
       console.error('   O clasp run não injetou as secrets no projeto GAS.');
       console.error('');
       console.error('   Possíveis causas:');
+      if (runTimedOut) {
+        console.error('   • A Execution API não respondeu em 60s (timeout local).');
+        console.error('     A API pode estar temporariamente instável. Tente novamente em alguns minutos.');
+      }
       console.error('   • A Google Apps Script API não está ativada.');
       console.error('     Ative em: https://script.google.com/home/usersettings');
       console.error('   • Propagação lenta após o push — aguarde ~10s e reexecute.');
       console.error('   • O SCRIPT_ID no .environment não corresponde ao projeto GAS.');
       console.error('   • A conta Google não tem permissão de execução no projeto.');
+      console.error('   • A função setupOrchestratorSecrets não está acessível no deploy');
+      console.error('     (verifique se o clasp push foi concluído com sucesso).');
       // Força a entrada no bloco catch para acionar o cleanup do finally.
       throw new Error('clasp run setupOrchestratorSecrets falhou remotamente.');
     }

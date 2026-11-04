@@ -114,9 +114,17 @@ function doPost(e) {
       return jsonResponse({ ok: true, action: 'status', data: statusData });
     }
 
+    if (action === 'reinstall_trigger') {
+      var reinstallResult = reinstallMasterTrigger();
+      return jsonResponse({ ok: true, action: 'reinstall_trigger', result: reinstallResult });
+    }
+
     return jsonResponse({
       ok: false,
-      error: { code: 'INVALID_ACTION', message: 'Ação inválida. Ações suportadas: master, backup, status.' }
+      error: {
+        code: 'INVALID_ACTION',
+        message: 'Ação inválida. Ações suportadas: master, backup, status, reinstall_trigger.'
+      }
     });
 
   } catch (err) {
@@ -611,6 +619,94 @@ function parseTriggerSpec(duration) {
     'Heartbeat "' + duration + '" não pode ser representado por um trigger recorrente do Apps Script. ' +
     'Use minutos (1/5/10/15/30), horas inteiras, dias inteiros ou semanas inteiras.'
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reinstalação do trigger via REST (action=reinstall_trigger)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Recria o trigger temporal do Master Orchestrator aplicando o heartbeat
+ * atual do jobs-orchestrator.json, sem precisar abrir a interface do Apps Script.
+ *
+ * Fluxo:
+ *   1. Lê e valida jobs-orchestrator.json (via loadAndValidateConfig + cache).
+ *   2. Apaga TODOS os triggers apontando para runScheduledMasterOrchestrator.
+ *   3. Recria o trigger com a cadência lida do JSON.
+ *
+ * Idempotente: pode ser chamado mesmo sem trigger existente.
+ *
+ * Uso via REST:
+ *   POST <webapp_url>
+ *   Body JSON: { "token": "<CRON_TOKEN>", "action": "reinstall_trigger" }
+ *
+ * @returns {{ status: string, previousCount: number, heartbeat: string, triggerSpec: Object }}
+ */
+function reinstallMasterTrigger() {
+  var props = PropertiesService.getScriptProperties();
+  var configUrl = props.getProperty('GITHUB_JOBS_CONFIG_URL');
+  if (!configUrl) {
+    throw new Error('GITHUB_JOBS_CONFIG_URL não configurada. Impossível ler heartbeat do JSON.');
+  }
+
+  // 1. Carregar configuração (usa cache de 2h; força fetch fresco quando possível)
+  var config = loadAndValidateConfig(configUrl);
+  var heartbeat = config.system.scheduling.heartbeat_interval;
+  var timezone = config.system.timezone || 'America/Sao_Paulo';
+  var triggerSpec = parseTriggerSpec(heartbeat);
+
+  // Valida que o heartbeat não é mais lento que qualquer job habilitado
+  var jobIds = Object.keys(config.jobs_schedule);
+  var heartbeatMs = parseIso8601Duration(heartbeat);
+  for (var i = 0; i < jobIds.length; i++) {
+    var jId = jobIds[i];
+    var jDef = config.jobs_schedule[jId];
+    if (jDef.enabled !== true) continue;
+    var jobIntervalMs = parseIso8601Duration(jDef.schedule.interval);
+    if (heartbeatMs > jobIntervalMs) {
+      throw new Error(
+        'Heartbeat (' + heartbeat + ') é mais lento que o intervalo do job "' + jId +
+        '" (' + jDef.schedule.interval + '). Corrija o JSON antes de reinstalar.'
+      );
+    }
+  }
+
+  var handlerName = 'runScheduledMasterOrchestrator';
+
+  // 2. Apagar todos os triggers existentes para o handler (pode haver duplicatas)
+  var existingTriggers = ScriptApp.getProjectTriggers();
+  var removedCount = 0;
+  for (var j = 0; j < existingTriggers.length; j++) {
+    if (existingTriggers[j].getHandlerFunction() === handlerName) {
+      ScriptApp.deleteTrigger(existingTriggers[j]);
+      removedCount++;
+    }
+  }
+
+  // 3. Recriar com a cadência lida do JSON
+  var builder = ScriptApp.newTrigger(handlerName).timeBased();
+  if (triggerSpec.unit === 'minutes') {
+    builder = builder.everyMinutes(triggerSpec.value);
+  } else if (triggerSpec.unit === 'hours') {
+    builder = builder.everyHours(triggerSpec.value);
+  } else if (triggerSpec.unit === 'days') {
+    builder = builder.everyDays(triggerSpec.value).atHour(3).inTimezone(timezone);
+  } else if (triggerSpec.unit === 'weeks') {
+    builder = builder.everyWeeks(triggerSpec.value).atHour(3).inTimezone(timezone);
+  }
+  builder.create();
+
+  var msg = 'Trigger recriado: ' + handlerName +
+    ' | heartbeat=' + heartbeat +
+    ' | removidos=' + removedCount;
+  console.log(msg);
+
+  return {
+    status: 'REINSTALLED',
+    previousTriggerCount: removedCount,
+    heartbeat: heartbeat,
+    triggerSpec: triggerSpec
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
