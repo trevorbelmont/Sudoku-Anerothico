@@ -25,7 +25,9 @@ jobs:
 
       - name: Configurar Credenciais do Clasp
         run: |
-          echo "${{ secrets.CLASP_CREDENTIALS }}" > ~/.clasprc.json
+          cat << 'EOF' > ~/.clasprc.json
+          ${{ secrets.CLASP_CREDENTIALS }}
+          EOF
           
       - name: Deploy para o Google Apps Script
         run: |
