@@ -6,6 +6,7 @@ on:
       - main
     paths:   # Roda CD se os arquivos do GAS forem alterados
       - 'backend/GAS/**'
+  workflow_dispatch:  # Permite disparo manual pela aba Actions do GitHub
 
 jobs:
   deploy:
@@ -29,6 +30,10 @@ jobs:
           ${{ secrets.CLASP_CREDENTIALS }}
           EOF
           
+      - name: Recriar .clasp.json a partir do secret
+        run: |
+          echo '{"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"."}' > backend/GAS/.clasp.json
+
       - name: Deploy para o Google Apps Script
         run: |
             cd backend/GAS
