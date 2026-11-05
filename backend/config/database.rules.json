@@ -1,7 +1,19 @@
+// POLÍTICA DE COMENTÁRIOS (clean-code):
+// Comentários ficam SEMPRE na linha acima do código que descrevem.
+// Nunca misture comentário e código na mesma linha.
+// Isso permite apagar um bloco de comentário selecionando a(s) linha(s) inteira(s) sem tocar no código.
+//
+// IMPORTANTE — VALIDATE NA RAIZ DE $room_id:
+// O Firebase avalia o .validate do nó pai em TODA escrita em qualquer subnó filho.
+// Portanto, um .validate em "$room_id" com hasChildren([...]) seria violado toda vez que
+// o cliente escreve isoladamente em rooms/$roomId/boardState, rooms/$roomId/presence, etc.
+// (via fb.update multi-path em publishRoomBoardCell, registerRoomPresence, entre outros).
+// A validação estrutural mínima de cada subnó já existe nos próprios nós filhos.
+// NÃO adicione .validate de estrutura na raiz de $room_id.
 {
   "rules": {
-    // Bloqueio padrão na raiz: nenhuma operação permitida a menos que
-    // uma regra mais específica abaixo a autorize explicitamente.
+    // Bloqueio padrão na raiz.
+    // Nenhuma operação permitida a menos que uma regra mais específica abaixo a autorize.
     ".read": false,
     ".write": false,
 
@@ -9,23 +21,17 @@
     // /rooms — salas de jogo multiplayer
     // ─────────────────────────────────────────────────────────────────
     "rooms": {
-      // Leitura livre de /rooms: qualquer cliente pode ler qualquer sala
+      // Leitura livre: qualquer cliente pode ler qualquer sala
       // para entrar, observar ou validar o estado do tabuleiro.
       ".read": true,
 
       "$room_id": {
         // Escrita aberta por sala: o jogo não usa autenticação Firebase.
-        // A proteção é feita pela validação de estrutura abaixo.
+        // A proteção lógica (sala ativa, sala protegida por N dias) é feita
+        // no cliente via checkRoomStatus() antes de qualquer escrita.
         ".write": true,
 
-        // Validação de estrutura mínima da sala:
-        // exige os campos canônicos gravados em hostRoom() e
-        // executeMultiplayerNewGame() ao criar/renovar uma sala.
-        // 'updatedAt' é o watermark de cold storage (raiz, número).
-        // 'boardState' é um objeto — não uma string.
-        ".validate": "newData.hasChildren(['updatedAt', 'boardState', 'meta'])",
-
-        // ── updatedAt: timestamp epoch ms (watermark do cold storage) ──
+        // ── updatedAt: watermark do cold storage (raiz, número epoch ms) ──
         "updatedAt": {
           ".validate": "newData.isNumber() && newData.val() > 0"
         },
@@ -34,61 +40,122 @@
         "boardState": {
           ".validate": "newData.hasChildren(['boardInstanceNumber', 'boardValues', 'updatedAtTimestamp'])",
 
-          "boardInstanceNumber": { ".validate": "newData.isNumber()" },
-          "elapsedSeconds":      { ".validate": "newData.isNumber()" },
-          "isCompleted":         { ".validate": "newData.isBoolean()" },
-          "gameName":            { ".validate": "newData.isString() && newData.val().length <= 120" },
-          "lastUpdatedByPlayerId": { ".validate": "newData.isString() && newData.val().length <= 128" },
-          "updatedAtTimestamp":  { ".validate": "newData.isNumber() && newData.val() > 0" },
+          "boardInstanceNumber": {
+            ".validate": "newData.isNumber()"
+          },
+          "elapsedSeconds": {
+            ".validate": "newData.isNumber()"
+          },
+          "isCompleted": {
+            ".validate": "newData.isBoolean()"
+          },
+          "gameName": {
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "lastUpdatedByPlayerId": {
+            ".validate": "newData.isString() && newData.val().length <= 128"
+          },
+          "updatedAtTimestamp": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
 
-          // boardValues, pencilNotes: arrays aninhados — não validamos estrutura interna
-          // para não bloquear grids de tamanho variável (4×4 a 25×25).
-          "$boardStateOther": { ".validate": true }
+          // boardValues e pencilNotes são arrays aninhados.
+          // Não validamos estrutura interna para suportar grids de tamanho variável (4×4 a 25×25).
+          "$boardStateOther": {
+            ".validate": true
+          }
         },
 
         // ── meta: configuração e identidade da instância do tabuleiro ──
         "meta": {
           ".validate": "newData.hasChildren(['createdAtTimestamp', 'ownerPlayerId', 'instanceNumber', 'boardDimension'])",
 
-          "createdAtTimestamp": { ".validate": "newData.isNumber() && newData.val() > 0" },
-          "ownerPlayerId":      { ".validate": "newData.isString() && newData.val().length <= 128" },
-          "instanceNumber":     { ".validate": "newData.isNumber()" },
-          "boardDimension":     { ".validate": "newData.isNumber() && newData.val() >= 4 && newData.val() <= 25" },
-          "gameMode":           { ".validate": "newData.isString()" },
-          "difficultyLevel":    { ".validate": "newData.isString()" },
-          "roomMode":           { ".validate": "newData.isString() && (newData.val() === 'coop' || newData.val() === 'versus')" },
-          "realtimeMetrics":    { ".validate": "newData.isBoolean()" },
-          "minimumSymbolValue": { ".validate": "newData.isNumber()" },
-          "maximumSymbolValue": { ".validate": "newData.isNumber()" },
-          "includesZeroValue":  { ".validate": "newData.isBoolean()" },
-          "blockRowCount":      { ".validate": "newData.isNumber()" },
-          "blockColumnCount":   { ".validate": "newData.isNumber()" },
+          "createdAtTimestamp": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "ownerPlayerId": {
+            ".validate": "newData.isString() && newData.val().length <= 128"
+          },
+          "instanceNumber": {
+            ".validate": "newData.isNumber()"
+          },
+          "boardDimension": {
+            ".validate": "newData.isNumber() && newData.val() >= 4 && newData.val() <= 25"
+          },
+          "gameMode": {
+            ".validate": "newData.isString()"
+          },
+          "difficultyLevel": {
+            ".validate": "newData.isString()"
+          },
+          "roomMode": {
+            ".validate": "newData.isString() && (newData.val() === 'coop' || newData.val() === 'versus')"
+          },
+          "realtimeMetrics": {
+            ".validate": "newData.isBoolean()"
+          },
+          "minimumSymbolValue": {
+            ".validate": "newData.isNumber()"
+          },
+          "maximumSymbolValue": {
+            ".validate": "newData.isNumber()"
+          },
+          "includesZeroValue": {
+            ".validate": "newData.isBoolean()"
+          },
+          "blockRowCount": {
+            ".validate": "newData.isNumber()"
+          },
+          "blockColumnCount": {
+            ".validate": "newData.isNumber()"
+          },
 
-          // symbolValues, fixedInitialGrid, solutionGrid: arrays — não validamos internamente.
-          // solutionGrid é omitido intencionalmente pelo frontend; regra permissiva para suportar
-          // tanto ausência (frontend) quanto presença (backup de restauração futura).
-          "$metaOther": { ".validate": true }
+          // symbolValues, fixedInitialGrid, solutionGrid: arrays — estrutura interna não validada.
+          // solutionGrid é omitido pelo frontend; regra permissiva suporta tanto ausência
+          // (cliente web) quanto presença (restauração de backup pelo GAS).
+          "$metaOther": {
+            ".validate": true
+          }
         },
 
-        // ── moves: log append-only de jogadas ──────────────────────────
-        // Permite escrita livre por ser append-only via fb.push().
-        // executeMultiplayerNewGame() limpa este nó com fb.remove() ao
-        // iniciar nova instância — portanto não forçamos append aqui.
+        // ── moves: log de jogadas (append via fb.push) ─────────────────
+        // executeMultiplayerNewGame() limpa este nó com fb.remove() ao iniciar
+        // nova instância — portanto não forçamos append aqui.
         "moves": {
           "$move_id": {
             ".validate": "newData.hasChildren(['userId', 'action'])",
 
-            "userId":          { ".validate": "newData.isString() && newData.val().length <= 128" },
-            "userName":        { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)" },
-            "action":          { ".validate": "newData.isString()" },
-            "sequence":        { ".validate": "!newData.exists() || newData.isNumber()" },
-            "row":             { ".validate": "!newData.exists() || newData.isNumber()" },
-            "column":          { ".validate": "!newData.exists() || newData.isNumber()" },
-            "clientTimestamp": { ".validate": "!newData.exists() || newData.isNumber()" },
-            "userColor":       { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)" },
-            "value":           { ".validate": "!newData.exists() || newData.isString()" },
+            "userId": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "userName": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)"
+            },
+            "action": {
+              ".validate": "newData.isString()"
+            },
+            "sequence": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            },
+            "row": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            },
+            "column": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            },
+            "clientTimestamp": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            },
+            "userColor": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+            },
+            "value": {
+              ".validate": "!newData.exists() || newData.isString()"
+            },
             // timestamp pode ser serverTimestamp (object) ou número — permissivo.
-            "$moveOther":      { ".validate": true }
+            "$moveOther": {
+              ".validate": true
+            }
           }
         },
 
@@ -98,12 +165,24 @@
           "$cell_key": {
             ".validate": "newData.hasChildren(['kind', 'action', 'playerId'])",
 
-            "kind":        { ".validate": "newData.isString() && (newData.val() === 'PLAYER' || newData.val() === 'NASA')" },
-            "action":      { ".validate": "newData.isString()" },
-            "playerId":    { ".validate": "newData.isString() && newData.val().length <= 128" },
-            "playerName":  { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)" },
-            "playerColor": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)" },
-            "timestamp":   { ".validate": "!newData.exists() || newData.isNumber()" }
+            "kind": {
+              ".validate": "newData.isString() && (newData.val() === 'PLAYER' || newData.val() === 'NASA')"
+            },
+            "action": {
+              ".validate": "newData.isString()"
+            },
+            "playerId": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "playerName": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)"
+            },
+            "playerColor": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+            },
+            "timestamp": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            }
           }
         },
 
@@ -111,10 +190,19 @@
         "members": {
           "$player_id": {
             ".validate": "newData.hasChildren(['playerId', 'playerName'])",
-            "playerId":          { ".validate": "newData.isString() && newData.val().length <= 128" },
-            "playerName":        { ".validate": "newData.isString() && newData.val().length <= 64" },
-            "playerColor":       { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)" },
-            "joinedAtTimestamp": { ".validate": "!newData.exists() || newData.isNumber()" }
+
+            "playerId": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "playerName": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "playerColor": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+            },
+            "joinedAtTimestamp": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            }
           }
         },
 
@@ -122,37 +210,70 @@
         "players": {
           "$player_id": {
             ".validate": "newData.hasChildren(['playerId', 'playerName'])",
-            "playerId":          { ".validate": "newData.isString() && newData.val().length <= 128" },
-            "playerName":        { ".validate": "newData.isString() && newData.val().length <= 64" },
-            "playerColor":       { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)" },
-            "joinedAtTimestamp": { ".validate": "!newData.exists() || newData.isNumber()" }
+
+            "playerId": {
+              ".validate": "newData.isString() && newData.val().length <= 128"
+            },
+            "playerName": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "playerColor": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+            },
+            "joinedAtTimestamp": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            }
           }
         },
 
         // ── cursors: posição atual de cada jogador (mutável, best-effort) ──
         "cursors": {
           "$player_id": {
-            "row":       { ".validate": "newData.isNumber()" },
-            "column":    { ".validate": "newData.isNumber()" },
-            "userId":    { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 128)" },
-            "userName":  { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)" },
-            "userColor": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)" },
-            "timestamp": { ".validate": "!newData.exists() || newData.isNumber()" }
+            "row": {
+              ".validate": "newData.isNumber()"
+            },
+            "column": {
+              ".validate": "newData.isNumber()"
+            },
+            "userId": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 128)"
+            },
+            "userName": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)"
+            },
+            "userColor": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+            },
+            "timestamp": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            }
           }
         },
 
         // ── presence: marcador de proteção e atividade da sala ─────────
         "presence": {
-          "isActive":                  { ".validate": "newData.isBoolean()" },
-          "lastSeenTimestamp":         { ".validate": "!newData.exists() || newData.isNumber()" },
-          "lastDisconnectedTimestamp": { ".validate": "!newData.exists() || newData.isNumber()" }
+          "isActive": {
+            ".validate": "newData.isBoolean()"
+          },
+          "lastSeenTimestamp": {
+            ".validate": "!newData.exists() || newData.isNumber()"
+          },
+          "lastDisconnectedTimestamp": {
+            ".validate": "!newData.exists() || newData.isNumber()"
+          }
         },
 
         // ── settings: configurações votadas pela sala ──────────────────
         "settings": {
-          "immediateErrorCheck":     { ".validate": "!newData.exists() || newData.isBoolean()" },
-          "immediateErrorUpdatedAt": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "immediateErrorUpdatedBy": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 128)" }
+          "immediateErrorCheck": {
+            ".validate": "!newData.exists() || newData.isBoolean()"
+          },
+          "immediateErrorUpdatedAt": {
+            ".validate": "!newData.exists() || newData.isNumber()"
+          },
+          "immediateErrorUpdatedBy": {
+            ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 128)"
+          }
         },
 
         // ── colorAssignments: mapa playerId → cor hex ──────────────────
@@ -163,31 +284,49 @@
         },
 
         // ── proposal: votação de novo tabuleiro (efêmera) ──────────────
-        // Removida automaticamente após ~900 ms da conclusão.
+        // Removida automaticamente ~900 ms após a conclusão.
         "proposal": {
-          "$proposalField": { ".validate": true }
+          "$proposalField": {
+            ".validate": true
+          }
         },
 
         // ── featureVote: votação de NASA / erro imediato (efêmera) ─────
-        // Removida automaticamente após ~1700 ms da resolução.
+        // Removida automaticamente ~1700 ms após a resolução.
         "featureVote": {
-          "$featureVoteField": { ".validate": true }
+          "$featureVoteField": {
+            ".validate": true
+          }
         },
 
         // ── privateData: metadados de cliente por jogador ──────────────
-        // Contém user-agent, idioma, fuso horário. Leitura pública mantida
-        // para que o backup de cold storage capture esses dados; uma versão
-        // futura pode restringir a leitura quando autenticação for adicionada.
+        // Contém user-agent, idioma, fuso horário.
+        // Leitura pública mantida para que o cold storage capture esses dados.
+        // Uma versão futura pode restringir quando autenticação for adicionada.
         "privateData": {
           "$player_id": {
             "clientMetadata": {
-              "schemaVersion":      { ".validate": "!newData.exists() || newData.isNumber()" },
-              "capturedAtTimestamp":{ ".validate": "!newData.exists() || newData.isNumber()" },
-              "language":           { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 32)" },
-              "timeZone":           { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)" },
-              "online":             { ".validate": "!newData.exists() || newData.isBoolean()" },
-              "connectionType":     { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)" },
-              "$metaField":         { ".validate": true }
+              "schemaVersion": {
+                ".validate": "!newData.exists() || newData.isNumber()"
+              },
+              "capturedAtTimestamp": {
+                ".validate": "!newData.exists() || newData.isNumber()"
+              },
+              "language": {
+                ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 32)"
+              },
+              "timeZone": {
+                ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 64)"
+              },
+              "online": {
+                ".validate": "!newData.exists() || newData.isBoolean()"
+              },
+              "connectionType": {
+                ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+              },
+              "$metaField": {
+                ".validate": true
+              }
             }
           }
         },
@@ -196,7 +335,11 @@
         // Presente em salas antigas antes da migração para privateData.
         // Mantido permissivo para não bloquear leituras de backups históricos.
         "metrics": {
-          "$player_id": { "$metricField": { ".validate": true } }
+          "$player_id": {
+            "$metricField": {
+              ".validate": true
+            }
+          }
         }
       }
     },
@@ -215,16 +358,21 @@
         ".write": "!data.exists() || newData.exists()",
 
         "$message_id": {
-          // Estrutura mínima obrigatória de uma mensagem.
           ".validate": "newData.hasChildren(['userId', 'action'])",
 
-          "userId": { ".validate": "newData.isString() && newData.val().length <= 128" },
-          "action": { ".validate": "newData.isString() && newData.val().length <= 64" },
+          "userId": {
+            ".validate": "newData.isString() && newData.val().length <= 128"
+          },
+          "action": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
           "text": {
-            // Limite de caracteres para conter spam e proteger cota de largura de banda.
+            // Limite de 250 caracteres para conter spam e proteger cota de largura de banda.
             ".validate": "newData.isString() && newData.val().length <= 250"
           },
-          "$msgOther": { ".validate": true }
+          "$msgOther": {
+            ".validate": true
+          }
         }
       }
     },
@@ -232,8 +380,8 @@
     // ─────────────────────────────────────────────────────────────────
     // /server_meta — metadados de execução dos jobs GAS (backend only)
     // ─────────────────────────────────────────────────────────────────
-    // Escrito exclusivamente pelo GAS via Firebase Secret (sem regras de
-    // cliente). Bloqueio total para leitura e escrita de clientes web.
+    // Escrito exclusivamente pelo GAS via Firebase Secret (Admin SDK / REST).
+    // Bloqueio total para leitura e escrita de clientes web.
     "server_meta": {
       ".read": false,
       ".write": false
@@ -242,8 +390,7 @@
     // ─────────────────────────────────────────────────────────────────
     // /server_config — configuração administrativa (backend only)
     // ─────────────────────────────────────────────────────────────────
-    // Bloqueio total. Operações permitidas exclusivamente via
-    // Firebase Secret (Admin SDK / REST com credencial administrativa).
+    // Bloqueio total. Operações permitidas exclusivamente via Firebase Secret.
     "server_config": {
       ".read": false,
       ".write": false

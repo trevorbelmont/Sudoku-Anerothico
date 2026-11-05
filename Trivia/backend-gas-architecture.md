@@ -49,7 +49,60 @@ Google Sheets (planilha de telemetria)
 
 ---
 
-## 2. Mapa de Nós do Firebase
+## 2. Regras de Segurança do Firebase Realtime Database
+
+### 2.1 Arquivo de regras
+
+As regras vivem em `backend/config/database.rules.json`. O arquivo usa
+JSONC (JSON com comentários `//`), que o console do Firebase aceita nativamente.
+
+Para publicar: copie o conteúdo do arquivo e cole em
+**Firebase Console → Realtime Database → Rules → Publish**.
+
+### 2.2 Política de comentários (clean-code)
+
+Comentários ficam **sempre na linha acima** do código que descrevem.
+Nunca na mesma linha que o código. Isso permite apagar um bloco de
+comentário selecionando a linha inteira sem tocar no código adjacente.
+
+### 2.3 Bug histórico — `.validate` na raiz de `$room_id` (resolvido em nov/2026)
+
+**Sintoma:** clientes recebiam `PERMISSION_DENIED` ao tentar criar ou
+atualizar salas, mesmo com `.write: true` declarado em `$room_id`.
+
+**Causa:** havia um `.validate` na raiz do nó `$room_id` exigindo a
+presença simultânea de `updatedAt`, `boardState` e `meta`:
+
+```json
+"$room_id": {
+  ".write": true,
+  ".validate": "newData.hasChildren(['updatedAt', 'boardState', 'meta'])"
+}
+```
+
+O Firebase avalia o `.validate` do nó **pai** em toda escrita em qualquer
+nó **filho**. Ou seja, ao gravar isoladamente em
+`rooms/$roomId/boardState` (ex: `publishRoomBoardCell`) ou em
+`rooms/$roomId/presence` (ex: `registerRoomPresence`), o Firebase
+avaliava o validate do pai `$room_id` e o reprovava porque `updatedAt`
+e `meta` não chegavam naquele mesmo write.
+
+O padrão de escrita do cliente usa múltiplos `fb.set` em subnós
+separados (e `fb.update` multi-path para jogadas individuais),
+**não** um único `fb.set` atômico na raiz da sala. O validate da raiz
+é incompatível com esse padrão.
+
+**Correção:** o `.validate` foi removido da raiz de `$room_id`.
+A validação estrutural de cada campo já existe nos próprios subnós
+(`boardState`, `meta`, `moves`, etc.) e é suficiente.
+
+**Regra para futuras implementações:** não adicione `.validate` de
+estrutura na raiz de `$room_id` (nem em qualquer nó pai cujos filhos
+sejam escritos de forma independente pelo cliente).
+
+---
+
+## 3. Mapa de Nós do Firebase (Gameplay)
 
 ```
 /
@@ -101,12 +154,12 @@ Google Sheets (planilha de telemetria)
 
 ---
 
-## 3. Como Atualizar Só o Firebase (sem push de código)
+## 4. Como Atualizar Só o Firebase (sem push de código)
 
 Use a REST API do Firebase Realtime Database diretamente. Substitua
 `<FIREBASE_URL>` e `<FIREBASE_SECRET>` pelos valores reais.
 
-### 3.1 Apagar um nó (forçar fallback)
+### 4.1 Apagar um nó (forçar fallback)
 
 ```powershell
 # Apagar jobs_orchestrator.json (força releitura do GitHub)
@@ -120,7 +173,7 @@ Invoke-RestMethod `
   -Uri "<FIREBASE_URL>/server_config/but_ignore.json?auth=<FIREBASE_SECRET>"
 ```
 
-### 3.2 Gravar config diretamente (sem depender do fallback)
+### 4.2 Gravar config diretamente (sem depender do fallback)
 
 ```powershell
 # Ler o JSON local e enviar diretamente ao Firebase
@@ -150,7 +203,7 @@ Invoke-RestMethod `
   -Body $payload
 ```
 
-### 3.3 Ler o estado atual de um nó
+### 4.3 Ler o estado atual de um nó
 
 ```powershell
 Invoke-RestMethod `
@@ -159,7 +212,7 @@ Invoke-RestMethod `
 
 ---
 
-## 4. Como Atualizar Firebase + Fallback (push de código + reset)
+## 5. Como Atualizar Firebase + Fallback (push de código + reset)
 
 Fluxo completo recomendado quando você muda `jobs-orchestrator.json`
 ou `.butIgnore` e quer garantir que o Firebase reflita a versão nova:
@@ -182,7 +235,7 @@ ou `.butIgnore` e quer garantir que o Firebase reflita a versão nova:
 
 ---
 
-## 5. Endpoint REST do Web App GAS
+## 6. Endpoint REST do Web App GAS
 
 O GAS expõe um único `doPost` com roteamento por `action`. Todas as
 chamadas exigem o `CRON_TOKEN` no body JSON.
@@ -220,7 +273,7 @@ painel de administração local sem expor o token diretamente no frontend.
 
 ---
 
-## 6. Lógica Anti-Duplicata do Cold Storage
+## 7. Lógica Anti-Duplicata do Cold Storage
 
 Resumo de como o job evita rearquivar dados já processados:
 
@@ -237,7 +290,7 @@ Resumo de como o job evita rearquivar dados já processados:
 
 ---
 
-## 7. Reinstalar o Trigger (mudar o heartbeat)
+## 8. Reinstalar o Trigger (mudar o heartbeat)
 
 O trigger temporal é instalado **uma única vez** pelo editor GAS
 (`installMasterTrigger()`). Para mudar a cadência:
