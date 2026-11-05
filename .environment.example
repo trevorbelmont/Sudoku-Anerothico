@@ -21,10 +21,14 @@ GITHUB_JOBS_CONFIG_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/
 GITHUB_BUTIGNORE_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/.butIgnore
 
 # ── Telemetria (Google Sheets) ────────────────────────────────────────────────
-# Defina LOG_SHEET_ID como NULL na primeira execução: o script cria a planilha
-# automaticamente e substitui este valor pelo ID real gerado.
-# Após a criação, atualize aqui com o ID real para manter sincronizado.
-LOG_SHEET_ID=NULL
+# LOG_SHEET_ID é OPCIONAL:
+#   - Em branco/ausente: o GAS recupera a última planilha usada do Firebase
+#     (ground of truth); só cria uma nova como last resort. Uso normal — não
+#     precisa atualizar aqui após a primeira criação.
+#   - "NULL": comando humano que força a criação de uma planilha nova do zero
+#     (útil para arquivar a velha e iniciar um ciclo novo de telemetria).
+#   - <ID real>: fixa uma planilha específica (ignora o Firebase).
+LOG_SHEET_ID=
 
 # Opcional: ID da pasta no Drive onde a planilha de telemetria será criada.
 # Deixe em branco ou remova a linha para usar a raiz do Drive.

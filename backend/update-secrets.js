@@ -36,8 +36,9 @@
  *     SCRIPT_ID, CRON_TOKEN, FIREBASE_URL, FIREBASE_SECRET,
  *     GITHUB_JOBS_CONFIG_URL, GITHUB_BUTIGNORE_URL, DRIVE_FOLDER_ID
  *   Especiais/Opcionais:
- *     LOG_SHEET_ID        — obrigatória na lógica do GAS; aceita "NULL"
- *                           como valor válido para auto-provisionamento.
+ *     LOG_SHEET_ID        — opcional; vazio = o GAS recupera a última planilha
+ *                           do Firebase (last resort: cria nova). "NULL" = força
+ *                           a criação de uma planilha nova do zero.
  *     LOG_SHEET_FOLDER_ID — opcional; pode ser vazia ou omitida.
  *
  * SEGURANÇA:
@@ -76,8 +77,9 @@ const REQUIRED_KEYS = [
 ];
 
 /**
- * LOG_SHEET_ID — obrigatória na lógica do GAS, mas aceita "NULL" como
- * valor válido para auto-provisionamento da planilha de telemetria.
+ * LOG_SHEET_ID — opcional. Vazio = o GAS recupera a última planilha usada
+ * do Firebase (last resort: cria nova). "NULL" = força a criação de uma
+ * planilha nova do zero (comando humano para arquivar a velha / novo ciclo).
  */
 const LOG_SHEET_ID_KEY = 'LOG_SHEET_ID';
 
@@ -209,13 +211,11 @@ function ask(rl, prompt) {
  * @returns {Promise<Object>} — { CHAVE: valor } das chaves preenchidas
  */
 async function promptMissingSecrets(env) {
-  // Coleta todas as chaves obrigatórias que estão vazias ou ausentes
+  // Coleta todas as chaves obrigatórias que estão vazias ou ausentes.
+  // LOG_SHEET_ID é OPCIONAL (vazio = o GAS recupera do Firebase), então não
+  // entra no prompt interativo. "NULL", se informado no .environment, flui
+  // direto (força criação de planilha nova).
   const missing = REQUIRED_KEYS.filter(k => isMissing(env, k));
-
-  // LOG_SHEET_ID: obrigatória na lógica do GAS, aceita "NULL"
-  if (isMissing(env, LOG_SHEET_ID_KEY)) {
-    missing.push(LOG_SHEET_ID_KEY);
-  }
 
   if (missing.length === 0) return {};
 
@@ -288,10 +288,8 @@ async function main() {
   }
 
   // ── 5. Validação final — todas as obrigatórias devem estar preenchidas ────────
+  // (LOG_SHEET_ID é opcional: vazio = recover do Firebase, não falha aqui.)
   const stillMissing = REQUIRED_KEYS.filter(k => isMissing(env, k));
-  if (isMissing(env, LOG_SHEET_ID_KEY)) {
-    stillMissing.push(LOG_SHEET_ID_KEY);
-  }
   if (stillMissing.length > 0) {
     console.error('\n❌ As seguintes secrets ainda estão vazias:', stillMissing.join(', '));
     console.error('   Preencha-as no .environment e tente novamente.');

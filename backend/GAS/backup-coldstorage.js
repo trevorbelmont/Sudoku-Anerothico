@@ -57,6 +57,11 @@ var TELEMETRY_HEADERS = [
   'Items_Processed', 'Bytes_Down', 'Bytes_Drive', 'Target', 'Errors', 'Notes'
 ];
 
+// Resolução da planilha de telemetria (Properties → Cache → Firebase → provisiona nova)
+var LOG_SHEET_ID_CACHE_KEY = 'logSheetId_v1';
+var LOG_SHEET_ID_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — segura as pontas se o Properties sumir
+var SERVER_CONFIG_LOG_SHEET_PATH = '/server_config/log_sheet_id.json';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Ponto de entrada público: modo standalone e compatibilidade legacy
 // ─────────────────────────────────────────────────────────────────────────────
@@ -750,25 +755,16 @@ function persistColdStorageMeta(props, metrics, invocation) {
  * @param {Array}  rows    array de JobMetrics
  */
 function appendTelemetryRow(props, config, rows) {
-  var sheetId = props.getProperty('LOG_SHEET_ID');
   var timezone = (config && config.system && config.system.timezone) || 'America/Sao_Paulo';
   var spreadsheetName = (config && config.telemetry && config.telemetry.spreadsheet_name) ||
     'Sudoku Aneróthico PRÓ - Jobs Telemetry';
   var sheetName = (config && config.telemetry && config.telemetry.sheet_name) || 'JobsTelemetry';
 
-  if (!sheetId || sheetId.trim() === '') {
-    throw new Error(
-      'LOG_SHEET_ID não configurada. Configure como "NULL" para provisionar automaticamente ' +
-      'ou com um ID de planilha existente.'
-    );
-  }
-
-  var ss;
-  if (sheetId.trim().toUpperCase() === 'NULL') {
-    ss = provisionNewSpreadsheet(props, spreadsheetName, sheetName);
-  } else {
-    ss = SpreadsheetApp.openById(sheetId.trim());
-  }
+  // Resolve a planilha de telemetria com fallback em camadas:
+  //   Properties LOG_SHEET_ID → CacheService → Firebase (ground of truth) → provisiona nova.
+  //   "NULL"  = comando humano forçando planilha nova (arquivar a velha / novo ciclo).
+  //   ausente = máquina: recupera a última usada; só cria nova como last resort.
+  var ss = resolveTelemetrySpreadsheet(props, spreadsheetName, sheetName);
 
   var sheet = getOrCreateSheet(ss, sheetName);
   validateOrInitSheetHeader(sheet);
@@ -826,6 +822,9 @@ function provisionNewSpreadsheet(props, spreadsheetName, sheetName) {
   var newId = ss.getId();
   // Persistir o ID IMEDIATAMENTE antes de qualquer outra operação
   props.setProperty('LOG_SHEET_ID', newId);
+  // Registra o novo ID nas fontes de fallback (Cache + Firebase ground of truth),
+  // para que futuras execuções (mesmo sem o Properties) encontrem esta planilha.
+  recordLogSheetIdFallbackSources(props, newId);
 
   var folderIdProp = props.getProperty('LOG_SHEET_FOLDER_ID');
   if (folderIdProp && folderIdProp.trim() && folderIdProp.trim().toUpperCase() !== 'NULL') {
@@ -843,6 +842,106 @@ function provisionNewSpreadsheet(props, spreadsheetName, sheetName) {
   firstSheet.setName(sheetName);
   initSheetHeader(firstSheet);
   return ss;
+}
+
+/**
+ * Resolve a planilha de telemetria com fallback em camadas:
+ *   Properties LOG_SHEET_ID → CacheService → Firebase (ground of truth) → provisiona nova.
+ *   "NULL"  = comando humano forçando planilha nova (arquivar a velha / novo ciclo).
+ *   ausente = máquina: recupera a última usada; só cria nova como last resort.
+ */
+function resolveTelemetrySpreadsheet(props, spreadsheetName, sheetName) {
+  var sheetId = props.getProperty('LOG_SHEET_ID');
+
+  // (1) "NULL" explícito = comando humano forçando planilha nova do zero
+  if (sheetId && sheetId.trim().toUpperCase() === 'NULL') {
+    return provisionNewSpreadsheet(props, spreadsheetName, sheetName);
+  }
+
+  // (2) ID real no Properties → tenta abrir
+  if (sheetId && sheetId.trim() !== '') {
+    try {
+      return SpreadsheetApp.openById(sheetId.trim());
+    } catch (e) {
+      console.warn('LOG_SHEET_ID do Properties inacessível (' + sanitizeError(e) + '); tentando recuperar via fallback.');
+    }
+  }
+
+  // (3) Properties ausente/vazio (ou ID que não abriu) → CacheService → Firebase
+  var cache = CacheService.getScriptCache();
+  var recoveredId = null;
+  try { recoveredId = cache.get(LOG_SHEET_ID_CACHE_KEY); } catch (_) {}
+
+  if (!recoveredId) {
+    // Cache miss → Firebase (ground of truth). Payload microscópico: só a string do ID.
+    recoveredId = readLogSheetIdFromFirebase(props);
+    if (recoveredId) {
+      try { cache.put(LOG_SHEET_ID_CACHE_KEY, recoveredId, Math.floor(LOG_SHEET_ID_CACHE_TTL_MS / 1000)); } catch (_) {}
+    }
+  }
+
+  if (recoveredId) {
+    try {
+      var ss = SpreadsheetApp.openById(recoveredId);
+      // Re-hidrata o Properties: próximas execuções usam o Properties direto, sem rede.
+      try { props.setProperty('LOG_SHEET_ID', recoveredId); } catch (_) {}
+      return ss;
+    } catch (e) {
+      console.warn('LOG_SHEET_ID recuperado (' + recoveredId + ') inacessível: ' + sanitizeError(e) + '. Provisionando nova como último recurso.');
+    }
+  }
+
+  // (4) Last resort: nenhuma fonte válida → cria nova e registra em todos os níveis
+  return provisionNewSpreadsheet(props, spreadsheetName, sheetName);
+}
+
+/** Lê o ID da planilha do Firebase (server_config/log_sheet_id.json). Retorna string ou null. */
+function readLogSheetIdFromFirebase(props) {
+  var dbUrl = normalizeFirebaseUrl(props.getProperty('FIREBASE_URL'));
+  var secret = props.getProperty('FIREBASE_SECRET');
+  if (!dbUrl || !secret) return null;
+  try {
+    var resp = UrlFetchApp.fetch(
+      dbUrl + SERVER_CONFIG_LOG_SHEET_PATH + '?auth=' + secret,
+      { method: 'GET', muteHttpExceptions: true }
+    );
+    if (resp.getResponseCode() !== 200) return null;
+    var data = resp.getContentText('UTF-8');
+    if (!data || data === 'null') return null;
+    // O nó guarda APENAS a string do ID (payload microscópico).
+    var parsed = JSON.parse(data);
+    return (typeof parsed === 'string' && parsed.trim() !== '') ? parsed.trim() : null;
+  } catch (e) {
+    console.warn('Falha ao ler log_sheet_id do Firebase:', sanitizeError(e));
+    return null;
+  }
+}
+
+/** Grava o ID da planilha no Firebase (auto-seed) — payload microscópico: só a string. */
+function writeLogSheetIdToFirebase(props, sheetId) {
+  var dbUrl = normalizeFirebaseUrl(props.getProperty('FIREBASE_URL'));
+  var secret = props.getProperty('FIREBASE_SECRET');
+  if (!dbUrl || !secret) return;
+  try {
+    UrlFetchApp.fetch(
+      dbUrl + SERVER_CONFIG_LOG_SHEET_PATH + '?auth=' + secret,
+      {
+        method: 'PUT',
+        contentType: 'application/json',
+        payload: JSON.stringify(sheetId),
+        muteHttpExceptions: true
+      }
+    );
+  } catch (e) {
+    console.warn('Falha ao gravar log_sheet_id no Firebase:', sanitizeError(e));
+  }
+}
+
+/** Registra o ID nas fontes de fallback (Cache + Firebase). Chamado após provisionar nova. */
+function recordLogSheetIdFallbackSources(props, sheetId) {
+  var cache = CacheService.getScriptCache();
+  try { cache.put(LOG_SHEET_ID_CACHE_KEY, sheetId, Math.floor(LOG_SHEET_ID_CACHE_TTL_MS / 1000)); } catch (_) {}
+  writeLogSheetIdToFirebase(props, sheetId);
 }
 
 function getOrCreateSheet(ss, sheetName) {

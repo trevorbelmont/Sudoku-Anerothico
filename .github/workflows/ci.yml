@@ -1,4 +1,4 @@
-name: Sudoku CI/CD - Testes Automatizados
+name: Sudoku CI - Testes Automatizados
 
 # Define quando rodar
 on:
@@ -22,7 +22,8 @@ jobs:
           node-version: '20' # Versão do Node.js
       
       - name: Verificar Sintaxe (Gramática JS)
-        run: find js -name '*.js' -exec node --check {} \;
+        # Inclui backend/GAS (node --check valida a sintaxe dos scripts do Apps Script).
+        run: find js backend/GAS -name '*.js' -exec node --check {} \;
 
       - name: Instalar Dependências
         working-directory: ./tests
