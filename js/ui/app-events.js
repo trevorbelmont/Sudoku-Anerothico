@@ -369,7 +369,9 @@ function initEventListeners() {
             if (!name) name = 'Anônimo';
             let room = document.getElementById('multiplayer-room-input').value.trim();
             if (!room) { showToast('Digite o nome/ID da sala para entrar.', 'warn'); return; }
-            room = room.replace(/[\.#\$\[\]/]/g, '_');
+            room = room
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[\.#\$\[\]/\s]/g, '_');
             try { localStorage.setItem(APP_CONFIG.STORAGE.MP_PLAYER_NAME, name); } catch (_) {}
             joinRoom(room, name);
         });

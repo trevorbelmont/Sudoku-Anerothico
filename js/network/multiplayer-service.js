@@ -936,7 +936,9 @@ function getFirebaseAPI() {
               crypto.getRandomValues(bytes);
               roomId = Array.from(bytes, b => b.toString(36).padStart(2, '0')).join('').toUpperCase().slice(0, 8);
           } else {
-              roomId = roomId.replace(/[.#$\[\]/]/g, '_');
+              roomId = roomId
+                  .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+                  .replace(/[.#$\[\]/\s]/g, '_');                   // proibidos Firebase + espaços
               // Nome personalizado: verifica se a sala já existe e se está protegida.
               showToast('Verificando sala...', 'info');
               const status = await checkRoomStatus(roomId);
