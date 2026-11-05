@@ -104,15 +104,13 @@ function executeColdStorageRooms(isOrchestrated, customOptions) {
     var invocation = customOptions.invocation || 'MANUAL_SOLO';
 
     if (!config) {
-      var configUrl = props.getProperty('GITHUB_JOBS_CONFIG_URL');
-      if (!configUrl) throw new Error('Script Property GITHUB_JOBS_CONFIG_URL não configurada.');
-      config = loadAndValidateConfig(configUrl);
+      // Configuração via Firebase-first (fallback GitHub) — ver loadAndValidateConfig().
+      config = loadAndValidateConfig();
     }
 
     if (!butIgnoreRules) {
-      var butIgnoreUrl = props.getProperty('GITHUB_BUTIGNORE_URL');
-      if (!butIgnoreUrl) throw new Error('Script Property GITHUB_BUTIGNORE_URL não configurada.');
-      butIgnoreRules = loadAndParseButIgnore(butIgnoreUrl, COLDSTORAGE_JOB_ID);
+      // Regras via Firebase-first (fallback GitHub) — ver loadAndParseButIgnore().
+      butIgnoreRules = loadAndParseButIgnore(COLDSTORAGE_JOB_ID);
     }
 
     // ── 3. Executar núcleo de backup ──────────────────────────────────────
@@ -148,8 +146,9 @@ function executeColdStorageRooms(isOrchestrated, customOptions) {
         var propsForSheet = PropertiesService.getScriptProperties();
         var cfgForSheet = null;
         try {
-          var cfgUrl2 = propsForSheet.getProperty('GITHUB_JOBS_CONFIG_URL');
-          if (cfgUrl2) cfgForSheet = loadAndValidateConfig(cfgUrl2);
+          // Firebase-first: se ambas as fontes falharem, cfgForSheet fica null e a
+          // telemetria usa defaults (timezone/nome da planilha).
+          cfgForSheet = loadAndValidateConfig();
         } catch (_) {}
         appendTelemetryRow(propsForSheet, cfgForSheet, [failedMetrics]);
       } catch (sheetErr) {
@@ -452,48 +451,115 @@ function filterObjectByRules(obj, currentPath, rules) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Faz download do .butIgnore e retorna as regras compiladas como RegExp[].
- * Usa CacheService com TTL. Lança exceção se não houver fonte válida.
+ * Carrega e compila as regras do .butIgnore como RegExp[].
+ *
+ * Estratégia de fonte da verdade com fallback (igual à loadAndValidateConfig):
+ *   1. Tenta ler do Firebase Realtime Database (server_config/but_ignore.json)
+ *      — fonte da verdade.
+ *   2. Em caso de falha ou nó inexistente, cai para o GitHub Raw
+ *      (Script Property GITHUB_BUTIGNORE_URL) como repositório padrão.
+ *   3. Se usou o fallback, reescreve (seed) o nó no Firebase (auto-seed).
+ *   4. Tudo é memoizado em CacheService (TTL de BUTIGNORE_CACHE_TTL_MS).
+ *
+ * NÃO recebe mais a URL por parâmetro — lê todas as fontes das Script Properties.
+ * Embute a flag _usedFallback no array retornado (arrays são objetos em JS; a
+ * iteração nas regras permanece inalterada para todos os consumidores).
  * NUNCA usa regras vazias como fallback silencioso.
  *
- * @param {string} url       URL Raw do .butIgnore
  * @param {string} sectionId Seção a carregar além das globais
- * @returns {RegExp[]}
+ * @returns {RegExp[]} regras compiladas (com _usedFallback anexado se aplicável)
  */
-function loadAndParseButIgnore(url, sectionId) {
+function loadAndParseButIgnore(sectionId) {
   var cache = CacheService.getScriptCache();
+  var props = PropertiesService.getScriptProperties();
   var cacheKey = BUTIGNORE_CACHE_KEY + '_' + (sectionId || 'global');
-  var freshText = null;
 
-  try {
-    var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (response.getResponseCode() === 200) {
-      freshText = response.getContentText('UTF-8');
-    }
-  } catch (fetchErr) {
-    console.warn('Falha ao baixar .butIgnore:', sanitizeError(fetchErr));
+  // Tenta ler do cache primeiro
+  var cachedText = null;
+  try { cachedText = cache.get(cacheKey + '_raw'); } catch (_) {}
+
+  if (cachedText) {
+    return parseButIgnoreText(cachedText, sectionId);
   }
 
-  if (freshText !== null) {
+  var dbUrl = normalizeFirebaseUrl(props.getProperty('FIREBASE_URL'));
+  var secret = props.getProperty('FIREBASE_SECRET');
+  var fallbackUrl = props.getProperty('GITHUB_BUTIGNORE_URL');
+
+  var butIgnoreText = null;
+  var usedFallback = false;
+
+  // 1. TENTA LER DO FIREBASE PRIMEIRO (Fonte da Verdade)
+  if (dbUrl && secret) {
     try {
-      cache.put(cacheKey + '_raw', freshText, Math.floor(BUTIGNORE_CACHE_TTL_MS / 1000));
-    } catch (_) {}
-    return parseButIgnoreText(freshText, sectionId);
+      var fbResp = UrlFetchApp.fetch(
+        dbUrl + '/server_config/but_ignore.json?auth=' + secret,
+        { muteHttpExceptions: true }
+      );
+      if (fbResp.getResponseCode() === 200) {
+        var fbData = fbResp.getContentText('UTF-8');
+        // Firebase retorna "null" em string se o nó não existir
+        if (fbData && fbData !== "null") {
+          butIgnoreText = fbData;
+        }
+      }
+    } catch (e) {
+      console.warn('Falha ao ler .butIgnore do Firebase:', sanitizeError(e));
+    }
   }
 
-  // Fallback: cache válido
-  var cached = null;
-  try { cached = cache.get(cacheKey + '_raw'); } catch (_) {}
-  if (cached) {
-    console.warn('.butIgnore: usando cache válido após falha de rede.');
-    return parseButIgnoreText(cached, sectionId);
+  // 2. FALLBACK PARA O GITHUB
+  if (!butIgnoreText && fallbackUrl) {
+    try {
+      var ghResp = UrlFetchApp.fetch(fallbackUrl, { muteHttpExceptions: true });
+      if (ghResp.getResponseCode() === 200) {
+        butIgnoreText = ghResp.getContentText('UTF-8');
+        usedFallback = true;
+      }
+    } catch (e) {
+      console.warn('Falha ao ler .butIgnore do GitHub:', sanitizeError(e));
+    }
   }
 
-  // Sem fonte válida nem cache: aborta — falha segura
-  throw new Error(
-    'Não foi possível obter .butIgnore (falha de rede + cache expirado/ausente). ' +
-    'Backup abortado para não executar sem filtros de exclusão.'
-  );
+  if (!butIgnoreText) {
+    // Sem fonte válida: aborta — falha segura (nunca roda backup sem filtros)
+    throw new Error(
+      'Não foi possível obter .butIgnore (Firebase e GitHub falharam). ' +
+      'Backup abortado para não executar sem filtros de exclusão.'
+    );
+  }
+
+  // 3. SE USOU O FALLBACK, SEMEAR O FIREBASE PARA EVITAR NOVA FALHA
+  if (usedFallback && dbUrl && secret) {
+    try {
+      UrlFetchApp.fetch(
+        dbUrl + '/server_config/but_ignore.json?auth=' + secret,
+        {
+          method: 'PUT',
+          contentType: 'application/json',
+          payload: butIgnoreText,
+          muteHttpExceptions: true
+        }
+      );
+      console.warn('Aviso: Regras butIgnore restauradas do repositório padrão (Fallback).');
+    } catch (e) {
+      console.warn('Falha ao reescrever .butIgnore no Firebase:', sanitizeError(e));
+    }
+  }
+
+  // Grava no cache e compila as regras
+  try { cache.put(cacheKey + '_raw', butIgnoreText, Math.floor(BUTIGNORE_CACHE_TTL_MS / 1000)); } catch (_) {}
+
+  var rules = parseButIgnoreText(butIgnoreText, sectionId);
+
+  // Embute a flag no array para que o chamador (runMasterCore) saiba que rolou
+  // um fallback e adicione aos notes. Arrays são objetos: a propriedade não
+  // interfere na iteração das regras pelos consumidores (applyButIgnoreFilter etc.).
+  if (usedFallback) {
+    rules._usedFallback = true;
+  }
+
+  return rules;
 }
 
 /**
@@ -721,11 +787,35 @@ function appendTelemetryRow(props, config, rows) {
       applyRowFormatting(sheet, nextRow + i, rows[i], config);
     }
 
-    // Freeze primeira linha e wrap em coluna K
+    // Freeze primeira linha
     try {
       if (sheet.getFrozenRows() < 1) sheet.setFrozenRows(1);
-      sheet.getRange(nextRow, 11, rows.length, 1).setWrap(true);
     } catch (_) {}
+
+    // Bracket de ciclo: borda superior do Master + borda inferior do último job
+    // do batch, com a MESMA identidade (visual_theme.job_styles[master].border_top).
+    // Só aplica quando o primeiro row é o Master (flush orquestrado). Configurável
+    // no JSON/Firebase — sem bordas chumbadas no código. A borda inferior por-job
+    // (separador claro) é aplicada por applyRowFormatting; este bracket sobrepõe
+    // o fundo do último row do batch para fechar o ciclo visualmente.
+    try {
+      var firstIsMaster = rows.length > 0 && rows[0].jobId === MASTER_JOB_ID;
+      var masterStyle = (config && config.visual_theme && config.visual_theme.job_styles)
+        ? config.visual_theme.job_styles[MASTER_JOB_ID] : null;
+      if (firstIsMaster && masterStyle && masterStyle.border_top) {
+        var bt = masterStyle.border_top;
+        var bColor = bt.color || null;
+        var bStyle = bt.style ? SpreadsheetApp.BorderStyle[bt.style] : null;
+        // Topo do Master = início do ciclo
+        sheet.getRange(nextRow, 1, 1, TELEMETRY_HEADERS.length)
+             .setBorder(true, null, null, null, null, null, bColor, bStyle);
+        // Fundo do último job do batch = fim do ciclo (mesma identidade)
+        sheet.getRange(nextRow + rows.length - 1, 1, 1, TELEMETRY_HEADERS.length)
+             .setBorder(null, null, true, null, null, null, bColor, bStyle);
+      }
+    } catch (e) {
+      console.warn('Falha ao aplicar bordas de ciclo:', sanitizeError(e));
+    }
   } finally {
     sheetLock.releaseLock();
   }
@@ -854,6 +944,17 @@ function applyRowFormatting(sheet, rowIndex, metrics, config) {
       var cellJ = sheet.getRange(rowIndex, 10);
       if (errorColStyle.bg) cellJ.setBackground(errorColStyle.bg);
       if (errorColStyle.fg) cellJ.setFontColor(errorColStyle.fg);
+    }
+
+    // Borda inferior por-job (separador entre linhas) — vinda do JSON/Firebase.
+    // O bracket de ciclo (topo do Master / fundo do último job) é aplicado em
+    // appendTelemetryRow e sobrepõe o fundo do último row do batch.
+    if (jobStyle.border_bottom) {
+      var bbColor = jobStyle.border_bottom.color || null;
+      var bbStyle = jobStyle.border_bottom.style
+        ? SpreadsheetApp.BorderStyle[jobStyle.border_bottom.style]
+        : null;
+      rowRange.setBorder(null, null, true, null, null, null, bbColor, bbStyle);
     }
   } catch (e) {
     console.warn('Falha ao aplicar formatação na linha ' + rowIndex + ':', sanitizeError(e));

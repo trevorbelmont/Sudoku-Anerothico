@@ -87,13 +87,16 @@
         "label": "MASTER_ORCHESTRATOR",
         "row_background": "#1e293b",
         "row_font_color": "#f8fafc",
-        "job_id_cell": { "bg": "#0f172a", "fg": "#38bdf8" }
+        "job_id_cell": { "bg": "#0f172a", "fg": "#38bdf8" },
+        "border_top": { "color": "#000000", "style": "SOLID_MEDIUM" },
+        "border_bottom": { "color": "#cbd5e1", "style": "SOLID" }
       },
       "coldstorage_rooms": {
         "label": "COLDSTORAGE_ROOMS",
         "row_background": "#ffffff",
         "row_font_color": "#0f172a",
-        "job_id_cell": { "bg": "#f1f5f9", "fg": "#0284c7" }
+        "job_id_cell": { "bg": "#f1f5f9", "fg": "#0284c7" },
+        "border_bottom": { "color": "#cbd5e1", "style": "SOLID" }
       },
       "coldstorage_chats": {
         "label": "COLDSTORAGE_CHATS",
@@ -111,7 +114,8 @@
         "label": "GENERIC_JOB",
         "row_background": "#ffffff",
         "row_font_color": "#000000",
-        "job_id_cell": { "bg": "#e2e8f0", "fg": "#334155" }
+        "job_id_cell": { "bg": "#e2e8f0", "fg": "#334155" },
+        "border_bottom": { "color": "#cbd5e1", "style": "SOLID" }
       }
     },
     "status_cells": {

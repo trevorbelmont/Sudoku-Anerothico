@@ -180,15 +180,20 @@ function runMasterCore(invocation) {
   try {
     var props = PropertiesService.getScriptProperties();
 
-    // ── 1. Carregar e validar configuração ─────────────────────────────
-    var configUrl = props.getProperty('GITHUB_JOBS_CONFIG_URL');
-    if (!configUrl) throw new Error('Script Property GITHUB_JOBS_CONFIG_URL não configurada.');
-    var config = loadAndValidateConfig(configUrl);
+    // ── 1. Carregar e validar configuração (Firebase → fallback GitHub) ──
+    var config = loadAndValidateConfig();
+    // A nota de fallback só é anexada às métricas no passo 5 (após o reset de
+    // masterMetrics.notes), porque o notes é zerado no início do loop de jobs.
+    var configFallbackNote = config._usedFallback
+      ? '\nAviso: Configurações restauradas do repositório padrão (Fallback).'
+      : '';
 
-    // ── 2. Carregar .butIgnore para coldstorage_rooms (evita download duplo) ──
-    var butIgnoreUrl = props.getProperty('GITHUB_BUTIGNORE_URL');
-    if (!butIgnoreUrl) throw new Error('Script Property GITHUB_BUTIGNORE_URL não configurada.');
-    var coldStorageRules = loadAndParseButIgnore(butIgnoreUrl, 'coldstorage_rooms');
+    // ── 2. Carregar .butIgnore para coldstorage_rooms (Firebase → fallback GitHub) ──
+    var coldStorageRules = loadAndParseButIgnore('coldstorage_rooms');
+    // Mesma estratégia da config: a nota de fallback só é anexada no passo 5.
+    var butIgnoreFallbackNote = coldStorageRules._usedFallback
+      ? '\nAviso: Regras butIgnore restauradas do repositório padrão (Fallback).'
+      : '';
 
     // ── 3. Ler estado anterior do Firebase ──────────────────────────────
     var serverMeta = readServerMeta(props);
@@ -280,7 +285,7 @@ function runMasterCore(invocation) {
     masterMetrics.notes = formatInvocationLabel(invocation) +
       '\nJobs despachados: ' + (invokedJobs.length ? invokedJobs.join(', ') : 'nenhum') +
       ' | Total avaliados: ' + jobIds.length +
-      masterMetrics.notes;
+      masterMetrics.notes + configFallbackNote + butIgnoreFallbackNote;
 
     // ── 6. Flush em lote (Master primeiro, jobs depois) ───────────────
     var allRows = [masterMetrics].concat(allJobMetrics);
@@ -518,11 +523,8 @@ function readServerMeta(props) {
  */
 function installMasterTrigger() {
   var props = PropertiesService.getScriptProperties();
-  var configUrl = props.getProperty('GITHUB_JOBS_CONFIG_URL');
-  if (!configUrl) {
-    throw new Error('GITHUB_JOBS_CONFIG_URL não configurada. Configure antes de instalar o trigger.');
-  }
-  var config = loadAndValidateConfig(configUrl);
+  // Configuração via Firebase-first (fallback GitHub) — ver loadAndValidateConfig().
+  var config = loadAndValidateConfig();
   var heartbeat = config.system.scheduling.heartbeat_interval;
   var timezone = config.system.timezone || 'America/Sao_Paulo';
   var triggerSpec = parseTriggerSpec(heartbeat);
@@ -644,13 +646,9 @@ function parseTriggerSpec(duration) {
  */
 function reinstallMasterTrigger() {
   var props = PropertiesService.getScriptProperties();
-  var configUrl = props.getProperty('GITHUB_JOBS_CONFIG_URL');
-  if (!configUrl) {
-    throw new Error('GITHUB_JOBS_CONFIG_URL não configurada. Impossível ler heartbeat do JSON.');
-  }
 
-  // 1. Carregar configuração (usa cache de 2h; força fetch fresco quando possível)
-  var config = loadAndValidateConfig(configUrl);
+  // 1. Carregar configuração (Firebase-first; cache de 2h; fallback GitHub)
+  var config = loadAndValidateConfig();
   var heartbeat = config.system.scheduling.heartbeat_interval;
   var timezone = config.system.timezone || 'America/Sao_Paulo';
   var triggerSpec = parseTriggerSpec(heartbeat);
@@ -750,35 +748,112 @@ function parseIso8601Duration(duration) {
 }
 
 /**
- * Carrega e valida backend/config/jobs-orchestrator.json via URL Raw.
- * Usa CacheService com TTL de 2 horas. Lança exceção se não houver fonte válida.
+ * Carrega e valida backend/config/jobs-orchestrator.json.
+ *
+ * Estratégia de fonte da verdade com fallback:
+ *   1. Tenta ler do Firebase Realtime Database (server_config/jobs_orchestrator.json)
+ *      — esta é a fonte da verdade.
+ *   2. Em caso de falha ou nó inexistente, cai para o GitHub Raw
+ *      (Script Property GITHUB_JOBS_CONFIG_URL) como repositório padrão.
+ *   3. Se usou o fallback, reescreve (seed) o nó no Firebase para que a próxima
+ *      leitura já venha da fonte da verdade.
+ *   4. Tudo é memoizado em CacheService (TTL de CONFIG_CACHE_TTL_MS).
+ *
+ * Não recebe mais a URL por parâmetro — lê todas as fontes das Script Properties.
+ * Embute a flag _usedFallback no objeto retornado para que o chamador possa
+ * registrar o aviso na telemetria.
+ *
+ * @returns {Object} configuração validada
  */
-function loadAndValidateConfig(url) {
+function loadAndValidateConfig() {
   var cache = CacheService.getScriptCache();
-  var freshText = null;
+  var props = PropertiesService.getScriptProperties();
 
-  try {
-    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (resp.getResponseCode() === 200) {
-      freshText = resp.getContentText('UTF-8');
-    }
-  } catch (fetchErr) {
-    console.warn('Falha ao baixar jobs-orchestrator.json:', sanitizeError(fetchErr));
+  // Tenta ler do cache primeiro
+  var cachedText = null;
+  try { cachedText = cache.get(CONFIG_CACHE_KEY + '_raw'); } catch (_) {}
+
+  if (cachedText) {
+    var config = JSON.parse(cachedText);
+    validateOrchestratorConfig(config);
+    return config;
   }
 
-  var configText = freshText;
+  var dbUrl = normalizeFirebaseUrl(props.getProperty('FIREBASE_URL'));
+  var secret = props.getProperty('FIREBASE_SECRET');
+  var fallbackUrl = props.getProperty('GITHUB_JOBS_CONFIG_URL');
+
+  var configText = null;
+  var usedFallback = false;
+
+  // 1. TENTA LER DO FIREBASE PRIMEIRO (Fonte da Verdade)
+  if (dbUrl && secret) {
+    try {
+      var fbResp = UrlFetchApp.fetch(
+        dbUrl + '/server_config/jobs_orchestrator.json?auth=' + secret,
+        { muteHttpExceptions: true }
+      );
+      if (fbResp.getResponseCode() === 200) {
+        var fbData = fbResp.getContentText('UTF-8');
+        // Firebase retorna "null" em string se o nó não existir
+        if (fbData && fbData !== "null") {
+          configText = fbData;
+        }
+      }
+    } catch (e) {
+      console.warn('Falha ao ler config do Firebase:', sanitizeError(e));
+    }
+  }
+
+  // 2. FALLBACK PARA O GITHUB
+  if (!configText && fallbackUrl) {
+    try {
+      var ghResp = UrlFetchApp.fetch(fallbackUrl, { muteHttpExceptions: true });
+      if (ghResp.getResponseCode() === 200) {
+        configText = ghResp.getContentText('UTF-8');
+        usedFallback = true;
+      }
+    } catch (e) {
+      console.warn('Falha ao ler config do GitHub:', sanitizeError(e));
+    }
+  }
+
   if (!configText) {
-    try { configText = cache.get(CONFIG_CACHE_KEY + '_raw'); } catch (_) {}
-    if (!configText) {
-      throw new Error('Não foi possível obter jobs-orchestrator.json (falha de rede + cache expirado/ausente).');
-    }
-    console.warn('jobs-orchestrator.json: usando cache válido após falha de rede.');
-  } else {
-    try { cache.put(CONFIG_CACHE_KEY + '_raw', configText, Math.floor(CONFIG_CACHE_TTL_MS / 1000)); } catch (_) {}
+    throw new Error('Impossível obter jobs-orchestrator.json (Firebase e GitHub falharam).');
   }
+
+  // 3. SE USOU O FALLBACK, SEMEAR O FIREBASE PARA EVITAR NOVA FALHA
+  if (usedFallback && dbUrl && secret) {
+    try {
+      UrlFetchApp.fetch(
+        dbUrl + '/server_config/jobs_orchestrator.json?auth=' + secret,
+        {
+          method: 'PUT',
+          contentType: 'application/json',
+          payload: configText,
+          muteHttpExceptions: true
+        }
+      );
+      // Aqui você injeta a string na global para o log do master,
+      // ou apenas confia no log do console por enquanto.
+      console.warn('Aviso: Configurações restauradas do repositório padrão (Fallback).');
+    } catch (e) {
+      console.warn('Falha ao reescrever config no Firebase:', sanitizeError(e));
+    }
+  }
+
+  // Grava no cache e retorna
+  try { cache.put(CONFIG_CACHE_KEY + '_raw', configText, Math.floor(CONFIG_CACHE_TTL_MS / 1000)); } catch (_) {}
 
   var config = JSON.parse(configText);
   validateOrchestratorConfig(config);
+
+  // Embutimos a flag no config para que a função chamadora (runMasterCore) saiba
+  // que rolou um fallback e adicione aos notes
+  if (usedFallback) {
+    config._usedFallback = true;
+  }
+
   return config;
 }
 

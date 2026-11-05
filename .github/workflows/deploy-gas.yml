@@ -1,0 +1,33 @@
+name: CD - Deploy Google Apps Script
+
+on:
+  push:
+    branches:
+      - main
+    paths:   # Roda CD se os arquivos do GAS forem alterados
+      - 'backend/GAS/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Clasp
+        run: npm install -g @google/clasp
+
+      - name: Configurar Credenciais do Clasp
+        run: |
+          echo "${{ secrets.CLASP_CREDENTIALS }}" > ~/.clasprc.json
+          
+      - name: Deploy para o Google Apps Script
+        run: |
+          cd backend/GAS
+          clasp push -f

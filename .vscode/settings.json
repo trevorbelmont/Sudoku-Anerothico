@@ -1,0 +1,116 @@
+{
+  // ==========================================================================
+  // Perfil Global Unificado — VS Code User Settings (Camada 1)
+  // Fonte: avaliação-F.md + configsSICAT (linters/formatters)
+  // Sincroniza via Settings Sync — preferências que valem em qualquer máquina.
+  // Configurações de projeto (.vscode/settings.json) sempre prevalecem sobre
+  // estas quando definirem a mesma propriedade.
+  // ==========================================================================
+
+  // ── Aparência e Ergonomia de Interface ────────────────────────────────────
+  "workbench.colorTheme": "Visual Studio Dark - C++",
+  "workbench.iconTheme": "material-icon-theme",
+  "editor.minimap.enabled": false,
+  "breadcrumbs.enabled": true,
+  "editor.guides.indentation": true,
+  "workbench.editor.enablePreview": false,
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+  "editor.unicodeHighlight.invisibleCharacters": false,
+
+  // ── Comportamento de Salvamento e Arquivos ─────────────────────────────────
+  // Desativa autoSave por delay para nunca alterar arquivos sem intenção explícita.
+  "files.autoSave": "off",
+  "files.exclude": {
+    "**/.git": false
+  },
+
+  // ── Linhas, Réguas e Indentação Padrão ─────────────────────────────────────
+  "editor.rulers": [100, 120],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "editor.wordWrap": "off",
+  "editor.wordWrapColumn": 120,
+
+  // ── Política de Formatação Base (Conservadora) ────────────────────────────
+  // False global para não poluir diffs de repositórios desconhecidos/legados.
+  "editor.formatOnSave": false,
+
+  // ── Integração Git ────────────────────────────────────────────────────────
+  "git.autofetch": true,
+  "git.confirmSync": false,
+
+  // ── Terminal Integrado (Windows / PowerShell) ─────────────────────────────
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  "terminal.integrated.suggest.enabled": false,
+
+  // ── Segurança e Rede Local ────────────────────────────────────────────────
+  // "prompt" em vez de "open" — protege contra execuções acidentais ao abrir
+  // arquivos avulsos provenientes de fora de workspaces confiáveis.
+  "security.workspace.trust.untrustedFiles": "prompt",
+  "security.allowedUNCHosts": ["wsl.localhost"],
+  "remote.autoForwardPortsSource": "hybrid",
+
+  // ── Ecossistema Python (AutoTri, Scripts e Projetos Pessoais) ─────────────
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
+  "python.analysis.typeCheckingMode": "standard",
+  "python.analysis.autoImportCompletions": true,
+  "python.terminal.activateEnvironment": false,
+  "python.createEnvironment.trigger": "off",
+
+  // ── Ecossistema Java (Spring Boot / Fallback para Projetos Pessoais) ──────
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java",
+    "editor.formatOnSave": false
+  },
+  "java.autobuild.enabled": false,
+  "java.compile.nullAnalysis.mode": "disabled",
+  "redhat.telemetry.enabled": false,
+
+  // ── Ecossistema Web / Front (Vue, TS, JS, HTML, CSS) ──────────────────────
+  // Prettier como formatter padrão. As regras de formatação (printWidth,
+  // semi, singleQuote) ficam no .prettierrc.json de cada projeto.
+  "[vue]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ── ESLint (validação para JS/TS/Vue) ─────────────────────────────────────
+  // As regras de linting ficam nos arquivos de config de cada projeto
+  // (eslint.config.js, .eslintrc, etc.).
+  "eslint.validate": ["javascript", "typescript", "vue"],
+
+  // ── C/C++ (Projetos Pessoais / Algoritmos) ─────────────────────────────────
+  "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100 }",
+
+  // ── Sincronização Ignorada ─────────────────────────────────────────────────
+  // Extensões legadas que não devem ser sincronizadas entre máquinas.
+  "settingsSync.ignoredExtensions": [
+    "ritwickdey.liveserver",
+    "unity.unity-debug",
+    "tobiah.unity-tools",
+    "ms-vscode.cmake-tools",
+    "twxs.cmake",
+    "kleber-swf.unity-code-snippets",
+    "technosophos.vscode-make"
+  ],
+
+  // ── IA e Extensões ─────────────────────────────────────────────────────────
+  "chat.disableAIFeatures": true
+}
