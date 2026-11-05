@@ -505,7 +505,10 @@ function loadAndParseButIgnore(sectionId) {
         var fbData = fbResp.getContentText('UTF-8');
         // Firebase retorna "null" em string se o nó não existir
         if (fbData && fbData !== "null") {
-          butIgnoreText = fbData;
+          // O nó guarda o .butIgnore como string JSON (é texto INI, não um objeto
+          // JSON como o jobs-orchestrator). O round-trip é feito via JSON.
+          var parsed = JSON.parse(fbData);
+          if (typeof parsed === 'string') butIgnoreText = parsed;
         }
       }
     } catch (e) {
@@ -542,7 +545,7 @@ function loadAndParseButIgnore(sectionId) {
         {
           method: 'PUT',
           contentType: 'application/json',
-          payload: butIgnoreText,
+          payload: JSON.stringify(butIgnoreText),
           muteHttpExceptions: true
         }
       );

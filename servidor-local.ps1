@@ -315,7 +315,14 @@ function Invoke-SyntaxCheck {
 
     # -Recurse: após a refatoração da árvore /js em subdiretórios (core, ui, network, services),
     # é obrigatório buscar recursivamente para não pular nenhum arquivo.
-    $jsFiles = Get-ChildItem -Path (Join-Path $script:root 'js') -Filter *.js -Recurse
+    # Inclui backend/GAS para validar também a sintaxe dos scripts do Apps Script.
+    $jsFiles = @()
+    foreach ($dir in @('js', 'backend\GAS')) {
+        $p = Join-Path $script:root $dir
+        if ([System.IO.Directory]::Exists($p)) {
+            $jsFiles += Get-ChildItem -Path $p -Filter *.js -Recurse
+        }
+    }
     $errorCount = 0
 
     if ($LogFile) {
