@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Instalar Clasp
         run: npm install -g @google/clasp
@@ -31,5 +31,9 @@ jobs:
           
       - name: Deploy para o Google Apps Script
         run: |
-          cd backend/GAS
-          clasp push -f
+            cd backend/GAS
+            # Mostra se o clasp.json está na pasta correta antes do push
+            ls -la 
+            # Puxa o status do projeto e depois faz o push forçado
+            clasp status
+            clasp push -f
