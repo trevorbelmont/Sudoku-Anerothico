@@ -85,47 +85,162 @@
     "job_styles": {
       "master_orchestrator": {
         "label": "MASTER_ORCHESTRATOR",
-        "row_background": "#1e293b",
-        "row_font_color": "#f8fafc",
-        "job_id_cell": { "bg": "#0f172a", "fg": "#38bdf8" },
-        "border_top": { "color": "#000000", "style": "SOLID_MEDIUM" },
-        "border_bottom": { "color": "#cbd5e1", "style": "SOLID" }
+        "row_background": "#1E293B",
+        "row_font_color": "#F8FAFC",
+
+        "job_id_cell": {
+          "bg": "#0F172A",
+          "fg": "#38BDF8"
+        },
+
+        "border_top": {
+          "color": "#38BDF8",
+          "style": "SOLID_MEDIUM"
+        },
+
+        "cycle_end_border": {
+          "color": "#38BDF8",
+          "style": "SOLID_THICK"
+        }
       },
+
       "coldstorage_rooms": {
         "label": "COLDSTORAGE_ROOMS",
-        "row_background": "#ffffff",
-        "row_font_color": "#0f172a",
-        "job_id_cell": { "bg": "#f1f5f9", "fg": "#0284c7" },
-        "border_bottom": { "color": "#cbd5e1", "style": "SOLID" }
+        "row_background": "#E3EDF4",
+
+        "row_gradient": {
+          "from": "#EDF5FA",
+          "to": "#D7E7F1",
+          "direction": "LEFT_TO_RIGHT"
+        },
+
+        "row_font_color": "#1F3B52",
+
+        "job_id_cell": {
+          "bg": "#D3E4EF",
+          "fg": "#226B96"
+        },
+
+        "border_bottom": {
+          "color": "#C8D5E0",
+          "style": "SOLID"
+        }
       },
+
       "coldstorage_chats": {
         "label": "COLDSTORAGE_CHATS",
-        "row_background": "#ffffff",
-        "row_font_color": "#0f172a",
-        "job_id_cell": { "bg": "#f1f5f9", "fg": "#0d9488" }
+        "row_background": "#E0EFE9",
+
+        "row_gradient": {
+          "from": "#EAF4EF",
+          "to": "#D7EAE2",
+          "direction": "LEFT_TO_RIGHT"
+        },
+
+        "row_font_color": "#183D38",
+
+        "job_id_cell": {
+          "bg": "#CFE6DD",
+          "fg": "#16776B"
+        },
+
+        "border_bottom": {
+          "color": "#C8D5D0",
+          "style": "SOLID"
+        }
       },
+
       "l2_cache_purge": {
         "label": "L2_CACHE_PURGE",
-        "row_background": "#ffffff",
-        "row_font_color": "#0f172a",
-        "job_id_cell": { "bg": "#f1f5f9", "fg": "#b45309" }
+        "row_background": "#F0E7D7",
+
+        "row_gradient": {
+          "from": "#F5F0E6",
+          "to": "#EBDDC7",
+          "direction": "LEFT_TO_RIGHT"
+        },
+
+        "row_font_color": "#463626",
+
+        "job_id_cell": {
+          "bg": "#E9DCC5",
+          "fg": "#99621F"
+        },
+
+        "border_bottom": {
+          "color": "#D8CEBD",
+          "style": "SOLID"
+        }
       },
+
       "default": {
         "label": "GENERIC_JOB",
-        "row_background": "#ffffff",
-        "row_font_color": "#000000",
-        "job_id_cell": { "bg": "#e2e8f0", "fg": "#334155" },
-        "border_bottom": { "color": "#cbd5e1", "style": "SOLID" }
+        "row_background": "#EBF0F5",
+
+        "row_gradient": {
+          "from": "#F2F5F8",
+          "to": "#E5ECF2",
+          "direction": "LEFT_TO_RIGHT"
+        },
+
+        "row_font_color": "#1F2937",
+
+        "job_id_cell": {
+          "bg": "#DCE6EE",
+          "fg": "#475569"
+        },
+
+        "border_bottom": {
+          "color": "#CBD5E1",
+          "style": "SOLID"
+        }
       }
     },
-    "status_cells": {
-      "SUCCESS": { "bg": "#dcfce7", "fg": "#15803d" },
-      "SKIPPED": { "bg": "#f1f5f9", "fg": "#64748b" },
-      "FAILED": { "bg": "#fee2e2", "fg": "#b91c1c" }
+
+    "invocation_cells": {
+      "SCHEDULED_MASTER": {
+        "fg": "#1D4ED8",
+        "master_fg": "#7DD3FC"
+      },
+
+      "MANUAL_MASTER": {
+        "fg": "#7E22CE",
+        "master_fg": "#D8B4FE"
+      },
+
+      "MANUAL_SOLO": {
+        "fg": "#B45309",
+        "master_fg": "#FBBF24"
+      }
     },
+
+    "status_cells": {
+      "SUCCESS": {
+        "bg": "#DCFCE7",
+        "fg": "#15803D"
+      },
+
+      "SKIPPED": {
+        "bg": "#F1F5F9",
+        "fg": "#64748B"
+      },
+
+      "FAILED": {
+        "bg": "#FEE2E2",
+        "fg": "#B91C1C"
+      }
+    },
+
     "error_column": {
-      "default_clean": { "bg": "#fef9c3", "fg": "#854d0e" },
-      "has_exception": { "bg": "#ef4444", "fg": "#ffffff" }
+      "default_clean": {
+        "bg": "#FEF9C3",
+        "fg": "#854D0E"
+      },
+
+      "has_exception": {
+        "bg": "#EF4444",
+        "fg": "#FFFFFF"
+      }
     }
   },
   "jobs_schedule": {

@@ -792,28 +792,80 @@ function appendTelemetryRow(props, config, rows) {
     } catch (_) {}
 
     // Bracket de ciclo: borda superior do Master + borda inferior do último job
-    // do batch, com a MESMA identidade (visual_theme.job_styles[master].border_top).
+    // do batch, com identidade separada (border_top e cycle_end_border).
     // Só aplica quando o primeiro row é o Master (flush orquestrado). Configurável
     // no JSON/Firebase — sem bordas chumbadas no código. A borda inferior por-job
-    // (separador claro) é aplicada por applyRowFormatting; este bracket sobrepõe
-    // o fundo do último row do batch para fechar o ciclo visualmente.
+    // (separador claro) é aplicada por applyRowFormatting; este bracket prevalece
+    // sobre o fundo do último row do batch para fechar o ciclo visualmente.
     try {
-      var firstIsMaster = rows.length > 0 && rows[0].jobId === MASTER_JOB_ID;
-      var masterStyle = (config && config.visual_theme && config.visual_theme.job_styles)
-        ? config.visual_theme.job_styles[MASTER_JOB_ID] : null;
-      if (firstIsMaster && masterStyle && masterStyle.border_top) {
-        var bt = masterStyle.border_top;
-        var bColor = bt.color || null;
-        var bStyle = bt.style ? SpreadsheetApp.BorderStyle[bt.style] : null;
-        // Topo do Master = início do ciclo
-        sheet.getRange(nextRow, 1, 1, TELEMETRY_HEADERS.length)
-             .setBorder(true, null, null, null, null, null, bColor, bStyle);
-        // Fundo do último job do batch = fim do ciclo (mesma identidade)
-        sheet.getRange(nextRow + rows.length - 1, 1, 1, TELEMETRY_HEADERS.length)
-             .setBorder(null, null, true, null, null, null, bColor, bStyle);
+      var firstIsMaster = (
+        rows.length > 0 &&
+        rows[0].jobId === MASTER_JOB_ID
+      );
+
+      var masterStyle = (
+        config &&
+        config.visual_theme &&
+        config.visual_theme.job_styles
+      )
+        ? config.visual_theme.job_styles[MASTER_JOB_ID]
+        : null;
+
+      if (firstIsMaster && masterStyle) {
+
+        // ── INÍCIO DO CICLO: borda superior do Master ────────────────
+
+        var startBorder = masterStyle.border_top || null;
+
+        if (startBorder) {
+          var startColor = startBorder.color || null;
+
+          var startStyle = startBorder.style
+            ? SpreadsheetApp.BorderStyle[startBorder.style]
+            : null;
+
+          sheet.getRange(nextRow, 1, 1, TELEMETRY_HEADERS.length)
+            .setBorder(
+              true, null, null, null, null, null,
+              startColor, startStyle
+            );
+        }
+
+        // ── FIM DO CICLO: borda inferior do último job ──────────────
+
+        // Compatibilidade: se cycle_end_border não existir,
+        // reutiliza border_top como no comportamento anterior.
+
+        var endBorder = (
+          masterStyle.cycle_end_border ||
+          masterStyle.border_top ||
+          null
+        );
+
+        if (endBorder) {
+          var endColor = endBorder.color || null;
+
+          var endStyle = endBorder.style
+            ? SpreadsheetApp.BorderStyle[endBorder.style]
+            : null;
+
+          sheet.getRange(
+            nextRow + rows.length - 1,
+            1,
+            1,
+            TELEMETRY_HEADERS.length
+          ).setBorder(
+            null, null, true, null, null, null,
+            endColor, endStyle
+          );
+        }
       }
+
     } catch (e) {
-      console.warn('Falha ao aplicar bordas de ciclo:', sanitizeError(e));
+      console.warn(
+        'Falha ao aplicar bordas de ciclo:',
+        sanitizeError(e)
+      );
     }
   } finally {
     sheetLock.releaseLock();
@@ -1013,53 +1065,204 @@ function getJobLabel(jobId, config) {
   return (jobId || 'UNKNOWN').toUpperCase();
 }
 
+/**
+ * Converte uma cor HEX (#RRGGBB) em componentes RGB.
+ * Retorna null se a cor for inválida.
+ */
+function parseTelemetryHexColor(hex) {
+  var value = String(hex || '').trim().replace(/^#/, '');
+
+  if (!/^[0-9a-fA-F]{6}$/.test(value)) return null;
+
+  return {
+    r: parseInt(value.substring(0, 2), 16),
+    g: parseInt(value.substring(2, 4), 16),
+    b: parseInt(value.substring(4, 6), 16)
+  };
+}
+
+/**
+ * Gera um degradê horizontal por interpolação RGB.
+ *
+ * @param {Object} gradient Configuração row_gradient.
+ * @param {number} count Quantidade de células.
+ * @returns {string[]|null} Array de cores HEX ou null se inválido.
+ */
+function buildTelemetryGradientColors(gradient, count) {
+  if (!gradient || !gradient.from || !gradient.to || count < 1) {
+    return null;
+  }
+
+  var from = parseTelemetryHexColor(gradient.from);
+  var to = parseTelemetryHexColor(gradient.to);
+
+  if (!from || !to) return null;
+
+  var reverse = String(gradient.direction || 'LEFT_TO_RIGHT')
+    .toUpperCase() === 'RIGHT_TO_LEFT';
+
+  var colors = [];
+
+  for (var i = 0; i < count; i++) {
+    var ratio = count === 1 ? 0 : i / (count - 1);
+
+    if (reverse) ratio = 1 - ratio;
+
+    var r = Math.round(from.r + (to.r - from.r) * ratio);
+    var g = Math.round(from.g + (to.g - from.g) * ratio);
+    var b = Math.round(from.b + (to.b - from.b) * ratio);
+
+    var hex = '#' +
+      ('0' + r.toString(16)).slice(-2) +
+      ('0' + g.toString(16)).slice(-2) +
+      ('0' + b.toString(16)).slice(-2);
+
+    colors.push(hex);
+  }
+
+  return colors;
+}
+
 function applyRowFormatting(sheet, rowIndex, metrics, config) {
   if (!config || !config.visual_theme) return;
+
   var theme = config.visual_theme;
   var jobId = metrics.jobId;
-  var jobStyle = (theme.job_styles && (theme.job_styles[jobId] || theme.job_styles['default'])) || {};
-  var statusStyle = (theme.status_cells && theme.status_cells[metrics.status]) || {};
-  var hasError = !!(metrics.errorTrace && metrics.errorTrace.trim());
+
+  var jobStyle = (
+    theme.job_styles &&
+    (theme.job_styles[jobId] || theme.job_styles['default'])
+  ) || {};
+
+  var statusStyle = (
+    theme.status_cells &&
+    theme.status_cells[metrics.status]
+  ) || {};
+
+  var errorTrace = metrics.errorTrace == null
+    ? ''
+    : String(metrics.errorTrace);
+
+  var hasError = errorTrace.trim() !== '';
+
   var errorColStyle = hasError
     ? (theme.error_column && theme.error_column.has_exception)
     : (theme.error_column && theme.error_column.default_clean);
+
   errorColStyle = errorColStyle || {};
 
   try {
-    var rowRange = sheet.getRange(rowIndex, 1, 1, TELEMETRY_HEADERS.length);
-    if (jobStyle.row_background) rowRange.setBackground(jobStyle.row_background);
-    if (jobStyle.row_font_color) rowRange.setFontColor(jobStyle.row_font_color);
+    var columnCount = TELEMETRY_HEADERS.length;
+    var rowRange = sheet.getRange(rowIndex, 1, 1, columnCount);
+
+    // ── 1. Fundo padrão da linha: degradê ou cor sólida ─────────────
+
+    var gradientColors = jobStyle.row_gradient
+      ? buildTelemetryGradientColors(
+          jobStyle.row_gradient,
+          columnCount
+        )
+      : null;
+
+    if (gradientColors) {
+      rowRange.setBackgrounds([gradientColors]);
+    } else if (jobStyle.row_background) {
+      rowRange.setBackground(jobStyle.row_background);
+    }
+
+    // Fonte geral da linha
+    if (jobStyle.row_font_color) {
+      rowRange.setFontColor(jobStyle.row_font_color);
+    }
+
+    // ── 2. JOB_ID (coluna A) ───────────────────────────────────────
 
     if (jobStyle.job_id_cell) {
       var cellA = sheet.getRange(rowIndex, 1);
-      if (jobStyle.job_id_cell.bg) cellA.setBackground(jobStyle.job_id_cell.bg);
-      if (jobStyle.job_id_cell.fg) cellA.setFontColor(jobStyle.job_id_cell.fg);
+
+      if (jobStyle.job_id_cell.bg) {
+        cellA.setBackground(jobStyle.job_id_cell.bg);
+      }
+
+      if (jobStyle.job_id_cell.fg) {
+        cellA.setFontColor(jobStyle.job_id_cell.fg);
+      }
     }
+
+    // ── 3. Invocation (coluna C) ──────────────────────────────────
+    // Modifica SOMENTE a cor da fonte.
+    // O fundo continua sendo o degradê original do job.
+
+    var invocationStyle = (
+      theme.invocation_cells &&
+      theme.invocation_cells[metrics.invocation]
+    ) || null;
+
+    if (invocationStyle) {
+      var isMasterJob = jobId === MASTER_JOB_ID;
+
+      var invocationFontColor = (
+        (isMasterJob && invocationStyle.master_fg) ||
+        invocationStyle.fg
+      );
+
+      if (invocationFontColor) {
+        sheet.getRange(rowIndex, 3)
+          .setFontColor(invocationFontColor);
+      }
+    }
+
+    // ── 4. Status (coluna E) ──────────────────────────────────────
 
     if (statusStyle.bg || statusStyle.fg) {
       var cellE = sheet.getRange(rowIndex, 5);
-      if (statusStyle.bg) cellE.setBackground(statusStyle.bg);
-      if (statusStyle.fg) cellE.setFontColor(statusStyle.fg);
+
+      if (statusStyle.bg) {
+        cellE.setBackground(statusStyle.bg);
+      }
+
+      if (statusStyle.fg) {
+        cellE.setFontColor(statusStyle.fg);
+      }
     }
+
+    // ── 5. Errors (coluna J) ──────────────────────────────────────
 
     if (errorColStyle.bg || errorColStyle.fg) {
       var cellJ = sheet.getRange(rowIndex, 10);
-      if (errorColStyle.bg) cellJ.setBackground(errorColStyle.bg);
-      if (errorColStyle.fg) cellJ.setFontColor(errorColStyle.fg);
+
+      if (errorColStyle.bg) {
+        cellJ.setBackground(errorColStyle.bg);
+      }
+
+      if (errorColStyle.fg) {
+        cellJ.setFontColor(errorColStyle.fg);
+      }
     }
 
-    // Borda inferior por-job (separador entre linhas) — vinda do JSON/Firebase.
-    // O bracket de ciclo (topo do Master / fundo do último job) é aplicado em
-    // appendTelemetryRow e sobrepõe o fundo do último row do batch.
+    // ── 6. Borda inferior individual do job ───────────────────────
+
+    // O bracket de ciclo é aplicado posteriormente em
+    // appendTelemetryRow(), prevalecendo sobre esta borda.
+
     if (jobStyle.border_bottom) {
       var bbColor = jobStyle.border_bottom.color || null;
+
       var bbStyle = jobStyle.border_bottom.style
         ? SpreadsheetApp.BorderStyle[jobStyle.border_bottom.style]
         : null;
-      rowRange.setBorder(null, null, true, null, null, null, bbColor, bbStyle);
+
+      rowRange.setBorder(
+        null, null, true, null, null, null,
+        bbColor, bbStyle
+      );
     }
+
   } catch (e) {
-    console.warn('Falha ao aplicar formatação na linha ' + rowIndex + ':', sanitizeError(e));
+    console.warn(
+      'Falha ao aplicar formatação na linha ' + rowIndex + ':',
+      sanitizeError(e)
+    );
   }
 }
 
