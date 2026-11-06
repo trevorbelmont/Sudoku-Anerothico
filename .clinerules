@@ -1,0 +1,113 @@
+# Diretrizes do Projeto (Sudoku Aneróthico)
+
+## 0. Colaboração Humano no Loop
+- O usuário é experiente em PowerShell/Bash e atua ativamente no fluxo de testes e validação.
+- **Delegação de Tarefas Pesadas:** Para comandos que geram muitas linhas de terminal (testes Jest, logs extensos ou rotinas de deploy), prefira fornecer o comando e pedir para o usuário executá-lo externamente.
+- **Feedback Enxuto:** O usuário pode colar apenas o stack trace do erro ou dar feedback verbal do comportamento, evitando poluir a janela de contexto com buffers desnecessários de terminal.
+- Use bom julgamento. Comandos rápidos e de output curtos, como por exemplo  checagem sintática (ex: `node --check`) podem ser propostos e executados diretamente pelo agente. Comandos longos ainda podem ser executados e lidos pelo agente, mas é geralmente bom perguntar e/ou propor se o humano quer assumir o disparo e inspeção.
+
+
+## 1. Escopo e Foco
+- Este é um projeto modular em JavaScript (Front-end Vanilla + Firebase + Google Apps Script no backend).
+- O foco de desenvolvimento está restrito a: `js/`, `css/`, `index.html`, `backend/` e `tests/`.
+- Estrutura modular esperada em `js/`:
+  - `js/core/` — motor do jogo, estado da aplicação, configuração centralizada (`APP_CONFIG`).
+  - `js/ui/` — visual, eventos, painéis, modo desenvolvedor, controladores de UI.
+  - `js/network/` — Firebase, multiplayer, clientes de rede.
+  - `js/services/` — armazenamento, input, exportação, OCR, compartilhamento.
+- Arquivos de configuração central: `js/core/config.js` (`APP_CONFIG` — Single Source of Truth para magic numbers/strings).
+
+
+## 2. Restrições Estritas de Leitura e Edição
+- NUNCA tente ler, listar ou alterar nada nas pastas `misc/`, `.kiro/` ou arquivos `.zip`/`.pdf`.
+- NUNCA altere segredos em `.environment` ou `backend/GAS/.clasp.json` (ambos estão no `.gitignore`).
+- A pasta `Trivia/` contém apenas rascunhos e roadmaps; consulte somente se o usuário solicitar explicitamente.
+- Não exponha valores de secrets, tokens ou chaves de API em logs, console ou commits.
+
+## 3. Padrões de Código
+### 3.1 Nomenclatura
+- Variáveis e funções: `camelCase` (ex: `playerId`, `isValidMatrix`).
+- Classes e construtores: `PascalCase` (ex: `SudokuEngine`).
+- Constantes de módulo: `UPPER_SNAKE_CASE` (ex: `DIFFICULTY_REMOVAL_RATIOS`).
+- Arquivos JS: `kebab-case` (ex: `sudoku-engine.js`, `multiplayer-service.js`).
+- Pastas: `kebab-case` ou substantivo no singular (ex: `js/core/`, `tests/unit/`).
+- IDs e atributos `data-*` no HTML: `kebab-case` (ex: `data-diff-clues`, `custom-min-input`).
+
+### 3.2 Estilo e Formatação
+- Inicie arquivos JS com `'use strict';`.
+- Use aspas simples para strings, exceto quando a string contiver aspas simples.
+- Use template literais para interpolação (ex: `` `~${clues} pistas` ``).
+- Mantenha funções pequenas, com uma única responsabilidade e nomes verbais (`validateGameState`, `createUniqueSudokuPuzzle`).
+- Evite "magic numbers" e "magic strings" — centralize em `APP_CONFIG` ou constantes nomeadas.
+- Não deixe variáveis ou funções não utilizadas no código final.
+
+### 3.3 Comentários
+- Comentários em português, impessoais (sem diálogo), técnicos e sucintos.
+- Use comentários de bloco (`/** ... */`) para documentar funções exportadas/módulos.
+- Use `//` para anotações curtas de lógica não óbvia.
+- Não comente código óbvio; comente o "porquê", não o "o quê".
+
+### 3.4 Tratamento de Erros
+- Valide entradas de funções públicas antes de processar (ex: `validateGameState` retorna `null` para entrada inválida).
+- Use `try/catch` em operações assíncronas (Firebase, Clasp, fetch, localStorage).
+- Nunca silencie erros com `catch {}` vazio — logar ou relançar.
+- Em serviços de rede, trate timeouts e falhas de rede com mensagens claras ao usuário.
+
+### 3.5 Assíncrono e Promises
+- Prefira `async/await` sobre callbacks aninhados.
+- Sempre trate rejeições de Promises (`.catch` ou `try/catch`).
+- Evite `Promise.all` sequencial desnecessário; paralelize apenas quando independente.
+
+### 3.6 Manipulação de DOM
+- Cacheie referências a elementos DOM em variáveis quando reutilizados.
+- Use `data-*` attributes para ligar JS a elementos da UI (evite seletores frágeis baseados em classes).
+- Evite `innerHTML` com dados não sanitizados; prefira `textContent` ou `createElement`.
+- Não acesse DOM diretamente dentro de módulos de core/engine — mantenha UI separada da lógica.
+
+### 3.7 localStorage e Persistência
+- Nunca armazene secrets, tokens ou dados sensíveis em `localStorage`.
+- Use chaves de `localStorage` definidas em `js/core/app-state.js` (centralizadas).
+- Sempre envolva leitura/gravação em `try/catch` (quota excedida, modo privado, etc.).
+
+## 4. Firebase e Multiplayer
+- Preferir `onChildAdded` sobre `onValue` para logs de jogadas (recebe apenas a alteração, não o nó inteiro).
+- Inicializar contagens com `get()` único na entrada da sala, não com listeners contínuos.
+- Usar `serverTimestamp()` do Firebase como campo `timestamp` nos payloads de jogadas.
+- Usar `clientTimestamp` como fallback para ordenação imediata local.
+- Não escutar coleções inteiras em tempo real quando apenas documentos específicos são necessários.
+- Validar dados recebidos do Firebase antes de renderizar (não confie cegamente no estado remoto).
+
+## 5. Google Apps Script (backend/GAS)
+- Usar `clasp push -f` para deploy; verificar saída antes de continuar.
+- Arquivos temporários (ex: `.temp-secrets.js`) devem ser apagados no bloco `finally`, mesmo em falha.
+- Nunca commitar `.clasp.json` ou `.environment` — ambos estão no `.gitignore`.
+- Funções de setup de secrets não devem logar valores, apenas nomes de chaves.
+
+## 6. Testes (pasta `tests/`)
+- Usar o ambiente Jest existente em `tests/` (não criar novo framework de testes).
+- Nomear arquivos de teste como `*.test.js` dentro de `tests/unit/` ou `tests/integration/`.
+- Testes unitários: testar funções isoladas (motor, validação, utilitários) sem dependência de DOM ou rede.
+- Testes de integração: testar fluxos completos (armazenamento, compartilhamento, GAS fallback).
+- Usar `describe()`/`test()` com nomes descritivos em português.
+- Agrupar testes com separadores visuais (`// ─────────────────────────────`).
+- Manter cobertura de casos de borda: `null`, `undefined`, entradas fora de intervalo, grades inválidas.
+- Não testar implementação interna; testar comportamento e contratos de API.
+
+## 7. Git e Commits
+- Não fazer commits, pushes ou trocar de branch sem perguntar o usuário. Caso não tiver aprovação, não fazer.
+- Commits em português, imperativo, conciso (ex: "Adiciona tema Dark Overlord").
+- Incluir tipo de mudança no início quando relevante: **Fix**, **Feat**, **Docs**, **Refactor**, **Perf**, **Test**, **Chore**.
+- Não commitar arquivos de secrets, `node_modules/`, `coverage/`, `.nyc_output/`.
+- Antes de commitar, rodar verificação sintática: `node --check` nos arquivos JavaScript alterados.
+
+## 8. Estratégia de Edição
+- **Priorize `replace_in_file` por padrão:** Use edições cirúrgicas sempre que a mudança for localizada (ex: correções de bugs, ajustes de lógica ou adição de métodos isolados). Isso economiza tokens, evita truncamento de arquivos longos e mantém o Git diff limpo. Evite usar `write_to_file` para regurgitar centenas de linhas inalteradas.
+- **Reserve `write_to_file` para:** Criação de novos arquivos ou refatorações profundas que alterem mais da metade da estrutura do módulo, onde usar múltiplos blocos de busca/substituição geraria alto risco de falhas de casamento de padrões (*mismatch*).
+- **Use seu melhor julgamento:** Avalie como as mudanças estão distribuídas no arquivo antes de escolher a ferramenta.
+
+## 9. Segurança
+- `.environment` e `backend/GAS/.clasp.json` nunca saem da máquina local.
+- Nenhum valor de secret aparece em logs, console ou mensagens de erro detalhadas.
+- Firebase Realtime Database rules devem restringir leitura/escrita por autenticação.
+- O servidor local escuta apenas em `127.0.0.1` (não expor a rede externa).
+

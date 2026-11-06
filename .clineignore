@@ -1,0 +1,33 @@
+# ==========================================
+# REGRAS DE EXCLUSÃO DE CONTEXTO DO CLINE
+# ==========================================
+
+Pastas pesadas / ruído / histórico que gastam tokens
+misc/
+.kiro/
+.git/
+node_modules/
+
+Arquivos compactados e binários pesados (nunca devem ser lidos como texto)
+*.zip
+*.tar.gz
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.ico
+
+Arquivos de segredos / credenciais locais
+.environment
+.environment.local
+backend/GAS/.clasp.json
+
+Lockfiles (consomem milhares de tokens desnecessários se lidos inteiros)
+package-lock.json
+tests/package-lock.json
+bun.lock
+tests/bun.lock
+
+Arquivos específicos de roadmap/brainstorm que não precisam ser lidos por padrão
+Trivia/*.pdf
+Trivia/*.zip
