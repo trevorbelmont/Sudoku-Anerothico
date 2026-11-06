@@ -1,6 +1,20 @@
 # Diretrizes do Projeto (Sudoku Aneróthico)
 
-## 0. Colaboração Humano no Loop
+# 0.0 Regras Estritas!!!
+
+Isolamento de Terminal e Execução de Comandos
+Para preservar os terminais pessoais do desenvolvedor, você está ESTRITAMENTE PROIBIDO de utilizar instâncias abertas de terminais nomeados com o sufixo "Pessoal" (ex: "PowerShell Pessoal", "Ubuntu-WSL Pessoal").
+
+1. **Criação Deliberada:** Sempre que precisar rodar comandos ou instanciar servidores de desenvolvimento, você deve solicitar a abertura de um terminal utilizando os perfis dedicados de IA configurados no workspace:
+   - Para PowerShell: Utilize o perfil `AI-Agent-PowerShell`.
+   - Para CMD: Utilize o perfil `AI-Agent-CMD`.
+2. **Forçando o Reconhecimento Visual:** Caso a API não permita selecionar o perfil pelo nome e você acabe abrindo um shell padrão, você DEVE alterar o título da janela antes de rodar qualquer comando de build/teste. 
+   - No PowerShell, execute primeiro: `$Host.UI.RawUI.WindowTitle = 'AI Agent - Em Uso'`
+   - No CMD, execute primeiro: `title AI Agent - Em Uso`
+3. **Restrição de Interferência:** Nunca feche ou encerre processos (`Ctrl+C`) em terminais pessoais, que não possuam o ícone de robô ou o título 'AI Agent'.
+
+
+## 0.1 Colaboração Humano no Loop
 - O usuário é experiente em PowerShell/Bash e atua ativamente no fluxo de testes e validação.
 - **Delegação de Tarefas Pesadas:** Para comandos que geram muitas linhas de terminal (testes Jest, logs extensos ou rotinas de deploy), prefira fornecer o comando e pedir para o usuário executá-lo externamente.
 - **Feedback Enxuto:** O usuário pode colar apenas o stack trace do erro ou dar feedback verbal do comportamento, evitando poluir a janela de contexto com buffers desnecessários de terminal.
