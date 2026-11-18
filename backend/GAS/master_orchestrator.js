@@ -11,7 +11,7 @@
  *   Os arquivos de um projeto Apps Script compartilham o escopo global.
  *   Este arquivo define as funções canônicas de utilidade:
  *     parseIso8601Duration, generateRunId, normalizeFirebaseUrl,
- *     buildBaseMetrics, sanitizeError, formatInvocationLabel,
+ *     buildBaseMetrics, sanitizeError, formatGasHttpError, formatInvocationLabel,
  *     loadAndValidateConfig, validateOrchestratorConfig.
  *   As funções de telemetria (appendTelemetryRow, etc.) e Cold Storage estão em
  *   backup-coldstorage.js, igualmente acessíveis pelo escopo global.
@@ -131,6 +131,10 @@ function doPost(e) {
     });
 
   } catch (err) {
+    console.error(
+      '[WEBAPP][FAILED] action=' + (action || 'unknown') +
+      '\n' + sanitizeError(err, 1200)
+    );
     return jsonResponse({
       ok: false,
       error: { code: 'INTERNAL_ERROR', message: sanitizeError(err) }
@@ -179,6 +183,7 @@ function runMasterCore(invocation) {
   var wakeUpTime = Date.now();
   var masterMetrics = buildBaseMetrics(MASTER_JOB_ID, { runId: runId, invocation: invocation });
   masterMetrics.action = 'ORCHESTRATED';
+  console.log('[MASTER][START] runId=' + runId + ' | invocation=' + invocation);
 
   try {
     var props = PropertiesService.getScriptProperties();
@@ -250,6 +255,13 @@ function runMasterCore(invocation) {
 
       masterMetrics.notes += '\nJob "' + jobId + '": despachado (política=' + repeatPolicy + ').';
       invokedJobs.push(jobId);
+      console.log(
+        '[MASTER][JOB_START] runId=' + runId +
+        ' | jobRunId=' + (runId + '_' + jobId) +
+        ' | jobId=' + jobId +
+        ' | interval=' + jobDef.schedule.interval +
+        ' | repeatPolicy=' + repeatPolicy
+      );
 
       try {
         var jobResult = JOB_HANDLERS[jobId](true, {
@@ -263,8 +275,24 @@ function runMasterCore(invocation) {
         allJobMetrics.push(jobResult);
         if (!jobResult.completedSuccessfully) {
           masterFailed = true;
-          masterMetrics.notes += '\nJob "' + jobId + '": concluído com status ' + jobResult.status + '.';
+          var failedStatus = jobResult.status || 'FAILED';
+          var jobErrorDetail = jobResult.errorTrace || 'O handler retornou completedSuccessfully=false sem errorTrace.';
+          console.error(
+            '[MASTER][JOB_FAILED] runId=' + runId +
+            ' | jobRunId=' + (jobResult.runId || (runId + '_' + jobId)) +
+            ' | jobId=' + jobId +
+            ' | status=' + failedStatus +
+            '\nerrorTrace: ' + jobErrorDetail +
+            (jobResult.notes ? '\nnotes: ' + jobResult.notes : '')
+          );
+          masterMetrics.notes += '\nJob "' + jobId + '": FAILED (status=' + failedStatus + ').';
         } else {
+          console.log(
+            '[MASTER][JOB_SUCCESS] runId=' + runId +
+            ' | jobRunId=' + (jobResult.runId || (runId + '_' + jobId)) +
+            ' | jobId=' + jobId +
+            ' | itemsProcessed=' + (jobResult.itemsProcessed || 0)
+          );
           masterMetrics.notes += '\nJob "' + jobId + '": SUCCESS.';
         }
       } catch (jobErr) {
@@ -277,6 +305,12 @@ function runMasterCore(invocation) {
         failMetrics.notes = formatInvocationLabel(invocation) +
           '\nExceção não tratada no handler do job "' + jobId + '": ' + errTrace;
         allJobMetrics.push(failMetrics);
+        console.error(
+          '[MASTER][JOB_EXCEPTION] runId=' + runId +
+          ' | jobRunId=' + failMetrics.runId +
+          ' | jobId=' + jobId +
+          '\n' + errTrace
+        );
         masterMetrics.notes += '\nJob "' + jobId + '": FAILED com exceção — ' + errTrace;
       }
     }
@@ -289,6 +323,22 @@ function runMasterCore(invocation) {
       '\nJobs despachados: ' + (invokedJobs.length ? invokedJobs.join(', ') : 'nenhum') +
       ' | Total avaliados: ' + jobIds.length +
       masterMetrics.notes + configFallbackNote + butIgnoreFallbackNote;
+
+    if (masterFailed) {
+      console.error(
+        '[MASTER][FAILED] runId=' + runId +
+        ' | invocation=' + invocation +
+        ' | jobsDispatched=' + invokedJobs.length +
+        '\n' + masterMetrics.notes
+      );
+    } else {
+      console.log(
+        '[MASTER][' + masterMetrics.status + '] runId=' + runId +
+        ' | invocation=' + invocation +
+        ' | jobsDispatched=' + invokedJobs.length +
+        ' | jobsEvaluated=' + jobIds.length
+      );
+    }
 
     // ── 6. Flush em lote (Master primeiro, jobs depois) ───────────────
     var allRows = [masterMetrics].concat(allJobMetrics);
@@ -311,16 +361,21 @@ function runMasterCore(invocation) {
     masterMetrics.errorTrace = errStr;
     masterMetrics.notes = formatInvocationLabel(invocation) +
       '\nFalha crítica do Master Orchestrator: ' + errStr;
+    console.error('[MASTER][CRITICAL_FAILED] runId=' + runId + ' | invocation=' + invocation + '\n' + errStr);
 
     try {
       var propsForFallback = PropertiesService.getScriptProperties();
       appendTelemetryRow(propsForFallback, null, [masterMetrics]);
-    } catch (_) {}
+    } catch (telemetryErr) {
+      console.error('[MASTER][TELEMETRY_FAILED] runId=' + runId + ' | ' + sanitizeError(telemetryErr, 1200));
+    }
 
     try {
       var propsForMeta = PropertiesService.getScriptProperties();
       persistMasterMeta(propsForMeta, masterMetrics, invocation, wakeUpTime);
-    } catch (_) {}
+    } catch (metaErr) {
+      console.error('[MASTER][META_FAILED] runId=' + runId + ' | ' + sanitizeError(metaErr, 1200));
+    }
 
     return masterMetrics;
 
@@ -472,7 +527,7 @@ function persistMasterMeta(props, metrics, invocation, wakeUpTime) {
   }
 
   try {
-    UrlFetchApp.fetch(
+    var response = UrlFetchApp.fetch(
       dbUrl + SERVER_META_MASTER_PATH + '?auth=' + secret,
       {
         method: 'PATCH',
@@ -481,6 +536,13 @@ function persistMasterMeta(props, metrics, invocation, wakeUpTime) {
         muteHttpExceptions: true
       }
     );
+    var responseCode = response.getResponseCode();
+    if (responseCode < 200 || responseCode >= 300) {
+      console.error(formatGasHttpError(
+        'Firebase RTDB', 'PATCH metadados do Master', responseCode,
+        SERVER_META_MASTER_PATH, response.getContentText('UTF-8'), 1200
+      ));
+    }
   } catch (e) {
     console.error('Falha ao persistir metadados do Master:', sanitizeError(e));
   }
@@ -499,7 +561,14 @@ function readServerMeta(props) {
       dbUrl + SERVER_META_ROOT_PATH + '?auth=' + secret,
       { method: 'GET', muteHttpExceptions: true }
     );
-    if (resp.getResponseCode() !== 200) return {};
+    var responseCode = resp.getResponseCode();
+    if (responseCode !== 200) {
+      console.warn(formatGasHttpError(
+        'Firebase RTDB', 'GET server_meta', responseCode,
+        SERVER_META_ROOT_PATH, resp.getContentText('UTF-8'), 1000
+      ));
+      return {};
+    }
     var data = JSON.parse(resp.getContentText('UTF-8'));
     return data && typeof data === 'object' ? data : {};
   } catch (e) {
@@ -796,12 +865,18 @@ function loadAndValidateConfig() {
         dbUrl + '/server_config/jobs_orchestrator.json?auth=' + secret,
         { muteHttpExceptions: true }
       );
-      if (fbResp.getResponseCode() === 200) {
+      var firebaseConfigCode = fbResp.getResponseCode();
+      if (firebaseConfigCode === 200) {
         var fbData = fbResp.getContentText('UTF-8');
         // Firebase retorna "null" em string se o nó não existir
         if (fbData && fbData !== "null") {
           configText = fbData;
         }
+      } else {
+        console.warn(formatGasHttpError(
+          'Firebase RTDB', 'GET jobs-orchestrator.json', firebaseConfigCode,
+          '/server_config/jobs_orchestrator.json', fbResp.getContentText('UTF-8'), 1000
+        ));
       }
     } catch (e) {
       console.warn('Falha ao ler config do Firebase:', sanitizeError(e));
@@ -812,9 +887,15 @@ function loadAndValidateConfig() {
   if (!configText && fallbackUrl) {
     try {
       var ghResp = UrlFetchApp.fetch(fallbackUrl, { muteHttpExceptions: true });
-      if (ghResp.getResponseCode() === 200) {
+      var githubConfigCode = ghResp.getResponseCode();
+      if (githubConfigCode === 200) {
         configText = ghResp.getContentText('UTF-8');
         usedFallback = true;
+      } else {
+        console.warn(formatGasHttpError(
+          'GitHub Raw', 'GET jobs-orchestrator.json', githubConfigCode,
+          'GITHUB_JOBS_CONFIG_URL', ghResp.getContentText('UTF-8'), 1000
+        ));
       }
     } catch (e) {
       console.warn('Falha ao ler config do GitHub:', sanitizeError(e));
@@ -828,7 +909,7 @@ function loadAndValidateConfig() {
   // 3. SE USOU O FALLBACK, SEMEAR O FIREBASE PARA EVITAR NOVA FALHA
   if (usedFallback && dbUrl && secret) {
     try {
-      UrlFetchApp.fetch(
+      var seedResponse = UrlFetchApp.fetch(
         dbUrl + '/server_config/jobs_orchestrator.json?auth=' + secret,
         {
           method: 'PUT',
@@ -837,6 +918,13 @@ function loadAndValidateConfig() {
           muteHttpExceptions: true
         }
       );
+      var seedCode = seedResponse.getResponseCode();
+      if (seedCode < 200 || seedCode >= 300) {
+        console.error(formatGasHttpError(
+          'Firebase RTDB', 'PUT seed jobs-orchestrator.json', seedCode,
+          '/server_config/jobs_orchestrator.json', seedResponse.getContentText('UTF-8'), 1000
+        ));
+      }
       // Aqui você injeta a string na global para o log do master,
       // ou apenas confia no log do console por enquanto.
       console.warn('Aviso: Configurações restauradas do repositório padrão (Fallback).');
@@ -914,12 +1002,49 @@ function buildBaseMetrics(jobId, opts) {
   };
 }
 
-function sanitizeError(err) {
+/**
+ * Formata erros HTTP preservando o detalhe útil devolvido pela API.
+ * A resposta é limitada e passa pelo sanitizador antes de chegar ao console.
+ */
+function formatGasHttpError(service, operation, statusCode, resource, responseBody, maxDetailLength) {
+  var detail = '';
+  if (responseBody) {
+    try {
+      var parsed = JSON.parse(responseBody);
+      var apiError = parsed && parsed.error ? parsed.error : null;
+      if (apiError && typeof apiError === 'object') {
+        var parts = [];
+        if (apiError.code !== undefined) parts.push('apiCode=' + apiError.code);
+        if (apiError.status) parts.push('status=' + apiError.status);
+        if (apiError.message) parts.push('message=' + apiError.message);
+        if (Array.isArray(apiError.details) && apiError.details.length) {
+          parts.push('details=' + JSON.stringify(apiError.details.slice(0, 3)));
+        }
+        detail = parts.join(' | ');
+      } else {
+        detail = responseBody;
+      }
+    } catch (_) {
+      detail = responseBody;
+    }
+  }
+
+  var message = service + ' ' + operation + ' falhou com HTTP ' + statusCode;
+  if (resource) message += ' [' + resource + ']';
+  if (detail) message += '. Resposta da API: ' + sanitizeError(detail, maxDetailLength || 1800);
+  else message += '.';
+  return message;
+}
+
+function sanitizeError(err, maxLength) {
   if (!err) return '';
   var msg = String(err.message || err);
   msg = msg.replace(/auth=[^&\s"']*/gi, 'auth=[REDACTED]');
   msg = msg.replace(/secret=[^&\s"']*/gi, 'secret=[REDACTED]');
-  return msg.slice(0, 500);
+  msg = msg.replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [REDACTED]');
+  msg = msg.replace(/(access_token|refresh_token|id_token|api_key|apikey)(["']?\s*[:=]\s*["']?)[^&\s,"'}]+/gi, '$1$2[REDACTED]');
+  var limit = typeof maxLength === 'number' && maxLength > 0 ? maxLength : 500;
+  return msg.slice(0, limit);
 }
 
 function formatInvocationLabel(invocation) {

@@ -16,8 +16,9 @@
  *   Os arquivos de um projeto Apps Script compartilham o escopo global.
  *   As funções utilitárias canônicas (parseIso8601Duration, loadAndValidateConfig,
  *   validateOrchestratorConfig, normalizeFirebaseUrl, buildBaseMetrics,
- *   sanitizeError, formatInvocationLabel, generateRunId) estão definidas
- *   em master_orchestrator.js e estão acessíveis aqui sem redefinição.
+ *   sanitizeError, formatGasHttpError, formatInvocationLabel, generateRunId)
+ *   estão definidas em master_orchestrator.js e estão acessíveis aqui sem
+ *   redefinição.
  *   A telemetria (appendTelemetryRow e auxiliares) também está definida aqui
  *   e é usada pelo Master.
  *
@@ -146,8 +147,26 @@ function executeColdStorageRooms(isOrchestrated, customOptions) {
     // ── 4. Persistir metadados no Firebase ────────────────────────────────
     persistColdStorageMeta(props, metrics, invocation);
 
-    // ── 5. Telemetria (somente standalone) ────────────────────────────────
+    // ── 5. Diagnóstico explícito no console (somente standalone) ──────────
+    // No modo orquestrado, o Master registra o resultado consolidado do job.
     if (!isOrchestrated) {
+      if (metrics.status === 'FAILED' || metrics.completedSuccessfully === false) {
+        console.error(
+          '[COLDSTORAGE][FAILED] runId=' + metrics.runId +
+          ' | invocation=' + invocation +
+          '\nerrorTrace: ' + (metrics.errorTrace || 'Sem errorTrace retornado.') +
+          '\nnotes: ' + (metrics.notes || 'Sem notas adicionais.')
+        );
+      } else {
+        console.log(
+          '[COLDSTORAGE][' + metrics.status + '] runId=' + metrics.runId +
+          ' | invocation=' + invocation +
+          ' | itemsProcessed=' + metrics.itemsProcessed +
+          ' | target=' + (metrics.target || '(não informado)')
+        );
+      }
+
+      // ── 6. Telemetria (somente standalone) ──────────────────────────────
       appendTelemetryRow(props, config, [metrics]);
     }
 
@@ -156,10 +175,18 @@ function executeColdStorageRooms(isOrchestrated, customOptions) {
   } catch (err) {
     var failedMetrics = buildBaseMetrics(COLDSTORAGE_JOB_ID, customOptions);
     failedMetrics.status = 'FAILED';
-    failedMetrics.errorTrace = sanitizeError(err);
+    failedMetrics.errorTrace = sanitizeError(err, 2200);
     failedMetrics.completedSuccessfully = false;
     failedMetrics.notes = formatInvocationLabel(customOptions.invocation || 'MANUAL_SOLO') +
       '\nFalha na execução do Cold Storage: ' + failedMetrics.errorTrace;
+
+    if (!isOrchestrated) {
+      console.error(
+        '[COLDSTORAGE][FAILED] runId=' + failedMetrics.runId +
+        ' | invocation=' + (customOptions.invocation || 'MANUAL_SOLO') +
+        '\nerrorTrace: ' + failedMetrics.errorTrace
+      );
+    }
 
     try {
       var propsForMeta = PropertiesService.getScriptProperties();
@@ -247,6 +274,7 @@ function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, in
   var documentsWritten = 0;
   var bytesSent = 0;
   var failures = [];
+  var failureFingerprints = Object.create(null);
 
   for (var i = 0; i < roomIds.length; i++) {
     var roomId = roomIds[i];
@@ -317,8 +345,25 @@ function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, in
       roomsSynced++;
       if (isLegacyInitial) roomsLegacyInitialized++;
     } catch (roomError) {
-      failures.push('Sala ' + String(roomId).slice(0, 100) + ': ' + sanitizeError(roomError));
-      console.error('Falha ao sincronizar sala ' + String(roomId).slice(0, 100) + ': ' + sanitizeError(roomError));
+      var roomErrorDetail = sanitizeError(roomError, 2200);
+      var roomErrorFingerprint = roomErrorDetail.replace(/cold_rooms\/[^/]+/g, 'cold_rooms/{roomId}');
+      var roomLabel = 'Sala ' + String(roomId).slice(0, 100) + ': ';
+      if (!Object.prototype.hasOwnProperty.call(failureFingerprints, roomErrorFingerprint)) {
+        failureFingerprints[roomErrorFingerprint] = true;
+        failures.push(roomLabel + roomErrorDetail);
+        console.error(
+          '[COLDSTORAGE][ROOM_FAILED] runId=' + runId +
+          ' | roomId=' + String(roomId).slice(0, 100) +
+          '\n' + roomErrorDetail
+        );
+      } else {
+        failures.push(roomLabel + 'erro idêntico ao diagnóstico anterior desta execução; veja a primeira ocorrência no log.');
+        console.warn(
+          '[COLDSTORAGE][ROOM_FAILED] runId=' + runId +
+          ' | roomId=' + String(roomId).slice(0, 100) +
+          ' | detalhe repetido; diagnóstico completo já registrado anteriormente.'
+        );
+      }
     }
   }
 
@@ -377,9 +422,11 @@ function jianmu_readRoomsSnapshot(dbUrl, secret) {
   var url = dbUrl + JIANMU_ROOMS_PATH + '?auth=' + encodeURIComponent(secret);
   var response = UrlFetchApp.fetch(url, { method: 'GET', muteHttpExceptions: true });
   var code = response.getResponseCode();
-  if (code < 200 || code >= 300) throw new Error('Jianmu GET /rooms falhou com HTTP ' + code + '.');
   var raw = response.getContent ? response.getContent() : [];
   var text = response.getContentText('UTF-8');
+  if (code < 200 || code >= 300) {
+    throw new Error(formatGasHttpError('Jianmu/RTDB', 'GET', code, JIANMU_ROOMS_PATH, text, 1400));
+  }
   var parsed;
   try { parsed = text === 'null' || text === '' ? null : JSON.parse(text); }
   catch (e) { throw new Error('Jianmu /rooms retornou JSON inválido: ' + sanitizeError(e)); }
@@ -561,7 +608,10 @@ function jianmu_acknowledgeArchivedData(dbUrl, secret, roomId, projection) {
     });
     var code = response.getResponseCode();
     if (code < 200 || code >= 300) {
-      throw new Error('Jianmu não confirmou a compactação dos snapshots históricos da sala (HTTP ' + code + ').');
+      throw new Error(formatGasHttpError(
+        'Jianmu/RTDB', 'PATCH compactação history', code,
+        '/rooms/' + String(roomId), response.getContentText('UTF-8'), 1400
+      ));
     }
     removed += Math.min(batchSize, operations.length - start);
   }
@@ -635,7 +685,9 @@ function eden_fetchJson(dbUrl, secret, path, method, payload) {
   var response = UrlFetchApp.fetch(dbUrl + path + '?auth=' + encodeURIComponent(secret), options);
   var code = response.getResponseCode();
   var body = response.getContentText('UTF-8');
-  if (code < 200 || code >= 300) throw new Error('Eden/RTDB ' + method + ' falhou com HTTP ' + code + '.');
+  if (code < 200 || code >= 300) {
+    throw new Error(formatGasHttpError('Eden/RTDB', method || 'GET', code, path, body, 1400));
+  }
   if (method === 'GET') {
     if (body === '' || body === 'null') return null;
     try { return JSON.parse(body); }
@@ -895,7 +947,10 @@ function ygg_listDocuments(projectId, collectionPath) {
     });
     var code = response.getResponseCode();
     var body = response.getContentText('UTF-8');
-    if (code < 200 || code >= 300) throw new Error('Firestore listDocuments falhou com HTTP ' + code + '.');
+    if (code < 200 || code >= 300) {
+      var resourceName = ygg_firestoreDocumentName(projectId, collectionPath);
+      throw new Error(formatGasHttpError('Firestore', 'listDocuments', code, resourceName, body, 2200));
+    }
     var parsed;
     try { parsed = body ? JSON.parse(body) : {}; }
     catch (e) { throw new Error('Firestore listDocuments retornou JSON inválido: ' + sanitizeError(e)); }
@@ -965,12 +1020,7 @@ function ygg_commitRoom(projectId, writes) {
   var code = response.getResponseCode();
   var body = response.getContentText('UTF-8');
   if (code < 200 || code >= 300) {
-    var detail = '';
-    try {
-      var errorBody = JSON.parse(body);
-      detail = errorBody.error && errorBody.error.message ? String(errorBody.error.message).slice(0, 500) : '';
-    } catch (_) {}
-    throw new Error('Firestore documents:commit falhou com HTTP ' + code + (detail ? ': ' + detail : '.') );
+    throw new Error(formatGasHttpError('Firestore', 'documents:commit', code, url, body, 2200));
   }
   var result;
   try { result = JSON.parse(body); }
@@ -1300,7 +1350,8 @@ function loadAndParseButIgnore(sectionId) {
         dbUrl + '/server_config/but_ignore.json?auth=' + secret,
         { muteHttpExceptions: true }
       );
-      if (fbResp.getResponseCode() === 200) {
+      var firebaseButIgnoreCode = fbResp.getResponseCode();
+      if (firebaseButIgnoreCode === 200) {
         var fbData = fbResp.getContentText('UTF-8');
         // Firebase retorna "null" em string se o nó não existir
         if (fbData && fbData !== "null") {
@@ -1309,6 +1360,11 @@ function loadAndParseButIgnore(sectionId) {
           var parsed = JSON.parse(fbData);
           if (typeof parsed === 'string') butIgnoreText = parsed;
         }
+      } else {
+        console.warn(formatGasHttpError(
+          'Firebase RTDB', 'GET .butIgnore', firebaseButIgnoreCode,
+          '/server_config/but_ignore.json', fbResp.getContentText('UTF-8'), 1000
+        ));
       }
     } catch (e) {
       console.warn('Falha ao ler .butIgnore do Firebase:', sanitizeError(e));
@@ -1319,9 +1375,15 @@ function loadAndParseButIgnore(sectionId) {
   if (!butIgnoreText && fallbackUrl) {
     try {
       var ghResp = UrlFetchApp.fetch(fallbackUrl, { muteHttpExceptions: true });
-      if (ghResp.getResponseCode() === 200) {
+      var githubButIgnoreCode = ghResp.getResponseCode();
+      if (githubButIgnoreCode === 200) {
         butIgnoreText = ghResp.getContentText('UTF-8');
         usedFallback = true;
+      } else {
+        console.warn(formatGasHttpError(
+          'GitHub Raw', 'GET .butIgnore', githubButIgnoreCode,
+          'GITHUB_BUTIGNORE_URL', ghResp.getContentText('UTF-8'), 1000
+        ));
       }
     } catch (e) {
       console.warn('Falha ao ler .butIgnore do GitHub:', sanitizeError(e));
@@ -1339,7 +1401,7 @@ function loadAndParseButIgnore(sectionId) {
   // 3. SE USOU O FALLBACK, SEMEAR O FIREBASE PARA EVITAR NOVA FALHA
   if (usedFallback && dbUrl && secret) {
     try {
-      UrlFetchApp.fetch(
+      var seedResponse = UrlFetchApp.fetch(
         dbUrl + '/server_config/but_ignore.json?auth=' + secret,
         {
           method: 'PUT',
@@ -1348,6 +1410,13 @@ function loadAndParseButIgnore(sectionId) {
           muteHttpExceptions: true
         }
       );
+      var seedCode = seedResponse.getResponseCode();
+      if (seedCode < 200 || seedCode >= 300) {
+        console.error(formatGasHttpError(
+          'Firebase RTDB', 'PUT seed .butIgnore', seedCode,
+          '/server_config/but_ignore.json', seedResponse.getContentText('UTF-8'), 1000
+        ));
+      }
       console.warn('Aviso: Regras butIgnore restauradas do repositório padrão (Fallback).');
     } catch (e) {
       console.warn('Falha ao reescrever .butIgnore no Firebase:', sanitizeError(e));
@@ -1541,7 +1610,11 @@ function persistColdStorageMeta(props, metrics, invocation) {
     );
     var responseCode = response.getResponseCode();
     if (responseCode < 200 || responseCode >= 300) {
-      console.error('Falha HTTP ao persistir metadados do Cold Storage: HTTP ' + responseCode + '.');
+      var responseBody = response.getContentText('UTF-8');
+      console.error(formatGasHttpError(
+        'Firebase RTDB', 'PATCH metadados do Cold Storage', responseCode,
+        SERVER_META_COLDSTORAGE_PATH, responseBody, 1200
+      ));
     }
   } catch (e) {
     console.error('Falha ao persistir metadados do Cold Storage:', sanitizeError(e));
@@ -1763,7 +1836,14 @@ function readLogSheetIdFromFirebase(props) {
       dbUrl + SERVER_CONFIG_LOG_SHEET_PATH + '?auth=' + secret,
       { method: 'GET', muteHttpExceptions: true }
     );
-    if (resp.getResponseCode() !== 200) return null;
+    var responseCode = resp.getResponseCode();
+    if (responseCode !== 200) {
+      console.warn(formatGasHttpError(
+        'Firebase RTDB', 'GET log_sheet_id', responseCode,
+        SERVER_CONFIG_LOG_SHEET_PATH, resp.getContentText('UTF-8'), 1000
+      ));
+      return null;
+    }
     var data = resp.getContentText('UTF-8');
     if (!data || data === 'null') return null;
     // O nó guarda APENAS a string do ID (payload microscópico).
@@ -1781,7 +1861,7 @@ function writeLogSheetIdToFirebase(props, sheetId) {
   var secret = props.getProperty('FIREBASE_SECRET');
   if (!dbUrl || !secret) return;
   try {
-    UrlFetchApp.fetch(
+    var response = UrlFetchApp.fetch(
       dbUrl + SERVER_CONFIG_LOG_SHEET_PATH + '?auth=' + secret,
       {
         method: 'PUT',
@@ -1790,6 +1870,13 @@ function writeLogSheetIdToFirebase(props, sheetId) {
         muteHttpExceptions: true
       }
     );
+    var responseCode = response.getResponseCode();
+    if (responseCode < 200 || responseCode >= 300) {
+      console.warn(formatGasHttpError(
+        'Firebase RTDB', 'PUT log_sheet_id', responseCode,
+        SERVER_CONFIG_LOG_SHEET_PATH, response.getContentText('UTF-8'), 1000
+      ));
+    }
   } catch (e) {
     console.warn('Falha ao gravar log_sheet_id no Firebase:', sanitizeError(e));
   }
