@@ -26,3 +26,5 @@ yarn-error.log
 Thumbs.db
 .kiro/
 .cline/
+.clinerules
+
