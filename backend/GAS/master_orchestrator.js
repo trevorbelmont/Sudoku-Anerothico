@@ -1055,3 +1055,12 @@ function formatInvocationLabel(invocation) {
   };
   return labels[invocation] || '[Ativação: ' + (invocation || 'desconhecida') + ']';
 }
+
+// Atualiza o trigger de tempo interno do GAS via script (busca no firebase a nova configuração)
+// Para realmente mudar o comportamento é importante apagar o cache (se tiver menos de 2h), o nó do firebase,
+// Então o script buscará no Github e fará o reseed. Alternativamente pode-se modificar direto nos nós do firebase apenas
+function atualizarHeartbeat() {
+  CacheService.getScriptCache().remove('orchestratorConfig_v1_raw');
+  var resultado = reinstallMasterTrigger();
+  console.log('Trigger atualizado com sucesso:', resultado);
+}
