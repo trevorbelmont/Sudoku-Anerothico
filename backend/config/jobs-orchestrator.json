@@ -73,7 +73,7 @@
     "timezone": "America/Sao_Paulo",
     "environment": "production",
     "scheduling": {
-      "heartbeat_interval": "PT30M",
+      "heartbeat_interval": "PT12H",
       "default_repeat_policy": "ALL_SUCCEEDED"
     }
   },
@@ -243,7 +243,7 @@
     "coldstorage_rooms": {
       "enabled": true,
       "schedule": {
-        "interval": "PT1H",
+        "interval": "P1D",
         "repeat_policy": "ALL_SUCCEEDED"
       },
       "description": "Backup diferencial de salas ativas baseado em updatedAt."
