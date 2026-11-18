@@ -95,7 +95,8 @@ async function requestNewGameConsensus() {
 
       function executeMultiplayerNewGame(proposal) {
           if (!proposal || proposal.proposerId !== state.multiplayer.playerId || proposal.status !== 'pending') return;
-          if (state.multiplayer.executingProposalId === proposal.proposalId) return;
+          if (state.multiplayer.executingProposalId === proposal.proposalId ||
+              state.multiplayer.executedProposalId === proposal.proposalId) return;
           state.multiplayer.executingProposalId = proposal.proposalId;
           const fb = getFirebaseAPI();
           if (!fb) { state.multiplayer.executingProposalId = null; return; }
@@ -117,7 +118,15 @@ async function requestNewGameConsensus() {
               }
               if (N < 4 || N > 25) throw new Error('Dimensão inválida para um novo tabuleiro.');
               const { solution, initial } = createUniqueSudokuPuzzle(N, blockR, blockC, symbols, difficulty);
-              const nextInstanceNumber = Number(state.multiplayer.instanceCount || 0) + 1;
+              const currentInstanceNumber = Number(proposal.baseInstanceNumber ?? state.multiplayer.instanceCount ?? 0);
+              if (!Number.isSafeInteger(currentInstanceNumber) || currentInstanceNumber < 0) {
+                  throw new Error('A proposta não contém uma versão válida da instância atual.');
+              }
+              if (currentInstanceNumber !== Number(state.multiplayer.instanceCount || 0)) {
+                  throw new Error('O estado local da sala mudou desde a abertura da votação. Recarregue a sala e tente novamente.');
+              }
+
+              const nextInstanceNumber = currentInstanceNumber + 1;
               const metaPayload = createRoomMeta(nextInstanceNumber, proposal.proposerId, {
                   gameMode: mode,
                   difficultyLevel: difficulty,
@@ -141,62 +150,121 @@ async function requestNewGameConsensus() {
                   lastUpdatedByPlayerId: proposal.proposerId,
                   updatedAtTimestamp: Date.now()
               };
-              const roomRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId));
-              const currentInstanceNumber = Number(state.multiplayer.instanceCount || 0);
+              const roomIdAtExecution = state.multiplayer.roomId;
+              const roomRef = fb.ref(fb.db, roomPath(roomIdAtExecution));
+              const archivedAtTimestamp = Date.now();
 
-              // A transação é feita na raiz da sala para capturar meta, tabuleiro,
-              // configurações e contribuições do mesmo snapshot lógico. Leituras
-              // separadas seguidas de update poderiam perder uma jogada concorrente
-              // entre a captura e a publicação da nova instância.
+              // A transação permanece na raiz para arquivar e publicar a nova instância
+              // atomicamente. Os listeners normais observam apenas subnós; por isso,
+              // mantemos um listener temporário na raiz para sincronizar o snapshot
+              // completo no cache do RTDB durante toda a transação.
+              if (typeof fb.onValue !== 'function') {
+                  throw new Error('A API Firebase não oferece listener de leitura da sala; a troca foi cancelada para preservar o histórico.');
+              }
               if (typeof fb.runTransaction !== 'function') {
                   throw new Error('A API Firebase não oferece transações; a nova instância foi cancelada para preservar o histórico.');
               }
+
               let transactionAbortReason = 'A transação foi abortada; o histórico e a instância corrente foram preservados.';
-
-              fb.runTransaction(roomRef, currentRoom => {
-                  if (!currentRoom || typeof currentRoom !== 'object' || !currentRoom.meta || !currentRoom.boardState) {
-                      transactionAbortReason = 'Não foi possível capturar a instância atual; o histórico foi preservado.';
-                      return; // aborta sem alterar o estado corrente
+              let stopRoomSnapshotListener = null;
+              let stopRoomSnapshotListenerRequested = false;
+              const stopRoomSnapshot = () => {
+                  if (stopRoomSnapshotListener) {
+                      const unsubscribe = stopRoomSnapshotListener;
+                      stopRoomSnapshotListener = null;
+                      unsubscribe();
+                  } else {
+                      // Cobre o caso de um callback síncrono antes de onValue retornar.
+                      stopRoomSnapshotListenerRequested = true;
                   }
+              };
 
-                  const storedInstanceNumber = Number(currentRoom.meta.instanceNumber);
-                  const storedBoardInstanceNumber = Number(currentRoom.boardState.boardInstanceNumber);
-                  if (storedInstanceNumber !== currentInstanceNumber || storedBoardInstanceNumber !== currentInstanceNumber) {
-                      transactionAbortReason = 'A sala mudou durante a troca de instância; o cliente está desatualizado.';
-                      return; // nunca arquivar uma instância diferente
+              const roomSnapshotPromise = new Promise((resolve, reject) => {
+                  let firstSnapshotReceived = false;
+                  try {
+                      stopRoomSnapshotListener = fb.onValue(roomRef, snapshot => {
+                          if (firstSnapshotReceived) return;
+                          firstSnapshotReceived = true;
+                          const currentRoom = snapshot && typeof snapshot.val === 'function'
+                              ? snapshot.val() : null;
+                          if (!currentRoom || typeof currentRoom !== 'object' || !currentRoom.meta || !currentRoom.boardState) {
+                              stopRoomSnapshot();
+                              reject(new Error('Não foi possível ler a sala completa antes da troca de instância. O estado atual foi preservado.'));
+                              return;
+                          }
+                          resolve(currentRoom);
+                      }, error => {
+                          if (firstSnapshotReceived) {
+                              console.error('Listener temporário da raiz da sala foi cancelado durante a troca:', error);
+                              stopRoomSnapshot();
+                              return;
+                          }
+                          firstSnapshotReceived = true;
+                          stopRoomSnapshot();
+                          reject(error instanceof Error ? error : new Error('Falha ao sincronizar o snapshot completo da sala.'));
+                      });
+                      if (stopRoomSnapshotListenerRequested) stopRoomSnapshot();
+                  } catch (error) {
+                      stopRoomSnapshot();
+                      reject(error);
                   }
+              });
 
-                  const history = currentRoom.history && typeof currentRoom.history === 'object'
-                      ? { ...currentRoom.history } : {};
-                  const historyKey = String(currentInstanceNumber);
-                  if (Object.prototype.hasOwnProperty.call(history, historyKey)) {
-                      transactionAbortReason = 'A instância atual já possui um snapshot histórico; a troca foi cancelada para não sobrescrever nem descartar alterações.';
-                      return;
+              roomSnapshotPromise.then(() => {
+                  let transactionPromise;
+                  try {
+                      transactionPromise = fb.runTransaction(roomRef, currentRoom => {
+                          if (!currentRoom || typeof currentRoom !== 'object' || !currentRoom.meta || !currentRoom.boardState) {
+                              transactionAbortReason = 'Não foi possível capturar a instância atual; o histórico foi preservado.';
+                              return; // aborta sem recriar uma sala ausente a partir de um snapshot antigo
+                          }
+
+                          const storedInstanceNumber = Number(currentRoom.meta.instanceNumber);
+                          const storedBoardInstanceNumber = Number(currentRoom.boardState.boardInstanceNumber);
+                          if (storedInstanceNumber !== currentInstanceNumber || storedBoardInstanceNumber !== currentInstanceNumber) {
+                              transactionAbortReason = 'A sala mudou durante a votação; o cliente está desatualizado.';
+                              return; // nunca arquivar uma instância diferente
+                          }
+
+                          const history = currentRoom.history && typeof currentRoom.history === 'object'
+                              ? { ...currentRoom.history } : {};
+                          const historyKey = String(currentInstanceNumber);
+                          if (Object.prototype.hasOwnProperty.call(history, historyKey)) {
+                              transactionAbortReason = 'A instância atual já possui um snapshot histórico; a troca foi cancelada para não sobrescrever nem descartar alterações.';
+                              return;
+                          }
+                          history[historyKey] = {
+                              instanceNumber: currentInstanceNumber,
+                              meta: currentRoom.meta,
+                              boardState: currentRoom.boardState,
+                              settings: currentRoom.settings || {},
+                              contributions: currentRoom.contributions || {},
+                              archivedAtTimestamp
+                          };
+
+                          return {
+                              ...currentRoom,
+                              history,
+                              meta: metaPayload,
+                              boardState: blankBoardState,
+                              moves: null,
+                              contributions: {},
+                              updatedAt: Date.now()
+                          };
+                      });
+                  } catch (error) {
+                      stopRoomSnapshot();
+                      throw error;
                   }
-                  history[historyKey] = {
-                      instanceNumber: currentInstanceNumber,
-                      meta: currentRoom.meta,
-                      boardState: currentRoom.boardState,
-                      settings: currentRoom.settings || {},
-                      contributions: currentRoom.contributions || {},
-                      archivedAtTimestamp: Date.now()
-                  };
-
-                  return {
-                      ...currentRoom,
-                      history,
-                      meta: metaPayload,
-                      boardState: blankBoardState,
-                      moves: null,
-                      contributions: {},
-                      updatedAt: Date.now()
-                  };
+                  return Promise.resolve(transactionPromise).finally(stopRoomSnapshot);
               }).then(transactionResult => {
                   if (!transactionResult || transactionResult.committed !== true) {
                       throw new Error(transactionAbortReason + ' Recarregue o estado da sala e tente novamente.');
                   }
-                  return transactionResult;
-              }).then(() => {
+
+                  // A partir daqui a nova instância está gravada. Marque a proposta
+                  // localmente antes de atualizar o status remoto para impedir reexecução
+                  // caso a etapa auxiliar de finalização da votação falhe.
                   state.multiplayer.instanceCount = nextInstanceNumber;
                   state.multiplayer.executedProposalId = proposal.proposalId;
                   const propRef = fb.child(roomRef, 'proposal');
@@ -204,14 +272,19 @@ async function requestNewGameConsensus() {
                       status: 'completed',
                       resultingInstanceNumber: nextInstanceNumber,
                       completedAtTimestamp: Date.now()
+                  }).then(() => {
+                      setTimeout(() => {
+                          const currentRoomId = state.multiplayer.roomId;
+                          if (currentRoomId !== roomIdAtExecution) return;
+                          const currentPropRef = fb.ref(fb.db, roomPath(roomIdAtExecution, 'proposal'));
+                          fb.remove(currentPropRef).catch(() => {});
+                      }, 900);
+                  }).catch(proposalError => {
+                      console.error('Novo tabuleiro gravado, mas não foi possível finalizar a votação:', proposalError);
+                      showToast('O novo tabuleiro foi gravado, mas não foi possível encerrar a votação. Atualize a sala se o aviso continuar aberto.', 'warn');
                   });
-              }).then(() => {
-                  setTimeout(() => {
-                      const propRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'proposal'));
-                      fb.remove(propRef).catch(() => {});
-                  }, 900);
               }).catch(error => {
-                  console.error('Falha ao gerar a nova instância multiplayer:', error);
+                  console.error('Falha ao gravar a nova instância multiplayer:', error);
                   showToast('A votação foi aprovada, mas não foi possível gravar o novo tabuleiro. Tente novamente.', 'warn');
               }).finally(() => {
                   state.multiplayer.executingProposalId = null;
