@@ -1,47 +1,69 @@
-name: CD - Deploy Google Apps Script
+name: CD - Deploy G-Apps Script (GAS)
 
 on:
   workflow_run:
-    workflows: ["Sudoku CI - Testes Automatizados"]  # Deve bater com o 'name:' do ci-auto-tests.yml
+    workflows: ["CI - Testes Automatizados"]  # Deve corresponder exatamente ao 'name:' do ci-auto-tests.yml
     types:
       - completed
     branches:
-      - main
+      - main  # Restringe o deploy à main; demais branches executam apenas o CI
   workflow_dispatch:  # Permite disparo manual pela aba Actions do GitHub
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Via push: só roda se o CI passou. Via disparo manual: sempre roda.
+    # Via push na main: executa apenas se o CI passar. Via disparo manual: executa sempre.
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        with:  # Faz checkout do commit exato testado pelo CI e inclui o commit anterior para o diff
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+
+      - name: Verificar alterações em backend/GAS/
+        id: check_gas
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Disparo manual: deploy liberado."
+          elif git diff --name-only HEAD~1 HEAD -- backend/GAS/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Alterações detectadas em backend/GAS/. Prosseguindo com deploy."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Nenhuma alteração em backend/GAS/. Deploy ignorado."
+          fi
 
       - name: Setup Node.js
+        if: steps.check_gas.outputs.changed == 'true'  # Etapas seguintes executam apenas se houver mudança em backend/GAS/ ou disparo manual
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
       - name: Instalar Clasp
+        if: steps.check_gas.outputs.changed == 'true'
         run: npm install -g @google/clasp
 
       - name: Configurar Credenciais do Clasp
+        if: steps.check_gas.outputs.changed == 'true'
         run: |
           cat << 'EOF' > ~/.clasprc.json
           ${{ secrets.CLASP_CREDENTIALS }}
           EOF
 
       - name: Recriar .clasp.json a partir do secret
+        if: steps.check_gas.outputs.changed == 'true'
         run: |
           echo '{"scriptId":"${{ secrets.GAS_SCRIPT_ID }}","rootDir":"."}' > backend/GAS/.clasp.json
 
       - name: Deploy para o Google Apps Script
+        if: steps.check_gas.outputs.changed == 'true'
         run: |
-            cd backend/GAS
-            # Mostra se o clasp.json está na pasta correta antes do push
-            ls -la
-            # Puxa o status do projeto e depois faz o push forçado
-            clasp status
-            clasp push -f
+          cd backend/GAS
+          # Verifica a presença de .clasp.json na pasta correta antes do push
+          ls -la
+          # Consulta o status do projeto e executa o push forçado
+          clasp status
+          clasp push -f

@@ -1,11 +1,10 @@
-name: Sudoku CI - Testes Automatizados
+name: CI - Testes Automatizados
 
 # Define quando rodar
 on:
   push:
-    branches: [ "main" ] # Roda qdo a main for atualizada
   pull_request:
-    branches: [ "main" ] # Roda em PRs
+    branches: [ "main" ] # Roda em PRs direcionadas a Main
 
 jobs:
   testes:
