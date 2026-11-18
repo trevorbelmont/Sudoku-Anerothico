@@ -142,17 +142,61 @@ async function requestNewGameConsensus() {
                   updatedAtTimestamp: Date.now()
               };
               const roomRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId));
-              const metaRef = fb.child(roomRef, 'meta');
-              const boardStateRef = fb.child(roomRef, 'boardState');
-              const movesRef = fb.child(roomRef, 'moves');
+              const currentInstanceNumber = Number(state.multiplayer.instanceCount || 0);
 
-              // A gravação de meta + boardState é explícita e versionada; todos aplicam a instância nova pela escuta contínua de meta.
-              Promise.all([
-                  fb.set(metaRef, metaPayload),
-                  fb.set(boardStateRef, blankBoardState),
-                  fb.remove(movesRef),
-                  fb.set(fb.child(roomRef, 'contributions'), {})
-              ]).then(() => {
+              // A transação é feita na raiz da sala para capturar meta, tabuleiro,
+              // configurações e contribuições do mesmo snapshot lógico. Leituras
+              // separadas seguidas de update poderiam perder uma jogada concorrente
+              // entre a captura e a publicação da nova instância.
+              if (typeof fb.runTransaction !== 'function') {
+                  throw new Error('A API Firebase não oferece transações; a nova instância foi cancelada para preservar o histórico.');
+              }
+              let transactionAbortReason = 'A transação foi abortada; o histórico e a instância corrente foram preservados.';
+
+              fb.runTransaction(roomRef, currentRoom => {
+                  if (!currentRoom || typeof currentRoom !== 'object' || !currentRoom.meta || !currentRoom.boardState) {
+                      transactionAbortReason = 'Não foi possível capturar a instância atual; o histórico foi preservado.';
+                      return; // aborta sem alterar o estado corrente
+                  }
+
+                  const storedInstanceNumber = Number(currentRoom.meta.instanceNumber);
+                  const storedBoardInstanceNumber = Number(currentRoom.boardState.boardInstanceNumber);
+                  if (storedInstanceNumber !== currentInstanceNumber || storedBoardInstanceNumber !== currentInstanceNumber) {
+                      transactionAbortReason = 'A sala mudou durante a troca de instância; o cliente está desatualizado.';
+                      return; // nunca arquivar uma instância diferente
+                  }
+
+                  const history = currentRoom.history && typeof currentRoom.history === 'object'
+                      ? { ...currentRoom.history } : {};
+                  const historyKey = String(currentInstanceNumber);
+                  if (Object.prototype.hasOwnProperty.call(history, historyKey)) {
+                      transactionAbortReason = 'A instância atual já possui um snapshot histórico; a troca foi cancelada para não sobrescrever nem descartar alterações.';
+                      return;
+                  }
+                  history[historyKey] = {
+                      instanceNumber: currentInstanceNumber,
+                      meta: currentRoom.meta,
+                      boardState: currentRoom.boardState,
+                      settings: currentRoom.settings || {},
+                      contributions: currentRoom.contributions || {},
+                      archivedAtTimestamp: Date.now()
+                  };
+
+                  return {
+                      ...currentRoom,
+                      history,
+                      meta: metaPayload,
+                      boardState: blankBoardState,
+                      moves: null,
+                      contributions: {},
+                      updatedAt: Date.now()
+                  };
+              }).then(transactionResult => {
+                  if (!transactionResult || transactionResult.committed !== true) {
+                      throw new Error(transactionAbortReason + ' Recarregue o estado da sala e tente novamente.');
+                  }
+                  return transactionResult;
+              }).then(() => {
                   state.multiplayer.instanceCount = nextInstanceNumber;
                   state.multiplayer.executedProposalId = proposal.proposalId;
                   const propRef = fb.child(roomRef, 'proposal');

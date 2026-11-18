@@ -146,3 +146,9 @@ Todos os arquivos `.js` passaram na verificação sintática do Node.js. A valid
 - **Backend GAS — Master Orchestrator e Cold Storage:** `master_orchestrator.js` despacha jobs declarativos; o job `coldstorage_rooms` faz backup diferencial de `rooms` para Google Drive baseado em watermark `updatedAt`, com configuração declarativa versionada e telemetria padronizada.
 - **Ferramentas Clasp/secrets:** tooling para deploy e gerenciamento do projeto Google Apps Script.
 - **`updatedAt` no Firebase:** campo adicionado aos nós do Firebase para servir de watermark de backup diferencial.
+
+## Migração Cold Storage — implementação Jianmu → Yggdrasil
+
+O caminho ativo do job `coldstorage_rooms` foi ampliado para sincronizar as projeções persistentes do Firebase Realtime Database (Jianmu/L1) com Cloud Firestore (Yggdrasil/L2), usando SHA-256 por sala e ledger administrativo no Eden. A implementação preserva o contrato do Master, a telemetria e o código legado do Drive; os arquivos JSON históricos não são apagados. O jogo também arquiva cada instância antes de iniciar a próxima e registra eventos de contribuição SET/DELETE no RTDB; esses eventos não fazem parte da projeção enviada ao Firestore.
+
+Detalhes de schema, operação, permissões, verificações e ativação estão em [`Trivia/implementacao-migracao-coldstorage-yggdrasil.md`](Trivia/implementacao-migracao-coldstorage-yggdrasil.md). A implementação está no código-fonte local, mas ainda requer configuração IAM/OAuth, publicação das regras e um canário antes de ativação em produção.

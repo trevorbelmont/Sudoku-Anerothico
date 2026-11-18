@@ -34,12 +34,13 @@
  * CHAVES TRATADAS:
  *   Obrigatórias:
  *     SCRIPT_ID, CRON_TOKEN, FIREBASE_URL, FIREBASE_SECRET,
- *     GITHUB_JOBS_CONFIG_URL, GITHUB_BUTIGNORE_URL, DRIVE_FOLDER_ID
+ *     GITHUB_JOBS_CONFIG_URL, GITHUB_BUTIGNORE_URL, PROJECT_ID
  *   Especiais/Opcionais:
  *     LOG_SHEET_ID        — opcional; vazio = o GAS recupera a última planilha
  *                           do Firebase (last resort: cria nova). "NULL" = força
  *                           a criação de uma planilha nova do zero.
  *     LOG_SHEET_FOLDER_ID — opcional; pode ser vazia ou omitida.
+ *     DRIVE_FOLDER_ID     — opcional/depreciado; preservado para rollback legado.
  *
  * SEGURANÇA:
  *   - .environment e backend/GAS/.clasp.json estão no .gitignore — nunca
@@ -73,7 +74,7 @@ const REQUIRED_KEYS = [
   'FIREBASE_SECRET',
   'GITHUB_JOBS_CONFIG_URL',
   'GITHUB_BUTIGNORE_URL',
-  'DRIVE_FOLDER_ID',
+  'PROJECT_ID',
 ];
 
 /**

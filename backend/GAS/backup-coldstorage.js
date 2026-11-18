@@ -4,6 +4,10 @@
  * Responsabilidade: backup diferencial de `rooms` do Firebase Realtime Database
  * para arquivos JSON no Google Drive, com watermark, exclusão de caminhos
  * voláteis via .butIgnore e telemetria padronizada de 11 colunas.
+ * MIGRACAO (caminho ativo): Jianmu/RTDB → Yggdrasil/Cloud Firestore, com
+ * ledger SHA-256 por sala no Eden. A implementação Drive permanece preservada
+ * em runColdStorageDriveLegacyCore() para compatibilidade/rollback; não é
+ * executada pelo ponto de entrada ativo. O Drive segue disponível à telemetria.
  *
  * Ambiente de execução: Google Apps Script V8 (runtime síncrono).
  * Não use require, module.exports, process.env, fs, async/await ou Promise.all.
@@ -33,7 +37,8 @@
  *   GITHUB_BUTIGNORE_URL  — URL Raw do .butIgnore (capitalização exata)
  *   LOG_SHEET_ID          — ID da planilha de telemetria (ou "NULL" para provisionar)
  *   LOG_SHEET_FOLDER_ID   — (opcional) pasta onde criar a planilha de telemetria
- *   DRIVE_FOLDER_ID       — pasta onde gravar os arquivos JSON de Cold Storage
+ *   PROJECT_ID            — ID do projeto Google Cloud com Cloud Firestore
+ *   DRIVE_FOLDER_ID       — legado/opcional; usado apenas pelo núcleo antigo preservado
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,6 +52,23 @@ var COLDSTORAGE_SCHEMA_VERSION = 1;
 var COLDSTORAGE_LOCK_TIMEOUT_MS = 25000;
 var BUTIGNORE_CACHE_KEY = 'butIgnoreCache_v1';
 var BUTIGNORE_CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jianmu (L1), Yggdrasil (L2) e Eden (metadados administrativos)
+// ─────────────────────────────────────────────────────────────────────────────
+// Os identificadores legados acima permanecem disponíveis para compatibilidade.
+var JIANMU_ROOMS_PATH = COLDSTORAGE_ROOMS_PATH;
+var EDEN_COLDSTORAGE_CHECKPOINT_PATH = SERVER_META_COLDSTORAGE_PATH;
+var EDEN_ROOM_SYNC_PATH = '/eden/coldstorage_rooms/room_sync';
+var YGGDRASIL_COLLECTION_ROOMS = 'cold_rooms';
+var YGGDRASIL_DATABASE_ID = '(default)';
+var YGGDRASIL_SYNC_SCHEMA_VERSION = 1;
+var YGGDRASIL_PROJECTION_VERSION = 2; // v2 deixa contributionEvents fora do snapshot L2
+var YGGDRASIL_MAX_DOCUMENT_BYTES = 900 * 1024;
+var YGGDRASIL_MAX_COMMIT_BYTES = 9 * 1024 * 1024;
+var YGGDRASIL_MAX_WRITES_PER_COMMIT = 450;
+var YGGDRASIL_MAX_LIST_PAGE_SIZE = 1000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constantes da telemetria (definidas aqui, usadas pelo Master via escopo global)
@@ -182,7 +204,784 @@ function executeFirebaseBackup() {
 // Núcleo do backup (checkpoint-last)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Núcleo ativo: Jianmu → Yggdrasil, com ledger diferencial no Eden
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Executa uma varredura completa do Jianmu e sincroniza somente as projeções
+ * persistentes cujo hash diverge do ledger administrativo no Eden.
+ *
+ * O checkpoint global é avançado somente depois de todas as salas terem sido
+ * verificadas e todos os commits/markers necessários terem sido confirmados.
+ * O hash de cada sala representa exatamente o snapshot enviado ao Firestore.
+ */
 function runColdStorageCore(props, config, butIgnoreRules, wakeUpTime, runId, invocation) {
+  var metrics = buildBaseMetrics(COLDSTORAGE_JOB_ID, { invocation: invocation, runId: runId });
+  var activationLabel = formatInvocationLabel(invocation);
+  metrics.action = 'BACKUP';
+  metrics.target = 'Yggdrasil / Firestore';
+
+  var dbUrl = normalizeFirebaseUrl(props.getProperty('FIREBASE_URL'));
+  var secret = props.getProperty('FIREBASE_SECRET');
+  var projectId = props.getProperty('PROJECT_ID');
+  var timezone = (config && config.system && config.system.timezone) || 'America/Sao_Paulo';
+  if (!dbUrl || !secret || !projectId) {
+    throw new Error('Script Properties obrigatórias ausentes: FIREBASE_URL, FIREBASE_SECRET ou PROJECT_ID.');
+  }
+
+  ygg_validateProjectId(projectId);
+  var scanStartedAt = wakeUpTime;
+  var checkpoint = eden_readColdStorageCheckpoint(dbUrl, secret);
+  var roomsSnapshot = jianmu_readRoomsSnapshot(dbUrl, secret);
+  metrics.bytesDownloaded = roomsSnapshot.bytes;
+
+  // A varredura é completa: updatedAt e o watermark não podem impedir a
+  // detecção de mudanças em subnós persistentes que não atualizam a raiz.
+  var roomsCopy = coldStorageDeepCopy(roomsSnapshot.rooms);
+  var nodesIgnored = applyButIgnoreFilter(roomsCopy, butIgnoreRules);
+  var roomIds = Object.keys(roomsCopy).sort();
+  var roomsUnchanged = 0;
+  var roomsSynced = 0;
+  var roomsLegacyInitialized = 0;
+  var documentsWritten = 0;
+  var bytesSent = 0;
+  var failures = [];
+
+  for (var i = 0; i < roomIds.length; i++) {
+    var roomId = roomIds[i];
+    var room = roomsCopy[roomId];
+
+    try {
+      var projection = jianmu_projectRoomData(roomId, room);
+      // updatedAt é conservado como diagnóstico no documento raiz, mas não
+      // faz parte da identidade do conteúdo persistente: o hash deve reagir
+      // a dados reais, não a uma simples atualização do watermark.
+      var hashProjection = coldStorageDeepCopy(projection);
+      delete hashProjection.updatedAt;
+      var hashInput = {
+        schemaVersion: YGGDRASIL_SYNC_SCHEMA_VERSION,
+        projectionVersion: YGGDRASIL_PROJECTION_VERSION,
+        room: hashProjection
+      };
+      var canonical = jianmu_canonicalize(hashInput);
+      var roomHash = jianmu_calculateSha256(canonical);
+      var marker = eden_readRoomSyncState(dbUrl, secret, roomId);
+
+      if (marker && marker.lastSyncedHash === roomHash &&
+          Number(marker.schemaVersion) === YGGDRASIL_SYNC_SCHEMA_VERSION &&
+          Number(marker.projectionVersion) === YGGDRASIL_PROJECTION_VERSION &&
+          marker.syncStatus === 'SUCCESS') {
+        // Se a cópia já está confirmada no L2, é seguro retirar do Jianmu
+        // somente os snapshots históricos exatos presentes nesta projeção.
+        // contributionEvents não participa desta projeção nem é compactado.
+        // Se uma tentativa anterior falhou parcialmente, a operação é idempotente.
+        jianmu_acknowledgeArchivedData(dbUrl, secret, roomId, projection);
+        roomsUnchanged++;
+        continue;
+      }
+
+      var isLegacyInitial = !marker;
+      var writePlan = ygg_buildRoomWrites(projectId, projection, roomHash, scanStartedAt);
+      var existingContributionDocs = ygg_listCurrentContributionDocuments(projectId, writePlan.currentContributionCollectionPath);
+      var staleDeletes = ygg_buildStaleContributionDeletes(
+        writePlan.currentContributionCollectionPath,
+        existingContributionDocs,
+        writePlan.currentContributionDocumentIds
+      );
+      var writes = writePlan.writes.concat(staleDeletes);
+      ygg_validateRoomWritePlan(writes);
+      var commitBytes = ygg_commitRoom(projectId, writes);
+      documentsWritten += writes.length;
+      bytesSent += commitBytes;
+
+      // Este marker é deliberadamente posterior ao commit. Se falhar, o commit
+      // determinístico será repetido no próximo ciclo, sem perda de dados.
+      eden_writeRoomSyncState(dbUrl, secret, roomId, {
+        schemaVersion: YGGDRASIL_SYNC_SCHEMA_VERSION,
+        projectionVersion: YGGDRASIL_PROJECTION_VERSION,
+        syncStatus: 'SUCCESS',
+        lastSyncedAt: Date.now(),
+        snapshotCapturedAt: scanStartedAt,
+        sourceUpdatedAt: projection.updatedAt || null,
+        lastSyncedHash: roomHash,
+        lastSyncedInstanceNumber: projection.currentInstanceNumber,
+        lastRunId: runId,
+        lastTarget: 'yggdrasil'
+      });
+
+      // A partir daqui, o snapshot histórico está durável na Yggdrasil.
+      // A compactação do history é posterior ao commit e ao marcador; falha
+      // nela deixa a execução incompleta e será repetida sem perda da cópia.
+      jianmu_acknowledgeArchivedData(dbUrl, secret, roomId, projection);
+      roomsSynced++;
+      if (isLegacyInitial) roomsLegacyInitialized++;
+    } catch (roomError) {
+      failures.push('Sala ' + String(roomId).slice(0, 100) + ': ' + sanitizeError(roomError));
+      console.error('Falha ao sincronizar sala ' + String(roomId).slice(0, 100) + ': ' + sanitizeError(roomError));
+    }
+  }
+
+  metrics.itemsProcessed = roomsSynced;
+  metrics.bytesSaved = bytesSent;
+  metrics.target = 'Firestore: ' + YGGDRASIL_COLLECTION_ROOMS + ' (' + projectId + ')';
+
+  if (failures.length > 0) {
+    metrics.status = 'FAILED';
+    metrics.completedSuccessfully = false;
+    metrics.errorTrace = failures.join('\n').slice(0, 8000);
+    metrics.notes = activationLabel +
+      '\nVarredura incompleta; checkpoint global NÃO avançado.' +
+      '\nSalas examinadas: ' + roomIds.length +
+      ' | Sincronizadas: ' + roomsSynced +
+      ' | Inalteradas: ' + roomsUnchanged +
+      ' | Legadas inicializadas: ' + roomsLegacyInitialized +
+      ' | Documentos confirmados: ' + documentsWritten +
+      ' | Bytes enviados: ' + bytesSent +
+      ' | Nós ignorados por .butIgnore: ' + nodesIgnored +
+      '\nFalhas: ' + failures.length +
+      '\nCheckpoint anterior: ' + checkpoint.timestamp;
+    return metrics;
+  }
+
+  eden_advanceColdStorageCheckpoint(dbUrl, secret, scanStartedAt);
+  metrics.status = roomsSynced === 0 ? 'SKIPPED' : 'SUCCESS';
+  metrics.completedSuccessfully = true;
+  metrics.notes = activationLabel +
+    '\nVarredura completa do Jianmu confirmada.' +
+    '\nSalas examinadas: ' + roomIds.length +
+    ' | Sincronizadas: ' + roomsSynced +
+    ' | Inalteradas: ' + roomsUnchanged +
+    ' | Legadas inicializadas: ' + roomsLegacyInitialized +
+    ' | Documentos confirmados: ' + documentsWritten +
+    ' | Bytes enviados: ' + bytesSent +
+    ' | Nós ignorados por .butIgnore: ' + nodesIgnored +
+    '\nCheckpoint anterior: ' + checkpoint.timestamp +
+    ' | Novo checkpoint: ' + scanStartedAt +
+    '\nFuso de telemetria: ' + timezone +
+    '\nPolítica de repetição efetiva: ' + (
+      config && config.jobs_schedule && config.jobs_schedule[COLDSTORAGE_JOB_ID] &&
+      config.jobs_schedule[COLDSTORAGE_JOB_ID].schedule &&
+      config.jobs_schedule[COLDSTORAGE_JOB_ID].schedule.repeat_policy
+        ? config.jobs_schedule[COLDSTORAGE_JOB_ID].schedule.repeat_policy
+        : 'ALL_SUCCEEDED'
+    );
+  return metrics;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jianmu: leitura, allowlist e projeção persistente
+// ─────────────────────────────────────────────────────────────────────────────
+
+function jianmu_readRoomsSnapshot(dbUrl, secret) {
+  var url = dbUrl + JIANMU_ROOMS_PATH + '?auth=' + encodeURIComponent(secret);
+  var response = UrlFetchApp.fetch(url, { method: 'GET', muteHttpExceptions: true });
+  var code = response.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error('Jianmu GET /rooms falhou com HTTP ' + code + '.');
+  var raw = response.getContent ? response.getContent() : [];
+  var text = response.getContentText('UTF-8');
+  var parsed;
+  try { parsed = text === 'null' || text === '' ? null : JSON.parse(text); }
+  catch (e) { throw new Error('Jianmu /rooms retornou JSON inválido: ' + sanitizeError(e)); }
+  if (parsed === null) return { rooms: {}, bytes: raw ? raw.length : 0 };
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Jianmu /rooms retornou uma estrutura diferente do mapa roomId → sala.');
+  }
+  return { rooms: parsed, bytes: raw ? raw.length : 0 };
+}
+
+function jianmu_pickFields(source, allowedFields) {
+  var result = {};
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return result;
+  for (var i = 0; i < allowedFields.length; i++) {
+    var key = allowedFields[i];
+    if (Object.prototype.hasOwnProperty.call(source, key) && source[key] !== undefined) {
+      result[key] = coldStorageDeepCopy(source[key]);
+    }
+  }
+  return result;
+}
+
+function jianmu_projectContributionMap(source) {
+  var result = Object.create(null);
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return result;
+  var keys = Object.keys(source);
+  var allowed = ['kind', 'action', 'playerId', 'playerName', 'playerColor', 'timestamp'];
+  for (var i = 0; i < keys.length; i++) {
+    var item = source[keys[i]];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    result[keys[i]] = jianmu_pickFields(item, allowed);
+  }
+  return result;
+}
+
+function jianmu_projectMembers(source) {
+  var result = Object.create(null);
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return result;
+  var keys = Object.keys(source);
+  var allowed = ['playerId', 'playerName', 'playerColor', 'joinedAtTimestamp'];
+  for (var i = 0; i < keys.length; i++) {
+    var member = source[keys[i]];
+    if (!member || typeof member !== 'object' || Array.isArray(member)) continue;
+    result[keys[i]] = jianmu_pickFields(member, allowed);
+  }
+  return result;
+}
+
+function jianmu_projectInstanceSnapshot(snapshot, fallbackInstanceNumber) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) ||
+      !snapshot.meta || typeof snapshot.meta !== 'object' ||
+      !snapshot.boardState || typeof snapshot.boardState !== 'object' ||
+      !Array.isArray(snapshot.boardState.boardValues)) {
+    throw new Error('Snapshot histórico inválido: meta e boardState.boardValues são obrigatórios.');
+  }
+  var meta = jianmu_pickFields(snapshot.meta, [
+    'createdAtTimestamp', 'ownerPlayerId', 'instanceNumber', 'gameMode', 'difficultyLevel',
+    'minimumSymbolValue', 'maximumSymbolValue', 'includesZeroValue', 'boardDimension',
+    'blockRowCount', 'blockColumnCount', 'symbolValues', 'fixedInitialGrid', 'roomMode', 'realtimeMetrics'
+  ]);
+  var boardState = jianmu_pickFields(snapshot.boardState, [
+    'boardInstanceNumber', 'boardValues', 'pencilNotes', 'elapsedSeconds', 'isCompleted',
+    'gameName', 'lastUpdatedByPlayerId', 'updatedAtTimestamp'
+  ]);
+  var instanceNumber = jianmu_resolveInstanceNumber(meta, boardState, fallbackInstanceNumber);
+  if (instanceNumber === 'legacy-unknown') throw new Error('Snapshot histórico sem instanceNumber confiável.');
+  var metaInstance = Number(meta.instanceNumber);
+  var boardInstance = Number(boardState.boardInstanceNumber);
+  var fallbackInstance = Number(fallbackInstanceNumber);
+  if (meta.instanceNumber !== undefined && isFinite(metaInstance) &&
+      boardState.boardInstanceNumber !== undefined && isFinite(boardInstance) && metaInstance !== boardInstance) {
+    throw new Error('Snapshot histórico contém instanceNumber divergente entre meta e boardState.');
+  }
+  if (fallbackInstanceNumber !== null && fallbackInstanceNumber !== undefined &&
+      fallbackInstanceNumber !== '' && isFinite(fallbackInstance) && fallbackInstance !== Number(instanceNumber)) {
+    throw new Error('Chave do snapshot histórico diverge do instanceNumber interno.');
+  }
+  return {
+    instanceNumber: instanceNumber,
+    meta: meta,
+    boardState: boardState,
+    settings: jianmu_pickFields(snapshot.settings, ['immediateErrorCheck', 'immediateErrorUpdatedAt', 'immediateErrorUpdatedBy']),
+    contributions: jianmu_projectContributionMap(snapshot.contributions),
+    archivedAtTimestamp: snapshot.archivedAtTimestamp || null
+  };
+}
+
+function jianmu_resolveInstanceNumber(meta, boardState, fallback) {
+  var candidates = [meta && meta.instanceNumber, boardState && boardState.boardInstanceNumber, fallback];
+  for (var i = 0; i < candidates.length; i++) {
+    var value = Number(candidates[i]);
+    if (candidates[i] !== null && candidates[i] !== undefined && candidates[i] !== '' && isFinite(value) && value >= 0) {
+      return String(Math.floor(value));
+    }
+  }
+  return 'legacy-unknown';
+}
+
+function jianmu_projectRoomData(roomId, room) {
+  if (!room || typeof room !== 'object' || Array.isArray(room) ||
+      !room.meta || typeof room.meta !== 'object' ||
+      !room.boardState || typeof room.boardState !== 'object' ||
+      !Array.isArray(room.boardState.boardValues)) {
+    throw new Error('Sala inválida: meta e boardState.boardValues são obrigatórios para o Cold Storage.');
+  }
+  var meta = jianmu_pickFields(room.meta, [
+    'createdAtTimestamp', 'ownerPlayerId', 'instanceNumber', 'gameMode', 'difficultyLevel',
+    'minimumSymbolValue', 'maximumSymbolValue', 'includesZeroValue', 'boardDimension',
+    'blockRowCount', 'blockColumnCount', 'symbolValues', 'fixedInitialGrid', 'roomMode', 'realtimeMetrics'
+  ]);
+  // solutionGrid é excluído explicitamente mesmo se aparecer em uma sala legada.
+  var boardState = jianmu_pickFields(room.boardState, [
+    'boardInstanceNumber', 'boardValues', 'pencilNotes', 'elapsedSeconds', 'isCompleted',
+    'gameName', 'lastUpdatedByPlayerId', 'updatedAtTimestamp'
+  ]);
+  var history = Object.create(null);
+  if (room.history && typeof room.history === 'object' && !Array.isArray(room.history)) {
+    var historyKeys = Object.keys(room.history);
+    for (var h = 0; h < historyKeys.length; h++) {
+      var archived = jianmu_projectInstanceSnapshot(room.history[historyKeys[h]], historyKeys[h]);
+      if (archived) history[archived.instanceNumber] = archived;
+    }
+  }
+  var currentInstanceNumber = jianmu_resolveInstanceNumber(meta, boardState, null);
+  if (currentInstanceNumber === 'legacy-unknown') throw new Error('Sala sem instanceNumber confiável no meta/boardState.');
+  var currentMetaInstance = Number(meta.instanceNumber);
+  var currentBoardInstance = Number(boardState.boardInstanceNumber);
+  if (meta.instanceNumber !== undefined && isFinite(currentMetaInstance) &&
+      boardState.boardInstanceNumber !== undefined && isFinite(currentBoardInstance) &&
+      currentMetaInstance !== currentBoardInstance) {
+    throw new Error('Sala contém instanceNumber divergente entre meta e boardState.');
+  }
+  var updatedAt = jianmu_getPersistentRoomTimestamp(room);
+  return {
+    roomId: String(roomId),
+    updatedAt: updatedAt || null,
+    currentInstanceNumber: currentInstanceNumber,
+    meta: meta,
+    boardState: boardState,
+    settings: jianmu_pickFields(room.settings, ['immediateErrorCheck', 'immediateErrorUpdatedAt', 'immediateErrorUpdatedBy']),
+    contributions: jianmu_projectContributionMap(room.contributions),
+    members: jianmu_projectMembers(room.members),
+    history: history
+  };
+}
+
+/**
+ * Remove do Jianmu somente os snapshots históricos incluídos em uma projeção
+ * que já foi confirmada na Yggdrasil. As instâncias L2 não são apagadas.
+ * contributionEvents permanece fora da projeção, do hash, do Firestore e desta
+ * compactação; o Cold Storage não consome nem remove esses registros do RTDB.
+ * A remoção dos snapshots por chave é idempotente e não toca dados correntes.
+ *
+ * O método trabalha em lotes para evitar uma PATCH excessiva. Se uma chamada
+ * falhar após lotes anteriores, a próxima varredura recalcula o hash do estado
+ * remanescente e repete a sincronização/compactação de forma segura.
+ */
+function jianmu_acknowledgeArchivedData(dbUrl, secret, roomId, projection) {
+  var operations = [];
+  var historyKeys = Object.keys(projection.history || {}).sort();
+  for (var h = 0; h < historyKeys.length; h++) {
+    operations.push({ path: 'history/' + historyKeys[h], value: null });
+  }
+  if (!operations.length) return 0;
+
+  var baseUrl = dbUrl + '/rooms/' + encodeURIComponent(String(roomId));
+  var batchSize = 400;
+  var removed = 0;
+  for (var start = 0; start < operations.length; start += batchSize) {
+    var patch = Object.create(null);
+    for (var j = start; j < Math.min(start + batchSize, operations.length); j++) {
+      patch[operations[j].path] = null;
+    }
+    var response = UrlFetchApp.fetch(baseUrl + '.json?auth=' + encodeURIComponent(secret), {
+      method: 'PATCH',
+      contentType: 'application/json',
+      payload: JSON.stringify(patch),
+      muteHttpExceptions: true
+    });
+    var code = response.getResponseCode();
+    if (code < 200 || code >= 300) {
+      throw new Error('Jianmu não confirmou a compactação dos snapshots históricos da sala (HTTP ' + code + ').');
+    }
+    removed += Math.min(batchSize, operations.length - start);
+  }
+  return removed;
+}
+
+function jianmu_getPersistentRoomTimestamp(room) {
+  var timestamps = [];
+  function add(value) {
+    var n = Number(value);
+    if (value !== null && value !== undefined && value !== '' && isFinite(n) && n > 0) timestamps.push(n);
+  }
+  add(room && room.updatedAt);
+  add(room && room.meta && room.meta.createdAtTimestamp);
+  add(room && room.boardState && room.boardState.updatedAtTimestamp);
+  add(room && room.settings && room.settings.immediateErrorUpdatedAt);
+  ['members', 'contributions'].forEach(function(key) {
+    var group = room && room[key];
+    if (!group || typeof group !== 'object') return;
+    Object.keys(group).forEach(function(id) { add(group[id] && group[id].joinedAtTimestamp); add(group[id] && group[id].timestamp); });
+  });
+  return timestamps.length ? Math.max.apply(Math, timestamps) : 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonicalização SHA-256: determinística, sem dependência da ordem das chaves
+// ─────────────────────────────────────────────────────────────────────────────
+
+function jianmu_canonicalize(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!isFinite(value)) throw new Error('Valor numérico não finito na projeção do hash.');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    var parts = [];
+    for (var i = 0; i < value.length; i++) {
+      if (value[i] === undefined) throw new Error('Elemento undefined não permitido em array da projeção.');
+      parts.push(jianmu_canonicalize(value[i]));
+    }
+    return '[' + parts.join(',') + ']';
+  }
+  if (value && typeof value === 'object') {
+    var keys = Object.keys(value).filter(function(key) { return value[key] !== undefined; }).sort();
+    var pairs = [];
+    for (var j = 0; j < keys.length; j++) {
+      pairs.push(JSON.stringify(keys[j]) + ':' + jianmu_canonicalize(value[keys[j]]));
+    }
+    return '{' + pairs.join(',') + '}';
+  }
+  throw new Error('Tipo não suportado na canonicalização: ' + typeof value);
+}
+
+function jianmu_calculateSha256(canonicalText) {
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, canonicalText, Utilities.Charset.UTF_8);
+  var hex = [];
+  for (var i = 0; i < digest.length; i++) hex.push(('0' + ((digest[i] + 256) % 256).toString(16)).slice(-2));
+  return 'sha256:' + hex.join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eden: checkpoint global e ledger administrativo por sala
+// ─────────────────────────────────────────────────────────────────────────────
+
+function eden_fetchJson(dbUrl, secret, path, method, payload) {
+  var options = { method: method || 'GET', muteHttpExceptions: true };
+  if (payload !== undefined) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(payload);
+  }
+  var response = UrlFetchApp.fetch(dbUrl + path + '?auth=' + encodeURIComponent(secret), options);
+  var code = response.getResponseCode();
+  var body = response.getContentText('UTF-8');
+  if (code < 200 || code >= 300) throw new Error('Eden/RTDB ' + method + ' falhou com HTTP ' + code + '.');
+  if (method === 'GET') {
+    if (body === '' || body === 'null') return null;
+    try { return JSON.parse(body); }
+    catch (e) { throw new Error('Eden/RTDB retornou JSON inválido: ' + sanitizeError(e)); }
+  }
+  return body;
+}
+
+function eden_readColdStorageCheckpoint(dbUrl, secret) {
+  var data = eden_fetchJson(dbUrl, secret, EDEN_COLDSTORAGE_CHECKPOINT_PATH, 'GET');
+  if (data === null) return { exists: false, timestamp: 0 };
+  if (typeof data !== 'object' || Array.isArray(data)) throw new Error('Checkpoint global do Cold Storage possui formato inválido.');
+  var timestamp = Number(data.last_backup_timestamp || 0);
+  if (!isFinite(timestamp) || timestamp < 0) throw new Error('last_backup_timestamp do checkpoint global é inválido.');
+  return { exists: true, timestamp: timestamp };
+}
+
+function eden_advanceColdStorageCheckpoint(dbUrl, secret, wakeUpTime) {
+  if (!isFinite(Number(wakeUpTime)) || Number(wakeUpTime) <= 0) throw new Error('Checkpoint global inválido.');
+  eden_fetchJson(dbUrl, secret, EDEN_COLDSTORAGE_CHECKPOINT_PATH, 'PATCH', { last_backup_timestamp: Number(wakeUpTime) });
+}
+
+function eden_readRoomSyncState(dbUrl, secret, roomId) {
+  var path = EDEN_ROOM_SYNC_PATH + '/' + encodeURIComponent(String(roomId)) + '.json';
+  var data = eden_fetchJson(dbUrl, secret, path, 'GET');
+  if (data === null) return null;
+  if (typeof data !== 'object' || Array.isArray(data)) throw new Error('Ledger Eden da sala possui formato inválido.');
+  return data;
+}
+
+function eden_writeRoomSyncState(dbUrl, secret, roomId, marker) {
+  var path = EDEN_ROOM_SYNC_PATH + '/' + encodeURIComponent(String(roomId)) + '.json';
+  eden_fetchJson(dbUrl, secret, path, 'PUT', marker);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Yggdrasil: IDs, serialização Firestore, writes e REST
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ygg_validateProjectId(projectId) {
+  if (typeof projectId !== 'string' || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)) {
+    throw new Error('PROJECT_ID ausente ou inválido; informe o ID do projeto Google Cloud/Firestore.');
+  }
+}
+
+function ygg_encodeDocumentId(value) {
+  var text = String(value);
+  if (!text.length) throw new Error('ID de documento Firestore vazio.');
+  var encoded = 'id_' + Array.prototype.map.call(text, function(ch) {
+    return ch.charCodeAt(0).toString(16).padStart(4, '0');
+  }).join('');
+  if (encoded.length > 1500) throw new Error('ID excede o limite do Firestore após codificação.');
+  return encoded;
+}
+
+function ygg_decodeDocumentId(encoded) {
+  if (typeof encoded !== 'string' || encoded.indexOf('id_') !== 0 || (encoded.length - 3) % 4 !== 0) {
+    throw new Error('ID Firestore codificado inválido.');
+  }
+  var result = '';
+  for (var i = 3; i < encoded.length; i += 4) result += String.fromCharCode(parseInt(encoded.slice(i, i + 4), 16));
+  return result;
+}
+
+function ygg_convertToFirestoreValue(value, depth) {
+  depth = depth || 0;
+  if (depth > 30) throw new Error('Profundidade máxima excedida na conversão Firestore.');
+  if (value === null) return { nullValue: null };
+  if (typeof value === 'string') return { stringValue: value };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'number') {
+    if (!isFinite(value)) throw new Error('Firestore não aceita NaN ou Infinity.');
+    if (Number.isInteger(value)) {
+      if (!Number.isSafeInteger(value)) throw new Error('Inteiro excede a precisão segura de Number; não é possível serializar sem perda.');
+      return { integerValue: String(value) };
+    }
+    return { doubleValue: value };
+  }
+  if (Array.isArray(value)) {
+    var values = [];
+    for (var i = 0; i < value.length; i++) {
+      if (value[i] === undefined) throw new Error('undefined não é permitido em arrays Firestore.');
+      if (Array.isArray(value[i])) {
+        // Firestore não aceita arrayValue diretamente dentro de arrayValue.
+        values.push({ mapValue: { fields: {
+          __ygg_internal_array_container_v1: { booleanValue: true },
+          values: ygg_convertToFirestoreValue(value[i], depth + 1)
+        } } });
+      } else {
+        values.push(ygg_convertToFirestoreValue(value[i], depth + 1));
+      }
+    }
+    return { arrayValue: { values: values } };
+  }
+  if (value && typeof value === 'object') {
+    if (Object.prototype.toString.call(value) === '[object Date]') throw new Error('Date deve ser convertido explicitamente para epoch milliseconds antes do Firestore.');
+    var fields = Object.create(null);
+    var keys = Object.keys(value);
+    for (var j = 0; j < keys.length; j++) {
+      if (value[keys[j]] === undefined) continue; // undefined em mapas é omitido deliberadamente.
+      fields[keys[j]] = ygg_convertToFirestoreValue(value[keys[j]], depth + 1);
+    }
+    return { mapValue: { fields: fields } };
+  }
+  throw new Error('Tipo não suportado pelo Firestore: ' + typeof value);
+}
+
+function ygg_decodeFirestoreValue(value) {
+  if (!value || typeof value !== 'object') throw new Error('Valor Firestore malformado.');
+  if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
+  if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
+  if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue;
+  if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) {
+    var decodedInteger = Number(value.integerValue);
+    if (!Number.isSafeInteger(decodedInteger)) throw new Error('integerValue excede a precisão segura de Number na reconstrução.');
+    return decodedInteger;
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
+  if (Object.prototype.hasOwnProperty.call(value, 'arrayValue')) {
+    var values = value.arrayValue.values || [];
+    return values.map(function(item) {
+      if (item && item.mapValue && item.mapValue.fields &&
+          item.mapValue.fields.__ygg_internal_array_container_v1 &&
+          item.mapValue.fields.__ygg_internal_array_container_v1.booleanValue === true) {
+        return ygg_decodeFirestoreValue(item.mapValue.fields.values);
+      }
+      return ygg_decodeFirestoreValue(item);
+    });
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'mapValue')) {
+    var source = value.mapValue.fields || {};
+    var result = Object.create(null);
+    Object.keys(source).forEach(function(key) { result[key] = ygg_decodeFirestoreValue(source[key]); });
+    return result;
+  }
+  throw new Error('Tipo de valor Firestore desconhecido.');
+}
+
+function ygg_firestoreDocumentName(projectId, path) {
+  return 'projects/' + encodeURIComponent(projectId) + '/databases/' + YGGDRASIL_DATABASE_ID + '/documents/' + path;
+}
+
+function ygg_buildUpdateWrite(documentName, data) {
+  var fields = {};
+  var fieldPaths = [];
+  Object.keys(data).forEach(function(key) {
+    if (data[key] === undefined) return;
+    fields[key] = ygg_convertToFirestoreValue(data[key]);
+    fieldPaths.push(key);
+  });
+  if (!fieldPaths.length) throw new Error('Write Firestore sem campos.');
+  return {
+    update: { name: documentName, fields: fields },
+    updateMask: { fieldPaths: fieldPaths }
+  };
+}
+
+function ygg_buildRoomWrites(projectId, projection, roomHash, syncTimestamp) {
+  var roomDocId = ygg_encodeDocumentId(projection.roomId);
+  var roomPath = YGGDRASIL_COLLECTION_ROOMS + '/' + roomDocId;
+  var currentNo = String(projection.currentInstanceNumber || 'legacy-unknown');
+  var root = {
+    roomId: projection.roomId,
+    schemaVersion: YGGDRASIL_SYNC_SCHEMA_VERSION,
+    projectionVersion: YGGDRASIL_PROJECTION_VERSION,
+    currentInstanceNumber: currentNo,
+    sourceUpdatedAt: projection.updatedAt || null,
+    lastSyncedHash: roomHash,
+    synchronizedAt: syncTimestamp
+  };
+  var writes = [ygg_buildUpdateWrite(ygg_firestoreDocumentName(projectId, roomPath), root)];
+  var currentCollectionPath = roomPath + '/instances/' + ygg_encodeDocumentId(currentNo) + '/contributions';
+  var currentContributionDocumentIds = [];
+  var instanceMap = Object.create(null);
+  var historyKeys = Object.keys(projection.history || {});
+  for (var h = 0; h < historyKeys.length; h++) {
+    if (String(historyKeys[h]) === currentNo) {
+      throw new Error('A instância corrente também aparece em history; a migração não sobrescreverá o snapshot histórico.');
+    }
+    instanceMap[String(historyKeys[h])] = projection.history[historyKeys[h]];
+  }
+  instanceMap[currentNo] = {
+    instanceNumber: currentNo,
+    meta: projection.meta,
+    boardState: projection.boardState,
+    settings: projection.settings,
+    contributions: projection.contributions,
+    archivedAtTimestamp: null,
+    isCurrent: true
+  };
+
+  var instanceNumbers = Object.keys(instanceMap).sort(function(a, b) {
+    var an = Number(a), bn = Number(b);
+    if (isFinite(an) && isFinite(bn)) return an - bn;
+    return a.localeCompare(b);
+  });
+  for (var i = 0; i < instanceNumbers.length; i++) {
+    var instanceNo = String(instanceNumbers[i]);
+    var instance = instanceMap[instanceNo];
+    var instancePath = roomPath + '/instances/' + ygg_encodeDocumentId(instanceNo);
+    var instanceData = {
+      roomId: projection.roomId,
+      instanceNumber: instanceNo,
+      meta: instance.meta || {},
+      boardState: instance.boardState || {},
+      settings: instance.settings || {},
+      archivedAtTimestamp: instance.archivedAtTimestamp || null,
+      isCurrent: instanceNo === currentNo
+    };
+    writes.push(ygg_buildUpdateWrite(ygg_firestoreDocumentName(projectId, instancePath), instanceData));
+
+    var contributionKeys = Object.keys(instance.contributions || {}).sort();
+    for (var c = 0; c < contributionKeys.length; c++) {
+      var cellKey = contributionKeys[c];
+      var contribution = instance.contributions[cellKey];
+      var contributionPath = instancePath + '/contributions/' + ygg_encodeDocumentId(cellKey);
+      writes.push(ygg_buildUpdateWrite(ygg_firestoreDocumentName(projectId, contributionPath), {
+        roomId: projection.roomId,
+        instanceNumber: instanceNo,
+        cellKey: cellKey,
+        contribution: contribution
+      }));
+      if (instanceNo === currentNo) currentContributionDocumentIds.push(ygg_encodeDocumentId(cellKey));
+    }
+  }
+
+  var memberKeys = Object.keys(projection.members || {}).sort();
+  for (var m = 0; m < memberKeys.length; m++) {
+    var playerId = memberKeys[m];
+    var memberPath = roomPath + '/members/' + ygg_encodeDocumentId(playerId);
+    writes.push(ygg_buildUpdateWrite(ygg_firestoreDocumentName(projectId, memberPath), {
+      roomId: projection.roomId,
+      playerId: playerId,
+      member: projection.members[playerId]
+    }));
+  }
+
+  return {
+    writes: writes,
+    currentContributionCollectionPath: currentCollectionPath,
+    currentContributionDocumentIds: currentContributionDocumentIds
+  };
+}
+
+function ygg_listDocuments(projectId, collectionPath) {
+  var token = ScriptApp.getOAuthToken();
+  if (!token) throw new Error('OAuth token indisponível para listar documentos Firestore.');
+  var results = [];
+  var pageToken = '';
+  do {
+    var url = 'https://firestore.googleapis.com/v1/' + ygg_firestoreDocumentName(projectId, collectionPath) +
+      '?pageSize=' + YGGDRASIL_MAX_LIST_PAGE_SIZE + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    var response = UrlFetchApp.fetch(url, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+    var code = response.getResponseCode();
+    var body = response.getContentText('UTF-8');
+    if (code < 200 || code >= 300) throw new Error('Firestore listDocuments falhou com HTTP ' + code + '.');
+    var parsed;
+    try { parsed = body ? JSON.parse(body) : {}; }
+    catch (e) { throw new Error('Firestore listDocuments retornou JSON inválido: ' + sanitizeError(e)); }
+    if (parsed.documents && Array.isArray(parsed.documents)) results = results.concat(parsed.documents);
+    pageToken = parsed.nextPageToken || '';
+  } while (pageToken);
+  return results;
+}
+
+function ygg_listCurrentContributionDocuments(projectId, collectionPath) {
+  var docs = ygg_listDocuments(projectId, collectionPath);
+  return docs.map(function(doc) {
+    if (!doc || typeof doc.name !== 'string') throw new Error('Firestore listDocuments retornou documento sem name.');
+    return doc.name;
+  });
+}
+
+function ygg_buildStaleContributionDeletes(collectionPath, existingDocumentNames, desiredIds) {
+  var desired = Object.create(null);
+  desiredIds.forEach(function(id) { desired[id] = true; });
+  var deletes = [];
+  for (var i = 0; i < existingDocumentNames.length; i++) {
+    var name = existingDocumentNames[i];
+    var id = name.slice(name.lastIndexOf('/') + 1);
+    if (!desired[id]) deletes.push({ delete: name });
+  }
+  return deletes;
+}
+
+function ygg_utf8ByteLength(text) {
+  return Utilities.newBlob(String(text), 'text/plain; charset=UTF-8').getBytes().length;
+}
+
+function ygg_validateRoomWritePlan(writes) {
+  if (!Array.isArray(writes) || !writes.length) throw new Error('Plano de gravação Firestore vazio.');
+  if (writes.length > YGGDRASIL_MAX_WRITES_PER_COMMIT) {
+    throw new Error('Sala excede o limite operacional de writes por commit (' + writes.length + '/' + YGGDRASIL_MAX_WRITES_PER_COMMIT + ').');
+  }
+  for (var i = 0; i < writes.length; i++) {
+    if (!writes[i].update) continue;
+    var bytes = ygg_utf8ByteLength(JSON.stringify(writes[i].update.fields));
+    if (bytes > YGGDRASIL_MAX_DOCUMENT_BYTES) {
+      throw new Error('Documento Firestore excede o limite operacional de tamanho (' + bytes + ' bytes).');
+    }
+  }
+  var requestBytes = ygg_utf8ByteLength(JSON.stringify({ writes: writes }));
+  if (requestBytes > YGGDRASIL_MAX_COMMIT_BYTES) {
+    throw new Error('Commit Firestore excede o limite operacional de tamanho (' + requestBytes + ' bytes).');
+  }
+}
+
+function ygg_commitRoom(projectId, writes) {
+  ygg_validateProjectId(projectId);
+  ygg_validateRoomWritePlan(writes);
+  var token = ScriptApp.getOAuthToken();
+  if (!token) throw new Error('OAuth token indisponível para gravar no Firestore.');
+  var url = 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(projectId) +
+    '/databases/' + YGGDRASIL_DATABASE_ID + '/documents:commit';
+  var payload = JSON.stringify({ writes: writes });
+  var response = UrlFetchApp.fetch(url, {
+    method: 'POST',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: payload,
+    muteHttpExceptions: true
+  });
+  var code = response.getResponseCode();
+  var body = response.getContentText('UTF-8');
+  if (code < 200 || code >= 300) {
+    var detail = '';
+    try {
+      var errorBody = JSON.parse(body);
+      detail = errorBody.error && errorBody.error.message ? String(errorBody.error.message).slice(0, 500) : '';
+    } catch (_) {}
+    throw new Error('Firestore documents:commit falhou com HTTP ' + code + (detail ? ': ' + detail : '.') );
+  }
+  var result;
+  try { result = JSON.parse(body); }
+  catch (e) { throw new Error('Firestore commit retornou resposta JSON inválida.'); }
+  if (!result || !Array.isArray(result.writeResults) || result.writeResults.length !== writes.length) {
+    throw new Error('Firestore commit não confirmou todos os writes (' + (result && result.writeResults ? result.writeResults.length : 0) + '/' + writes.length + ').');
+  }
+  return ygg_utf8ByteLength(payload);
+}
+
+function runColdStorageDriveLegacyCore(props, config, butIgnoreRules, wakeUpTime, runId, invocation) {
   var metrics = buildBaseMetrics(COLDSTORAGE_JOB_ID, { invocation: invocation, runId: runId });
   var activationLabel = formatInvocationLabel(invocation);
   metrics.action = 'BACKUP';
@@ -731,8 +1530,8 @@ function persistColdStorageMeta(props, metrics, invocation) {
   }
 
   try {
-    UrlFetchApp.fetch(
-      dbUrl + SERVER_META_COLDSTORAGE_PATH + '?auth=' + secret,
+    var response = UrlFetchApp.fetch(
+      dbUrl + SERVER_META_COLDSTORAGE_PATH + '?auth=' + encodeURIComponent(secret),
       {
         method: 'PATCH',
         contentType: 'application/json',
@@ -740,6 +1539,10 @@ function persistColdStorageMeta(props, metrics, invocation) {
         muteHttpExceptions: true
       }
     );
+    var responseCode = response.getResponseCode();
+    if (responseCode < 200 || responseCode >= 300) {
+      console.error('Falha HTTP ao persistir metadados do Cold Storage: HTTP ' + responseCode + '.');
+    }
   } catch (e) {
     console.error('Falha ao persistir metadados do Cold Storage:', sanitizeError(e));
   }

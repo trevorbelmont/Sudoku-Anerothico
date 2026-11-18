@@ -34,6 +34,9 @@
  *   LOG_SHEET_ID            — ID da planilha ou "NULL" para provisionar
  *   LOG_SHEET_FOLDER_ID     — (opcional) pasta da planilha de telemetria
  *   DRIVE_FOLDER_ID         — pasta dos arquivos JSON de Cold Storage
+ *   PROJECT_ID              — projeto Google Cloud usado pelo Cold Storage Yggdrasil (L2)
+ *   Nota de migração: DRIVE_FOLDER_ID permanece somente para compatibilidade/rollback legado;
+ *   a telemetria continua usando LOG_SHEET_FOLDER_ID e os serviços Sheets/Drive existentes.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────

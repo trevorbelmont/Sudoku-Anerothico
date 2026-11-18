@@ -147,7 +147,7 @@
               ".validate": "!newData.exists() || newData.isNumber()"
             },
             "userColor": {
-              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^[0-9]+_[0-9]+$/))"
             },
             "value": {
               ".validate": "!newData.exists() || newData.isString()"
@@ -155,6 +155,32 @@
             // timestamp pode ser serverTimestamp (object) ou número — permissivo.
             "$moveOther": {
               ".validate": true
+            }
+          }
+        },
+
+        // ── history: snapshots imutáveis de instâncias anteriores ───────
+        // O cliente arquiva a instância corrente atomicamente antes de publicar a próxima.
+        "history": {
+          "$instance_number": {
+            ".validate": "newData.hasChildren(['instanceNumber', 'meta', 'boardState', 'archivedAtTimestamp'])",
+            "instanceNumber": { ".validate": "newData.isNumber()" },
+            "archivedAtTimestamp": { ".validate": "newData.isNumber()" },
+            "$historyOther": { ".validate": true }
+          }
+        },
+
+        // ── contributionEvents: histórico append-only SET/DELETE por instância ──
+        "contributionEvents": {
+          "$instance_number": {
+            "$event_id": {
+              ".validate": "newData.hasChildren(['eventId', 'operation', 'instanceNumber', 'cellKey', 'timestamp'])",
+              "eventId": { ".validate": "newData.isString() && newData.val().length <= 128" },
+              "operation": { ".validate": "newData.isString() && (newData.val() === 'SET' || newData.val() === 'DELETE')" },
+              "instanceNumber": { ".validate": "newData.isNumber()" },
+              "cellKey": { ".validate": "newData.isString() && newData.val().length <= 16" },
+              "timestamp": { ".validate": "newData.isNumber()" },
+              "$eventOther": { ".validate": true }
             }
           }
         },
@@ -375,6 +401,16 @@
           }
         }
       }
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // /eden — ledger/checkpoints administrativos do Cold Storage (backend only)
+    // O GAS acessa este nó com credencial administrativa; clientes não leem nem escrevem.
+    // A regra global já bloqueia por padrão; as negativas explícitas documentam a fronteira.
+    // ─────────────────────────────────────────────────────────────────
+    "eden": {
+      ".read": false,
+      ".write": false
     },
 
     // ─────────────────────────────────────────────────────────────────

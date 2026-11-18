@@ -16,6 +16,11 @@ CRON_TOKEN=sua_senha_segura_para_api_rest
 FIREBASE_URL=https://sudoku-anerothico-xxxx.firebaseio.com
 FIREBASE_SECRET=sua_chave_legada_do_banco_de_dados
 
+# ── Google Cloud Firestore (Yggdrasil / L2) ────────────────────────────────────
+# ID do projeto que contém o Firestore. O valor deve corresponder ao projeto
+# Firebase/Google Cloud de destino e precisa estar habilitado para Firestore.
+PROJECT_ID=sudoku-anerothico
+
 # ── GitHub Raw (configuração declarativa e regras de exclusão) ────────────────
 GITHUB_JOBS_CONFIG_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/backend/config/jobs-orchestrator.json
 GITHUB_BUTIGNORE_URL=https://raw.githubusercontent.com/SEU_USER/SEU_REPO/main/.butIgnore
@@ -35,9 +40,10 @@ LOG_SHEET_ID=
 # NÃO confundir com DRIVE_FOLDER_ID (que é para os arquivos JSON de backup).
 LOG_SHEET_FOLDER_ID=
 
-# ── Cold Storage (Google Drive) ───────────────────────────────────────────────
-# ID da pasta no Drive onde os arquivos JSON de backup de salas serão gravados.
-DRIVE_FOLDER_ID=id_da_sua_pasta_de_backups_no_drive
+# ── Cold Storage legado (Google Drive) ────────────────────────────────────────
+# Opcional/depreciado: o destino ativo do Cold Storage passa a ser o Firestore.
+# A chave é mantida para compatibilidade com rollback e arquivos históricos.
+DRIVE_FOLDER_ID=
 
 # ── URL do Deploy (GAS REST) ──────────────────────────────────────────────────
 # URL pública do Web App implantado no Google Apps Script.

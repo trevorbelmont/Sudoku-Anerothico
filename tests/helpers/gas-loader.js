@@ -20,6 +20,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const GAS = p => fs.readFileSync(
   path.resolve(__dirname, '../../backend/GAS', p), 'utf8'
@@ -74,7 +75,11 @@ function makePropertiesStub(props) {
 
 function makeUtilitiesStub() {
   return {
-    formatDate: (date, tz, fmt) => date.toISOString().slice(0, 19).replace('T', ' ')
+    formatDate: (date, tz, fmt) => date.toISOString().slice(0, 19).replace('T', ' '),
+    newBlob: (data) => ({ getBytes: () => Array.from(Buffer.from(String(data), 'utf8')) }),
+    computeDigest: (algorithm, data) => Array.from(crypto.createHash('sha256').update(String(data), 'utf8').digest()).map(byte => byte > 127 ? byte - 256 : byte),
+    DigestAlgorithm: { SHA_256: 'SHA_256' },
+    Charset: { UTF_8: 'UTF-8' }
   };
 }
 
@@ -148,6 +153,7 @@ function makeScriptAppStub() {
   return {
     getProjectTriggers: () => triggers.map(t => ({ getHandlerFunction: () => 'runScheduledMasterOrchestrator' })).slice(0, 0),
     newTrigger: () => TriggerBuilder,
+    getOAuthToken: () => 'mock-oauth-token',
     _triggers: triggers
   };
 }
@@ -205,6 +211,21 @@ function loadGASColdStorage(options) {
     '_exports.executeColdStorageRooms   = executeColdStorageRooms;\n' +
     '_exports.executeFirebaseBackup     = executeFirebaseBackup;\n' +
     '_exports.runColdStorageCore        = runColdStorageCore;\n' +
+    '_exports.runColdStorageDriveLegacyCore = runColdStorageDriveLegacyCore;\n' +
+    '_exports.jianmu_readRoomsSnapshot = jianmu_readRoomsSnapshot;\n' +
+    '_exports.jianmu_projectRoomData = jianmu_projectRoomData;\n' +
+    '_exports.jianmu_acknowledgeArchivedData = jianmu_acknowledgeArchivedData;\n' +
+    '_exports.jianmu_canonicalize = jianmu_canonicalize;\n' +
+    '_exports.jianmu_calculateSha256 = jianmu_calculateSha256;\n' +
+    '_exports.ygg_encodeDocumentId = ygg_encodeDocumentId;\n' +
+    '_exports.ygg_decodeDocumentId = ygg_decodeDocumentId;\n' +
+    '_exports.ygg_convertToFirestoreValue = ygg_convertToFirestoreValue;\n' +
+    '_exports.ygg_decodeFirestoreValue = ygg_decodeFirestoreValue;\n' +
+    '_exports.ygg_buildRoomWrites = ygg_buildRoomWrites;\n' +
+    '_exports.ygg_buildStaleContributionDeletes = ygg_buildStaleContributionDeletes;\n' +
+    '_exports.ygg_validateRoomWritePlan = ygg_validateRoomWritePlan;\n' +
+    '_exports.eden_readColdStorageCheckpoint = eden_readColdStorageCheckpoint;\n' +
+    '_exports.eden_readRoomSyncState = eden_readRoomSyncState;\n' +
     '_exports.COLDSTORAGE_JOB_ID        = COLDSTORAGE_JOB_ID;\n' +
     '_exports.TELEMETRY_HEADERS         = TELEMETRY_HEADERS;\n';
 

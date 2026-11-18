@@ -444,7 +444,7 @@ function getFirebaseAPI() {
           fb.update(roomRef, patch).catch(error => console.error('Falha ao sincronizar o estado do tabuleiro:', error));
       }
 
-      function publishRoomBoardCell(row, column, includePeerNotes = false) {
+      function publishRoomBoardCell(row, column, includePeerNotes = false, contributionChange = null) {
           if (!state.multiplayer.active || !state.multiplayer.roomId || !Number.isInteger(row) || !Number.isInteger(column)) return;
           const fb = getFirebaseAPI();
           if (!fb) return;
@@ -464,6 +464,36 @@ function getFirebaseAPI() {
               'boardState/gameName': state.gameName || '',
               'updatedAt': timestamp // <-- CARIMBO DE WATERMARK PARA O COLD STORAGE NA RAIZ DA SALA
           };
+
+          // A autoria corrente e o evento histórico SET/DELETE são gravados atomicamente
+          // com a célula. Isso elimina a janela em que updatedAt avançava antes da contribuição.
+          if (contributionChange) {
+              const instanceNumber = Number(state.multiplayer.instanceCount || 0);
+              const cellKey = `${row}_${column}`;
+              const eventCollection = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `contributionEvents/${instanceNumber}`));
+              let eventId = '';
+              try {
+                  const eventRef = fb.push(eventCollection);
+                  eventId = eventRef && eventRef.key ? eventRef.key : '';
+              } catch (error) {
+                  console.warn('Não foi possível gerar a chave Firebase do evento de contribuição; usando chave local.', error);
+              }
+              if (!eventId) eventId = `evt_${timestamp}_${row}_${column}_${Math.random().toString(36).slice(2, 10)}`;
+              const contribution = contributionChange.contribution || null;
+              patch[`contributions/${cellKey}`] = contribution;
+              patch[`contributionEvents/${instanceNumber}/${eventId}`] = {
+                  eventId,
+                  operation: contributionChange.operation,
+                  instanceNumber,
+                  cellKey,
+                  row,
+                  column,
+                  playerId: contribution ? contribution.playerId : state.multiplayer.playerId,
+                  playerName: contribution ? contribution.playerName : state.multiplayer.playerName,
+                  playerColor: contribution ? (contribution.playerColor || '') : (state.multiplayer.color || ''),
+                  timestamp
+              };
+          }
 
           if (state.multiplayer.roomMode === 'versus') {
               // Remove any legacy note data from the shared room node and do not stream new notes.
@@ -640,31 +670,29 @@ function getFirebaseAPI() {
           };
           const movesRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, 'moves'));
           fb.push(movesRef, movePayload).catch(error => console.error('Erro ao enviar jogada para o Firebase:', error));
-          publishRoomBoardCell(row, column, action === 'SET' || action === 'NASA');
+          let contributionChange = null;
           if (['SET', 'ERASE', 'NASA'].includes(action) && row >= 0 && column >= 0) {
               state.multiplayer.contributions = state.multiplayer.contributions || {};
               const localKey = `${row}_${column}`;
+              let contribution = null;
               if (action === 'NASA' && String(value ?? '') !== '') {
-                  state.multiplayer.contributions[localKey] = { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() };
+                  contribution = { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() };
+                  state.multiplayer.contributions[localKey] = contribution;
               } else if (action === 'SET' && String(value ?? '') !== '') {
-                  state.multiplayer.contributions[localKey] = { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, playerColor: state.multiplayer.color, timestamp: Date.now() };
+                  contribution = { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, playerColor: state.multiplayer.color, timestamp: Date.now() };
+                  state.multiplayer.contributions[localKey] = contribution;
               } else {
                   delete state.multiplayer.contributions[localKey];
               }
+              contributionChange = {
+                  operation: contribution ? 'SET' : 'DELETE',
+                  contribution
+              };
               updateAllCellVisuals();
               renderMultiplayerSidebar();
               updateNasaContributionSummary();
-              const attributionRef = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `contributions/${row}_${column}`));
-              let operation;
-              if (action === 'NASA' && String(value ?? '') !== '') {
-                  operation = fb.set(attributionRef, { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() });
-              } else if (action === 'SET' && String(value ?? '') !== '') {
-                  operation = fb.set(attributionRef, { kind: 'PLAYER', action: 'SET', playerId: state.multiplayer.playerId, playerName: state.multiplayer.playerName, playerColor: state.multiplayer.color, timestamp: Date.now() });
-              } else {
-                  operation = fb.remove(attributionRef);
-              }
-              operation.catch(error => console.error('Falha ao atualizar a contribuição da célula:', error));
           }
+          publishRoomBoardCell(row, column, action === 'SET' || action === 'NASA', contributionChange);
       }
 
       // Publica a posição do cursor do jogador local num nó mutável por jogador,
