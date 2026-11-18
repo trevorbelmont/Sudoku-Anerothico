@@ -266,7 +266,7 @@ function loadInputControllerProtectionModule() {
 function loadMultiplayerServiceProtectionModule() {
   const src = stripModuleDirectives(JS('network/multiplayer-service.js'));
   const exports = {};
-  const wrapper = `${src}\n_exports.isAuthorizedCellOwnerUpdate = isAuthorizedCellOwnerUpdate;\n_exports.resolveCellOwnershipUpdate = resolveCellOwnershipUpdate;\n_exports.applyRoomBoardState = applyRoomBoardState;`;
+  const wrapper = `${src}\n_exports.isAuthorizedCellOwnerUpdate = isAuthorizedCellOwnerUpdate;\n_exports.resolveCellOwnershipUpdate = resolveCellOwnershipUpdate;\n_exports.applyRoomBoardState = applyRoomBoardState;\n_exports.deactivateMultiplayerSessionForOffline = deactivateMultiplayerSessionForOffline;`;
   const document = makeDOMStub();
   document.getElementById = () => ({ value: '', textContent: '', classList: { contains: () => false, add: () => {}, remove: () => {} } });
   const noop = () => {};
@@ -285,6 +285,34 @@ function loadMultiplayerServiceProtectionModule() {
   new Function(...keys, wrapper)(...vals);
   exports.state = state;
   return exports;
+}
+
+
+function loadMultiplayerContributionPersistenceModule() {
+  const src = stripModuleDirectives(JS('network/multiplayer-service.js'));
+  const exports = {};
+  const updates = [];
+  const removals = [];
+  const state = makeStateStubb();
+  const firebaseDB = {
+    db: {},
+    ref: (_db, path) => ({ path }),
+    update: (ref, patch) => { updates.push({ path: ref.path, patch }); return Promise.resolve(); },
+    remove: ref => { removals.push(ref.path); return Promise.resolve(); },
+  };
+  const wrapper = `${src}\n_exports.publishRoomBoardCell = publishRoomBoardCell;\n_exports.clearDeprecatedContributionEvents = clearDeprecatedContributionEvents;`;
+  const ctx = {
+    state,
+    window: { firebaseDB },
+    roomPath: (roomId, childName = '') => `rooms/${roomId}${childName ? '/' + childName : ''}`,
+    console: { warn: () => {}, error: () => {}, log: () => {} },
+    _exports: exports,
+  };
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  // eslint-disable-next-line no-new-func
+  new Function(...keys, wrapper)(...vals);
+  return { exports, state, updates, removals };
 }
 
 function loadMultiplayerServiceColorModule() {
@@ -608,6 +636,7 @@ module.exports = {
   loadUiHelpersModule,
   loadInputControllerProtectionModule,
   loadMultiplayerServiceProtectionModule,
+  loadMultiplayerContributionPersistenceModule,
   loadMultiplayerServiceColorModule,
   loadMultiplayerVotingModule,
   loadSharingModule,

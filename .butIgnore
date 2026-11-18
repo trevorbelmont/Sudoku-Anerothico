@@ -9,3 +9,4 @@ presence
 rooms/*/moves
 rooms/*/presence
 rooms/*/cursors
+rooms/*/contributionEvents

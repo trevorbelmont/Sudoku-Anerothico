@@ -133,6 +133,45 @@ describe('política de atualização remota da célula', () => {
 });
 
 
+describe('saída da sala e continuação offline', () => {
+  test('desativa os locks locais sem apagar contribuições consolidadas', () => {
+    const mp = loadMultiplayerServiceProtectionModule();
+    const state = mp.state;
+    state.multiplayer.active = true;
+    state.multiplayer.roomId = 'room-test';
+    state.multiplayer.cellLocks = { '0_0': 'player-a' };
+    state.multiplayer.contributions = { '0_0': { playerId: 'player-a', kind: 'PLAYER', action: 'SET' } };
+
+    mp.deactivateMultiplayerSessionForOffline();
+
+    expect(state.multiplayer.active).toBe(false);
+    expect(state.multiplayer.roomId).toBeNull();
+    expect(state.multiplayer.cellLocks).toEqual({});
+    expect(state.multiplayer.contributions['0_0'].playerId).toBe('player-a');
+  });
+
+  test('snapshot atrasado não substitui o tabuleiro depois da saída', () => {
+    const mp = loadMultiplayerServiceProtectionModule();
+    const state = mp.state;
+    state.N = 9;
+    state.multiplayer.active = true;
+    state.multiplayer.roomId = 'room-test';
+    state.multiplayer.instanceCount = 2;
+    state.multiplayer.lastAppliedInstanceNumber = 2;
+    state.initial = Array.from({ length: 9 }, () => Array(9).fill(''));
+    state.solution = Array.from({ length: 9 }, () => Array(9).fill(''));
+    state.board = Array.from({ length: 9 }, () => Array(9).fill(''));
+    state.board[0][0] = '5';
+    mp.deactivateMultiplayerSessionForOffline();
+
+    const incoming = Array.from({ length: 9 }, () => Array(9).fill(''));
+    incoming[0][0] = '4';
+    mp.applyRoomBoardState({ boardInstanceNumber: 2, boardValues: incoming });
+
+    expect(state.board[0][0]).toBe('5');
+  });
+});
+
 describe('integração da proteção ao receber boardState', () => {
   function makeRemoteState({ localValue = '5', ownerId = 'player-a', incomingValue = '4', editorId = 'player-b', incomingOwnerId = null } = {}) {
     const mp = loadMultiplayerServiceProtectionModule();
@@ -146,6 +185,7 @@ describe('integração da proteção ao receber boardState', () => {
     state.board[0][0] = localValue;
     state.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => new Set()));
     state.multiplayer.active = true;
+    state.multiplayer.roomId = 'room-test';
     state.multiplayer.roomMode = 'coop';
     state.multiplayer.instanceCount = 2;
     state.multiplayer.lastAppliedInstanceNumber = 2;

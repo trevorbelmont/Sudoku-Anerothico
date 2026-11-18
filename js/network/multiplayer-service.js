@@ -247,8 +247,33 @@ function getFirebaseAPI() {
           state.multiplayer.listeners = [];
       }
 
+      // Desliga somente a sessão/proteção local. O mapa consolidado de contribuições
+      // é preservado para que o jogador possa continuar este tabuleiro offline.
+      function deactivateMultiplayerSessionForOffline() {
+          if (!state.multiplayer) return;
+          state.multiplayer.active = false;
+          state.multiplayer.roomId = null;
+          state.multiplayer.cellLocks = {};
+      }
+
       function roomPath(roomId, childName = '') {
           return `rooms/${roomId}${childName ? '/' + childName : ''}`;
+      }
+
+      // contributionEvents was an unused append-only sidecar. New clients no longer
+      // create it; remove legacy copies when a room is opened or reused so they do not
+      // keep inflating the room-root transaction used by the new-instance flow.
+      async function clearDeprecatedContributionEvents(roomId) {
+          const fb = getFirebaseAPI();
+          if (!fb || !roomId || typeof fb.remove !== 'function') return false;
+          try {
+              const eventsRef = fb.ref(fb.db, roomPath(roomId, 'contributionEvents'));
+              await fb.remove(eventsRef);
+              return true;
+          } catch (error) {
+              console.warn(`Não foi possível limpar contributionEvents legado da sala ${roomId}:`, error);
+              return false;
+          }
       }
 
       function createRoomMeta(instanceNumber, ownerPlayerId, overrides = {}) {
@@ -422,6 +447,9 @@ function getFirebaseAPI() {
 
 
       function applyRoomBoardState(roomState) {
+          // An unsubscribe can race with an already queued callback. Once the local
+          // client leaves the room, a late snapshot must not re-lock/replace its offline board.
+          if (!state.multiplayer || state.multiplayer.active !== true || !state.multiplayer.roomId) return;
           if (!roomState || !Array.isArray(roomState.boardValues)) return;
           const N = state.N;
           // Durante a entrada na sala, boardState pode chegar antes de meta. Guarde-o até a dimensão/instância serem aplicadas.
@@ -584,37 +612,15 @@ function getFirebaseAPI() {
               'updatedAt': timestamp // <-- CARIMBO DE WATERMARK PARA O COLD STORAGE NA RAIZ DA SALA
           };
 
-          // A autoria corrente e o evento histórico SET/DELETE são gravados atomicamente
-          // com a célula. Isso elimina a janela em que updatedAt avançava antes da contribuição.
+          // A autoria corrente é gravada atomicamente com a célula. O mapa
+          // consolidado contributions é a fonte necessária para pontuação/retomada;
+          // não há mais um log append-only contributionEvents.
           if (contributionChange) {
-              const instanceNumber = Number(state.multiplayer.instanceCount || 0);
               const cellKey = `${row}_${column}`;
               const cellOwner = (state.multiplayer.cellLocks || {})[cellKey];
               patch[`boardState/cellLocks/${cellKey}`] = cellOwner || null;
               patch[`boardState/cellLastUpdatedByPlayerIdByCell/${cellKey}`] = state.multiplayer.playerId;
-              const eventCollection = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `contributionEvents/${instanceNumber}`));
-              let eventId = '';
-              try {
-                  const eventRef = fb.push(eventCollection);
-                  eventId = eventRef && eventRef.key ? eventRef.key : '';
-              } catch (error) {
-                  console.warn('Não foi possível gerar a chave Firebase do evento de contribuição; usando chave local.', error);
-              }
-              if (!eventId) eventId = `evt_${timestamp}_${row}_${column}_${Math.random().toString(36).slice(2, 10)}`;
-              const contribution = contributionChange.contribution || null;
-              patch[`contributions/${cellKey}`] = contribution;
-              patch[`contributionEvents/${instanceNumber}/${eventId}`] = {
-                  eventId,
-                  operation: contributionChange.operation,
-                  instanceNumber,
-                  cellKey,
-                  row,
-                  column,
-                  playerId: contribution ? contribution.playerId : state.multiplayer.playerId,
-                  playerName: contribution ? contribution.playerName : state.multiplayer.playerName,
-                  playerColor: contribution ? (contribution.playerColor || '') : (state.multiplayer.color || ''),
-                  timestamp
-              };
+              patch[`contributions/${cellKey}`] = contributionChange.contribution || null;
           }
 
           if (state.multiplayer.roomMode === 'versus') {
@@ -815,10 +821,7 @@ function getFirebaseAPI() {
               } else {
                   delete state.multiplayer.contributions[localKey];
               }
-              contributionChange = {
-                  operation: contribution ? 'SET' : 'DELETE',
-                  contribution
-              };
+              contributionChange = { contribution };
               updateAllCellVisuals();
               renderMultiplayerSidebar();
               updateNasaContributionSummary();
@@ -1056,6 +1059,7 @@ function getFirebaseAPI() {
               state.multiplayer.members = {};
               state.multiplayer.peers = {};
               await assignRoomPlayerColor(roomId);
+              clearDeprecatedContributionEvents(roomId);
               state.multiplayer.instanceCount = validMeta.instanceCount;
               state.multiplayer.roomMode = meta.roomMode === 'versus' ? 'versus' : 'coop';
               state.multiplayer.realtimeMetrics = !!meta.realtimeMetrics;
@@ -1152,6 +1156,7 @@ function getFirebaseAPI() {
               fb.remove(fb.child(roomRef, 'featureVote'))
           ]).then(async () => {
               await assignRoomPlayerColor(roomId);
+              clearDeprecatedContributionEvents(roomId);
               registerRoomPresence(roomId);
               setupRoomListeners(roomId);
               saveCurrentGameState();

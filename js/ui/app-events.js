@@ -336,10 +336,13 @@ function initEventListeners() {
               const parts = key.split('_').map(Number);
               if (parts.length === 2 && parts.every(Number.isInteger)) setNasaContributionCell(parts[0], parts[1], isNASAContributionEntry(entry));
             });
+            // Desativa a sessão antes de remover listeners para que callbacks já enfileirados
+            // não apliquem snapshots multiplayer sobre o tabuleiro que continuará offline.
+            deactivateMultiplayerSessionForOffline();
+            // Não limpar contributions: a autoria consolidada continua disponível neste cliente
+            // durante a continuação offline e permanece preservada na Jianmu para retomada da sala.
             stopRoomListeners();
             if (fb && presenceRef) fb.remove(presenceRef).catch(() => {});
-            state.multiplayer.active = false;
-            state.multiplayer.roomId = null;
             state.multiplayer.presenceRef = null;
             state.multiplayer.players = {};
             state.multiplayer.peers = {};

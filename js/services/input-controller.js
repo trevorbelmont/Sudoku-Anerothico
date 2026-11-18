@@ -53,7 +53,9 @@
       // Uma resposta correta pertence ao jogador que a registrou. A regra vale
       // para qualquer sala multiplayer (coop ou versus), nunca para o singleplayer.
       function isMultiplayerCellEditableByCurrentPlayer(r, c) {
-        if (!state.multiplayer || state.multiplayer.active !== true) return true;
+        // Fair play only exists inside an active room session. Keep contribution
+        // attribution in memory when disconnecting, but never carry the edit lock offline.
+        if (!state.multiplayer || state.multiplayer.active !== true || !state.multiplayer.roomId) return true;
         if (!state.board || !state.board[r] || !state.solution || !state.solution[r]) return true;
 
         const currentValue = state.board[r][c];

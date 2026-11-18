@@ -112,6 +112,7 @@ describe('applyButIgnoreFilter', () => {
         meta: { ownerPlayerId: 'p1' },
         boardState: { boardValues: [] },
         moves: { m1: { action: 'SET' } },
+        contributionEvents: { '2': { evt1: { operation: 'SET' } } },
         presence: { isActive: true },
         cursors: { p1: { row: 0 } },
       }
@@ -124,12 +125,14 @@ describe('applyButIgnoreFilter', () => {
       '[coldstorage_rooms]',
       'rooms/*/moves',
       'rooms/*/cursors',
+      'rooms/*/contributionEvents',
     ].join('\n');
     const rules = cs.parseButIgnoreText(text, 'coldstorage_rooms');
     const rooms = makeRooms();
     const count = cs.applyButIgnoreFilter(rooms, rules);
     expect(rooms.ROOM1.moves).toBeUndefined();
     expect(rooms.ROOM1.cursors).toBeUndefined();
+    expect(rooms.ROOM1.contributionEvents).toBeUndefined();
     expect(count).toBeGreaterThan(0);
   });
 
@@ -182,15 +185,17 @@ describe('applyButIgnoreFilter', () => {
       'rooms/*/moves',
       'rooms/*/presence',
       'rooms/*/cursors',
+      'rooms/*/contributionEvents',
     ].join('\n');
     const rules = cs.parseButIgnoreText(text, 'coldstorage_rooms');
-    // 1 global (rooms/*/presence) + 3 seccionais = 4, mas rooms/*/presence duplica
-    expect(rules.length).toBe(4);
+    // 1 global + 4 seccionais = 5, mas rooms/*/presence duplica
+    expect(rules.length).toBe(5);
     const rooms = makeRooms();
     cs.applyButIgnoreFilter(rooms, rules);
     expect(rooms.ROOM1.moves).toBeUndefined();
     expect(rooms.ROOM1.presence).toBeUndefined();
     expect(rooms.ROOM1.cursors).toBeUndefined();
+    expect(rooms.ROOM1.contributionEvents).toBeUndefined();
     expect(rooms.ROOM1.meta).toBeDefined();
     expect(rooms.ROOM1.boardState).toBeDefined();
   });
