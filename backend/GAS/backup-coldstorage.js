@@ -77,7 +77,7 @@ var YGGDRASIL_MAX_LIST_PAGE_SIZE = 1000;
 
 var TELEMETRY_HEADERS = [
   'JOB_ID', 'Timestamp', 'Invocation', 'Action', 'Status',
-  'Items_Processed', 'Bytes_Down', 'Bytes_Drive', 'Target', 'Errors', 'Notes'
+  'Items_Processed', 'Bytes_Read', 'Bytes_Written', 'Target', 'Errors', 'Notes'
 ];
 
 // Resolução da planilha de telemetria (Properties → Cache → Firebase → provisiona nova)

@@ -105,24 +105,20 @@
       },
 
       "coldstorage_rooms": {
-        "label": "COLDSTORAGE_ROOMS",
-        "row_background": "#E3EDF4",
-
+        "label": "YGGDRASIL_ROOMS",
+        "row_background": "#FFF8E1",
         "row_gradient": {
-          "from": "#EDF5FA",
-          "to": "#D7E7F1",
+          "from": "#FFF3E0",
+          "to": "#FFE0B2",
           "direction": "LEFT_TO_RIGHT"
         },
-
-        "row_font_color": "#1F3B52",
-
+        "row_font_color": "#4E342E",
         "job_id_cell": {
-          "bg": "#D3E4EF",
-          "fg": "#226B96"
+          "bg": "#FF9800",
+          "fg": "#FFFFFF"
         },
-
         "border_bottom": {
-          "color": "#C8D5E0",
+          "color": "#F57C00",
           "style": "SOLID"
         }
       },
