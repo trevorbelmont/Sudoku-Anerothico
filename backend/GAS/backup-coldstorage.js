@@ -1,5 +1,5 @@
 /**
- * SUDOKU ANERÓTHICO PRÓ — Cold Storage de Salas (Job: coldstorage_rooms)
+ * SUDOKU ANERÓTHICO — Cold Storage de Salas (Job: coldstorage_rooms)
  *  
  * Responsabilidade: backup diferencial de `rooms` do Firebase Realtime Database
  * para arquivos JSON no Google Drive, com watermark, exclusão de caminhos
