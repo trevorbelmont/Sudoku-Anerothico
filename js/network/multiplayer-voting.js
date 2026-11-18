@@ -148,6 +148,8 @@ async function requestNewGameConsensus() {
                   isCompleted: false,
                   gameName: `Sala: ${state.multiplayer.roomId} #${nextInstanceNumber}`,
                   lastUpdatedByPlayerId: proposal.proposerId,
+                  cellLocks: {},
+                  cellLastUpdatedByPlayerIdByCell: {},
                   updatedAtTimestamp: Date.now()
               };
               const roomIdAtExecution = state.multiplayer.roomId;
@@ -266,6 +268,7 @@ async function requestNewGameConsensus() {
                   // localmente antes de atualizar o status remoto para impedir reexecução
                   // caso a etapa auxiliar de finalização da votação falhe.
                   state.multiplayer.instanceCount = nextInstanceNumber;
+                  state.multiplayer.cellLocks = {};
                   state.multiplayer.executedProposalId = proposal.proposalId;
                   const propRef = fb.child(roomRef, 'proposal');
                   return fb.update(propRef, {

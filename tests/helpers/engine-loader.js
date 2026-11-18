@@ -85,6 +85,7 @@ function makeStateStubb() {
       active: false, roomId: null, playerName: 'Jogador',
       playerId: 'player_test123', listeners: [], peers: {},
       contributions: {}, members: {}, players: {}, roomMode: 'coop',
+      cellLocks: {},
       realtimeMetrics: false, color: '',
     },
     minVal: 1, maxVal: 9, includeZero: false,
@@ -234,6 +235,55 @@ _exports.showToast  = showToast;
   const vals = keys.map(k => ctx[k]);
   // eslint-disable-next-line no-new-func
   new Function(...keys, wrapper)(...vals);
+  return exports;
+}
+
+function loadInputControllerProtectionModule() {
+  const src = stripModuleDirectives(JS('services/input-controller.js'));
+  const state = makeStateStubb();
+  const exports = {};
+  const wrapper = `${src}\n_exports.isMultiplayerCellEditableByCurrentPlayer = isMultiplayerCellEditableByCurrentPlayer;\n_exports.applySymbolToCell = applySymbolToCell;\n_exports.eraseCell = eraseCell;`;
+  const noop = () => {};
+  const ctx = {
+    state,
+    document: makeDOMStub(),
+    _exports: exports,
+    setNasaContributionCell: noop,
+    pushMoveToFirebase: noop,
+    removeAutoNotesPeers: noop,
+    updateCellPencilDOM: noop,
+    updateAllCellVisuals: noop,
+    updateProgressUI: noop,
+    saveCurrentGameState: noop,
+  };
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  // eslint-disable-next-line no-new-func
+  new Function(...keys, wrapper)(...vals);
+  return { exports, state };
+}
+
+function loadMultiplayerServiceProtectionModule() {
+  const src = stripModuleDirectives(JS('network/multiplayer-service.js'));
+  const exports = {};
+  const wrapper = `${src}\n_exports.isAuthorizedCellOwnerUpdate = isAuthorizedCellOwnerUpdate;\n_exports.resolveCellOwnershipUpdate = resolveCellOwnershipUpdate;\n_exports.applyRoomBoardState = applyRoomBoardState;`;
+  const document = makeDOMStub();
+  document.getElementById = () => ({ value: '', textContent: '', classList: { contains: () => false, add: () => {}, remove: () => {} } });
+  const noop = () => {};
+  const state = makeStateStubb();
+  const ctx = {
+    state, _exports: exports, window: {}, document,
+    updateCellPencilDOM: noop, updateAllCellVisuals: noop, updateProgressUI: noop,
+    formatTime: () => '00:00', saveCurrentGameState: noop, setGameNameInput: noop,
+    pauseTimer: noop, startTimer: noop, openModal: noop, closeModal: noop,
+    updateMultiplayerVictorySummary: noop, removeAutoNotesPeers: noop,
+    ensureNasaContributionGrid: noop, DIFFICULTY_LABELS: {}, confetti: noop,
+  };
+  const keys = Object.keys(ctx);
+  const vals = keys.map(k => ctx[k]);
+  // eslint-disable-next-line no-new-func
+  new Function(...keys, wrapper)(...vals);
+  exports.state = state;
   return exports;
 }
 
@@ -556,6 +606,8 @@ module.exports = {
   loadEngineModule,
   loadAppStateModule,
   loadUiHelpersModule,
+  loadInputControllerProtectionModule,
+  loadMultiplayerServiceProtectionModule,
   loadMultiplayerServiceColorModule,
   loadMultiplayerVotingModule,
   loadSharingModule,

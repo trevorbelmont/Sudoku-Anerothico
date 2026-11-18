@@ -50,8 +50,36 @@
 
       function focusCellByCoords(r, c) { const inputEl = document.getElementById(`cell-input-${r}-${c}`); if (inputEl) { inputEl.focus(); handleCellFocus(r, c); } }
 
+      // Uma resposta correta pertence ao jogador que a registrou. A regra vale
+      // para qualquer sala multiplayer (coop ou versus), nunca para o singleplayer.
+      function isMultiplayerCellEditableByCurrentPlayer(r, c) {
+        if (!state.multiplayer || state.multiplayer.active !== true) return true;
+        if (!state.board || !state.board[r] || !state.solution || !state.solution[r]) return true;
+
+        const currentValue = state.board[r][c];
+        const solutionValue = state.solution[r][c];
+        if (currentValue === '' || currentValue === null || currentValue === undefined ||
+            solutionValue === null || solutionValue === undefined ||
+            String(currentValue) !== String(solutionValue)) return true;
+
+        const cellKey = `${r}_${c}`;
+        const cellLocks = state.multiplayer.cellLocks || {};
+        const contribution = (state.multiplayer.contributions || {})[cellKey];
+        const ownerId = cellLocks[cellKey] || (contribution && contribution.playerId);
+
+        // NASA e células antigas sem autoria conhecida não pertencem a um jogador.
+        // Nesse caso, a resposta correta permanece bloqueada para todos.
+        return !!ownerId && ownerId !== 'NASA' && ownerId === state.multiplayer.playerId;
+      }
+
+      function restoreCellInputValue(r, c) {
+        const inputEl = document.getElementById(`cell-input-${r}-${c}`);
+        if (inputEl) inputEl.value = state.board[r][c];
+      }
+
       function applySymbolToCell(r, c, symbol) {
         if (state.completed || state.initial[r][c] !== '' || !state.symbols.includes(symbol)) return;
+        if (!isMultiplayerCellEditableByCurrentPlayer(r, c)) { restoreCellInputValue(r, c); return; }
         state.revealedErrors[r][c] = false;
         if (state.pencilMode) {
           if (state.board[r][c] !== '') {
@@ -111,11 +139,7 @@
 
       function eraseCell(r, c) {
         if (state.completed || state.initial[r][c] !== '') return;
-        // Anti-cheat: em multiplayer, não apaga células que já contêm o valor correto.
-        // Uma célula correta só pode ser "apagada" pela própria pessoa que a preencheu — e ainda assim a
-        // pontuação já foi registrada — portanto bloqueamos o apagamento de células corretas por qualquer jogador.
-        if (state.multiplayer.active && state.solution && state.solution[r] &&
-            state.board[r][c] !== '' && state.board[r][c] === state.solution[r][c]) return;
+        if (!isMultiplayerCellEditableByCurrentPlayer(r, c)) { restoreCellInputValue(r, c); return; }
         state.board[r][c] = ''; state.notes[r][c].clear(); state.revealedErrors[r][c] = false; state.highlightedSymbol = null; setNasaContributionCell(r, c, false);
         pushMoveToFirebase('ERASE', r, c, '');
         updateCellPencilDOM(r, c); updateAllCellVisuals(); updateProgressUI(); saveCurrentGameState();

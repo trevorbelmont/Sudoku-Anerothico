@@ -322,7 +322,63 @@ function getFirebaseAPI() {
           return result;
       }
 
+      function serializeCurrentRoomCellLocks() {
+          const locks = {};
+          const contributions = state.multiplayer.contributions || {};
+          for (let r = 0; r < state.N; r++) for (let c = 0; c < state.N; c++) {
+              if (state.initial[r] && state.initial[r][c] !== '') continue;
+              const value = state.board[r] && state.board[r][c] != null ? String(state.board[r][c]) : '';
+              const solutionValue = state.solution && state.solution[r] ? String(state.solution[r][c]) : '';
+              if (!value || !solutionValue || value !== solutionValue) continue;
+              const key = `${r}_${c}`;
+              const contribution = contributions[key];
+              const ownerId = contribution && contribution.playerId
+                  ? contribution.playerId
+                  : (state.nasaContributions && state.nasaContributions[r] && state.nasaContributions[r][c] ? 'NASA' : state.multiplayer.playerId);
+              if (ownerId) locks[key] = ownerId;
+          }
+          return locks;
+      }
+
+      function preserveLegacyCellLocksBeforeContributionUpdate(previousContributions) {
+          if (!state.multiplayer || !state.multiplayer.active ||
+              state.multiplayer.lastAppliedInstanceNumber === null ||
+              state.multiplayer.lastAppliedInstanceNumber === undefined) return;
+          const locks = state.multiplayer.cellLocks || (state.multiplayer.cellLocks = {});
+          const previous = previousContributions || {};
+          for (let r = 0; r < state.N; r++) for (let c = 0; c < state.N; c++) {
+              if (state.initial[r] && state.initial[r][c] !== '') continue;
+              const value = state.board[r] && state.board[r][c] != null ? String(state.board[r][c]) : '';
+              const solutionValue = state.solution && state.solution[r] ? String(state.solution[r][c]) : '';
+              if (!value || !solutionValue || value !== solutionValue) continue;
+              const key = `${r}_${c}`;
+              if (Object.prototype.hasOwnProperty.call(locks, key)) continue;
+              const contribution = previous[key];
+              if (contribution && contribution.playerId) locks[key] = contribution.playerId;
+          }
+      }
+
+      function syncLegacyCellLocksFromContributions() {
+          if (!state.multiplayer || !state.multiplayer.active) return;
+          const locks = state.multiplayer.cellLocks || (state.multiplayer.cellLocks = {});
+          const contributions = state.multiplayer.contributions || {};
+          for (let r = 0; r < state.N; r++) for (let c = 0; c < state.N; c++) {
+              if (state.initial[r] && state.initial[r][c] !== '') continue;
+              const value = state.board[r] && state.board[r][c] != null ? String(state.board[r][c]) : '';
+              const solutionValue = state.solution && state.solution[r] ? String(state.solution[r][c]) : '';
+              if (!value || !solutionValue || value !== solutionValue) continue;
+              const key = `${r}_${c}`;
+              if (Object.prototype.hasOwnProperty.call(locks, key)) continue;
+              const contribution = contributions[key];
+              // Salas legadas sem autoria conhecida permanecem bloqueadas para todos
+              // (fail-safe). Não atribuímos automaticamente a autoria ao anfitrião.
+              const ownerId = contribution && contribution.playerId ? contribution.playerId : null;
+              if (ownerId) locks[key] = ownerId;
+          }
+      }
+
       function serializeCurrentRoomBoard(instanceNumber = state.multiplayer.instanceCount) {
+          const cellLocks = serializeCurrentRoomCellLocks();
           return {
               boardInstanceNumber: instanceNumber,
               boardValues: state.board.map(row => row.map(value => value == null ? '' : String(value))),
@@ -331,9 +387,39 @@ function getFirebaseAPI() {
               isCompleted: !!state.completed,
               gameName: state.gameName || '',
               lastUpdatedByPlayerId: state.multiplayer.playerId,
+              cellLocks,
+              cellLastUpdatedByPlayerIdByCell: Object.fromEntries(Object.keys(cellLocks).map(key => [key, cellLocks[key]])),
               updatedAtTimestamp: Date.now()
           };
       }
+
+      function isAuthorizedCellOwnerUpdate(ownerId, editorId) {
+          return typeof ownerId === 'string' && ownerId.length > 0 && editorId === ownerId;
+      }
+
+      // Resolve, de forma pura, se a atualização remota pode ser aplicada e
+      // qual autoria deve permanecer após ela.
+      function resolveCellOwnershipUpdate(localValue, incomingValue, solutionValue, ownerId, editorId, incomingOwnerId, contributionOwnerId) {
+          const normalizedLocal = localValue == null ? '' : String(localValue);
+          const normalizedIncoming = incomingValue == null ? '' : String(incomingValue);
+          const normalizedSolution = solutionValue == null ? '' : String(solutionValue);
+          const localIsCorrect = normalizedLocal !== '' && normalizedSolution !== '' && normalizedLocal === normalizedSolution;
+          const incomingIsCorrect = normalizedIncoming !== '' && normalizedSolution !== '' && normalizedIncoming === normalizedSolution;
+
+          if (localIsCorrect && normalizedIncoming !== normalizedLocal && !isAuthorizedCellOwnerUpdate(ownerId, editorId)) {
+              return { accepted: false, ownerId: ownerId || null };
+          }
+          if (localIsCorrect && normalizedIncoming === normalizedLocal) {
+              // Um update não pode transferir a autoria de uma resposta já correta.
+              return { accepted: true, ownerId: ownerId || null };
+          }
+          if (incomingIsCorrect) {
+              if (incomingOwnerId === 'NASA') return { accepted: true, ownerId: 'NASA' };
+              return { accepted: true, ownerId: editorId || contributionOwnerId || null };
+          }
+          return { accepted: true, ownerId: null };
+      }
+
 
       function applyRoomBoardState(roomState) {
           if (!roomState || !Array.isArray(roomState.boardValues)) return;
@@ -350,19 +436,52 @@ function getFirebaseAPI() {
           state.multiplayer.pendingBoardState = null;
           const wasCompleted = !!state.completed;
           const previousBoard = state.board.map(row => row.slice());
+          const previousCellLocks = { ...(state.multiplayer.cellLocks || {}) };
+          const incomingCellLocks = roomState.cellLocks && typeof roomState.cellLocks === 'object' ? roomState.cellLocks : null;
+          const incomingCellEditors = roomState.cellLastUpdatedByPlayerIdByCell && typeof roomState.cellLastUpdatedByPlayerIdByCell === 'object'
+              ? roomState.cellLastUpdatedByPlayerIdByCell : {};
+          const nextCellLocks = { ...previousCellLocks };
           const incomingElapsed = Number.isFinite(Number(roomState.elapsedSeconds)) ? Number(roomState.elapsedSeconds) : 0;
           if (roomState.isCompleted || wasCompleted) state.timerSeconds = incomingElapsed;
           state.completed = !!roomState.isCompleted;
-          // Anti-cheat: ao aplicar o estado remoto, não permite que uma célula com valor correto
-          // seja apagada por outro jogador. Se o valor remoto é vazio e o local é correto, preserva o local.
+          // As alterações de célula e seu autor são publicadas juntas. Isso permite
+          // que o dono de uma resposta correta a corrija sem abrir a célula aos demais.
           const incomingBoard = roomState.boardValues.map(row => row.map(value => value == null ? '' : String(value)));
           state.board = incomingBoard.map((row, r) => row.map((incomingVal, c) => {
-              if (state.initial[r] && state.initial[r][c] !== '') return state.initial[r][c]; // pista fixa
+              if (state.initial[r] && state.initial[r][c] !== '') {
+                  delete nextCellLocks[`${r}_${c}`];
+                  return state.initial[r][c]; // pista fixa
+              }
+              const cellKey = `${r}_${c}`;
               const localVal = previousBoard[r] ? previousBoard[r][c] : '';
-              const isLocalCorrect = localVal !== '' && state.solution && state.solution[r] && localVal === state.solution[r][c];
-              if (isLocalCorrect && incomingVal === '') return localVal; // preserva valor correto local
+              const solutionValue = state.solution && state.solution[r] ? String(state.solution[r][c]) : '';
+              const contribution = (state.multiplayer.contributions || {})[cellKey];
+              const ownerId = previousCellLocks[cellKey] || (contribution && contribution.playerId) || null;
+              // Não usamos lastUpdatedByPlayerId (global) como fallback: ele pode
+              // pertencer a uma jogada em outra célula. A autoria precisa ser específica.
+              const editorId = incomingCellEditors[cellKey] || '';
+              const incomingOwnerId = incomingCellLocks && incomingCellLocks[cellKey] != null
+                  ? String(incomingCellLocks[cellKey]) : '';
+              const ownership = resolveCellOwnershipUpdate(
+                  localVal,
+                  incomingVal,
+                  solutionValue,
+                  ownerId,
+                  editorId,
+                  incomingOwnerId,
+                  contribution && contribution.playerId
+              );
+              if (!ownership.accepted) {
+                  if (ownership.ownerId) nextCellLocks[cellKey] = ownership.ownerId;
+                  else delete nextCellLocks[cellKey];
+                  return localVal; // rejeita alteração remota feita por outro jogador
+              }
+              if (ownership.ownerId) nextCellLocks[cellKey] = ownership.ownerId;
+              else delete nextCellLocks[cellKey];
               return incomingVal;
           }));
+          state.multiplayer.cellLocks = nextCellLocks;
+          syncLegacyCellLocksFromContributions();
           if (state.multiplayer.roomMode === 'versus') {
               // Keep private annotations local, but still apply normal Sudoku candidate cleanup
               // when an opponent fills a cell with a new value.
@@ -470,6 +589,9 @@ function getFirebaseAPI() {
           if (contributionChange) {
               const instanceNumber = Number(state.multiplayer.instanceCount || 0);
               const cellKey = `${row}_${column}`;
+              const cellOwner = (state.multiplayer.cellLocks || {})[cellKey];
+              patch[`boardState/cellLocks/${cellKey}`] = cellOwner || null;
+              patch[`boardState/cellLastUpdatedByPlayerIdByCell/${cellKey}`] = state.multiplayer.playerId;
               const eventCollection = fb.ref(fb.db, roomPath(state.multiplayer.roomId, `contributionEvents/${instanceNumber}`));
               let eventId = '';
               try {
@@ -616,6 +738,7 @@ function getFirebaseAPI() {
           state.nasaContributions = Array.from({ length: state.N }, () => Array(state.N).fill(false));
           state.nasaCalls = 0;
           state.multiplayer.contributions = {};
+          state.multiplayer.cellLocks = {};
           state.revealedErrors = Array.from({ length: state.N }, () => Array(state.N).fill(false));
           state.timerSeconds = 0;
           state.completed = false;
@@ -673,7 +796,15 @@ function getFirebaseAPI() {
           let contributionChange = null;
           if (['SET', 'ERASE', 'NASA'].includes(action) && row >= 0 && column >= 0) {
               state.multiplayer.contributions = state.multiplayer.contributions || {};
+              state.multiplayer.cellLocks = state.multiplayer.cellLocks || {};
               const localKey = `${row}_${column}`;
+              const resultingValue = action === 'ERASE' ? '' : String(value ?? '');
+              const solutionValue = state.solution && state.solution[row] ? String(state.solution[row][column]) : '';
+              if (resultingValue !== '' && solutionValue !== '' && resultingValue === solutionValue) {
+                  state.multiplayer.cellLocks[localKey] = action === 'NASA' ? 'NASA' : state.multiplayer.playerId;
+              } else {
+                  delete state.multiplayer.cellLocks[localKey];
+              }
               let contribution = null;
               if (action === 'NASA' && String(value ?? '') !== '') {
                   contribution = { kind: 'NASA', action: 'NASA', playerId: 'NASA', playerName: 'NASA', timestamp: Date.now() };
@@ -817,7 +948,11 @@ function getFirebaseAPI() {
           }));
 
           state.multiplayer.listeners.push(fb.onValue(contributionsRef, snapshot => {
+              // Antes de substituir o snapshot de contribuições, preserve a autoria
+              // anterior de células corretas em salas legadas sem cellLocks.
+              preserveLegacyCellLocksBeforeContributionUpdate(state.multiplayer.contributions);
               state.multiplayer.contributions = snapshot.val() && typeof snapshot.val() === 'object' ? snapshot.val() : {};
+              syncLegacyCellLocksFromContributions();
               updateAllCellVisuals();
               updateNasaContributionSummary();
               renderMultiplayerSidebar();
@@ -927,6 +1062,7 @@ function getFirebaseAPI() {
               const modeLabel = document.getElementById('mp-room-mode-label');
               if (modeLabel) modeLabel.textContent = state.multiplayer.roomMode === 'versus' ? '⚔️ Rinha de Galo 🐓' : '🤝 Prosa e Cafézin ☕';
               state.multiplayer.contributions = {};
+              state.multiplayer.cellLocks = {};
               state.multiplayer.lastAppliedInstanceNumber = null;
               state.multiplayer.processedMoveIds = {};
               state.multiplayer.lastProcessedSeq = 0;
@@ -1003,6 +1139,7 @@ function getFirebaseAPI() {
           const roomRef = fb.ref(fb.db, roomPath(roomId));
           const metaPayload = createRoomMeta(0, state.multiplayer.playerId);
           const boardState = serializeCurrentRoomBoard(0);
+          state.multiplayer.cellLocks = { ...(boardState.cellLocks || {}) };
           boardState.gameName = state.gameName;
           Promise.all([
               fb.set(fb.child(roomRef, 'meta'), metaPayload),

@@ -133,6 +133,8 @@
             roomMode: APP_CONFIG.DEFAULT_ROOM_MODE,
             realtimeMetrics: false,
             contributions: {},
+            // Dono das células corretas na instância multiplayer corrente (cache de boardState).
+            cellLocks: {},
             currentFeatureVote: null,
             featureVoteMinimized: false,
             observedFeatureVoteIds: {},
